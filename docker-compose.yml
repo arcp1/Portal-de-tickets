@@ -1,0 +1,58 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: portal_tickets_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cgr_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cgr_secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-portal_tickets}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cgr_user} -d ${POSTGRES_DB:-portal_tickets}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: portal_tickets_backend
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: portal_tickets_frontend
+    restart: always
+    ports:
+      - "3000:80"
+
+  nginx:
+    image: nginx:alpine
+    container_name: portal_tickets_nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  postgres_data:

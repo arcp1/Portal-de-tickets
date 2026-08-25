@@ -1,0 +1,88 @@
+{
+  "nav": {
+    "dashboard": "Tickets",
+    "new_ticket": "Nuevo Ticket",
+    "inventory": "Inventario TI",
+    "rules": "Reglas de Negocio",
+    "logout": "Cerrar Sesión",
+    "plant": "Planta Querétaro"
+  },
+  "auth": {
+    "title": "Portal de Tickets TI",
+    "subtitle": "CGR de México · Planta Querétaro",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "login_btn": "Iniciar Sesión",
+    "logging_in": "Ingresando...",
+    "error_login": "Credenciales inválidas"
+  },
+  "dashboard": {
+    "title": "Panel de Incidencias TI",
+    "subtitle": "Gestión y seguimiento de solicitudes de soporte técnico",
+    "filter_all": "Todos los estados",
+    "filter_abierto": "Abiertos",
+    "filter_en_proceso": "En Proceso",
+    "filter_espera_proveedor": "En Proveedor",
+    "filter_resuelto": "Resueltos",
+    "filter_cerrado": "Cerrados",
+    "no_tickets": "No hay tickets registrados.",
+    "search_placeholder": "Buscar por folio o descripción..."
+  },
+  "ticket": {
+    "folio": "Folio",
+    "categoria": "Categoría",
+    "prioridad": "Prioridad",
+    "estado": "Estado",
+    "creado_por": "Reportado por",
+    "asignado_a": "Asignado a",
+    "canal": "Canal de resolución",
+    "fecha": "Fecha",
+    "descripcion": "Descripción del Problema",
+    "equipo_asociado": "Equipo Asociado",
+    "sin_equipo": "Sin equipo específico",
+    "comentarios": "Comentarios y Seguimiento",
+    "add_comment": "Agregar comentario",
+    "send_comment": "Enviar Comentario",
+    "internal_note": "Nota interna (solo visibles para TI)"
+  },
+  "new_ticket": {
+    "title": "Reportar Incidencia de TI",
+    "step1_category": "Paso 1: Seleccione la Categoría",
+    "step2_checklist": "Paso 2: Verificación previa (Checklist)",
+    "step3_details": "Paso 3: Detalle de la Solicitud",
+    "category_impresora": "Impresora / Etiquetadora",
+    "category_red": "Red / Wi-Fi / Conectividad",
+    "category_equipo": "Laptop / PC / Hardware",
+    "category_software": "Software / Sistema ERP",
+    "category_accesos": "Accesos / Cuentas / Correo",
+    "category_otro": "Otro",
+    "checklist_notice": "Por favor responda las siguientes preguntas rápidas antes de abrir un ticket.",
+    "question_resolved": "¿Se resolvió su problema con estos pasos?",
+    "yes_resolved": "Sí, quedó resuelto (No crear ticket)",
+    "no_continue": "No, continuo necesitando ayuda de TI",
+    "ticket_resolved_checklist": "¡Excelente! Su problema fue resuelto mediante la guía interactiva.",
+    "submit_btn": "Generar Ticket de Soporte"
+  },
+  "inventory": {
+    "title": "Inventario de Equipos TI",
+    "subtitle": "Control de activos, pasivos y consumibles de la planta",
+    "add_btn": "Registrar Equipo",
+    "tipo_activo": "Activo",
+    "tipo_pasivo": "Pasivo",
+    "tipo_consumible": "Consumible",
+    "serial": "Nº de Serie",
+    "location": "Ubicación",
+    "assigned": "Asignado a"
+  },
+  "checklists": {
+    "impresora": {
+      "encendida": "¿La impresora está encendida y conectada a la toma de corriente?",
+      "papel_toner": "¿Tiene papel/etiquetas suficientes y el tóner o ribbon está colocado?",
+      "reinicio": "¿Intentó apagar la impresora por 10 segundos y encenderla de nuevo?"
+    },
+    "red": {
+      "cable": "¿El cable de red está bien encajado en la pared y en el equipo?",
+      "wifi": "¿El Wi-Fi de la planta está activo en su equipo?"
+    }
+  }
+}

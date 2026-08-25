@@ -1,0 +1,88 @@
+{
+  "nav": {
+    "dashboard": "Tickets",
+    "new_ticket": "New Ticket",
+    "inventory": "IT Inventory",
+    "rules": "Business Rules",
+    "logout": "Log Out",
+    "plant": "Querétaro Plant"
+  },
+  "auth": {
+    "title": "IT Ticket Portal",
+    "subtitle": "CGR de México · Querétaro Plant",
+    "email": "Email Address",
+    "password": "Password",
+    "login_btn": "Sign In",
+    "logging_in": "Signing in...",
+    "error_login": "Invalid credentials"
+  },
+  "dashboard": {
+    "title": "IT Support Dashboard",
+    "subtitle": "Tracking and resolution management for technical incidents",
+    "filter_all": "All Statuses",
+    "filter_abierto": "Open",
+    "filter_en_proceso": "In Progress",
+    "filter_espera_proveedor": "At Vendor",
+    "filter_resuelto": "Resolved",
+    "filter_cerrado": "Closed",
+    "no_tickets": "No tickets found.",
+    "search_placeholder": "Search by ticket folio or description..."
+  },
+  "ticket": {
+    "folio": "Folio",
+    "categoria": "Category",
+    "prioridad": "Priority",
+    "estado": "Status",
+    "creado_por": "Reported by",
+    "asignado_a": "Assigned to",
+    "canal": "Resolution Channel",
+    "fecha": "Date",
+    "descripcion": "Issue Description",
+    "equipo_asociado": "Associated Equipment",
+    "sin_equipo": "No specific equipment",
+    "comentarios": "Comments & Audit Log",
+    "add_comment": "Add comment",
+    "send_comment": "Send Comment",
+    "internal_note": "Internal note (IT staff only)"
+  },
+  "new_ticket": {
+    "title": "Report an IT Incident",
+    "step1_category": "Step 1: Select Category",
+    "step2_checklist": "Step 2: Troubleshooting Checklist",
+    "step3_details": "Step 3: Issue Details",
+    "category_impresora": "Printer / Label Maker",
+    "category_red": "Network / Wi-Fi",
+    "category_equipo": "Laptop / PC / Hardware",
+    "category_software": "Software / ERP System",
+    "category_accesos": "Access / Accounts / Email",
+    "category_otro": "Other",
+    "checklist_notice": "Please complete this quick self-service check before opening a ticket.",
+    "question_resolved": "Did these steps resolve your issue?",
+    "yes_resolved": "Yes, issue is resolved (Do not open ticket)",
+    "no_continue": "No, I still need IT assistance",
+    "ticket_resolved_checklist": "Great! Your issue was resolved using the troubleshooting guide.",
+    "submit_btn": "Submit Support Ticket"
+  },
+  "inventory": {
+    "title": "IT Equipment Inventory",
+    "subtitle": "Plant active, passive, and consumable asset management",
+    "add_btn": "Register Equipment",
+    "tipo_activo": "Active",
+    "tipo_pasivo": "Passive",
+    "tipo_consumible": "Consumable",
+    "serial": "Serial Number",
+    "location": "Location",
+    "assigned": "Assigned to"
+  },
+  "checklists": {
+    "impresora": {
+      "encendida": "Is the printer turned on and securely plugged into power?",
+      "papel_toner": "Does it have sufficient paper/labels and installed ribbon/toner?",
+      "reinicio": "Did you try turning off the printer for 10 seconds and back on?"
+    },
+    "red": {
+      "cable": "Is the ethernet cable firmly connected to both wall and computer?",
+      "wifi": "Is the plant Wi-Fi network active on your device?"
+    }
+  }
+}

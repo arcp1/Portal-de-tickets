@@ -1,0 +1,88 @@
+{
+  "nav": {
+    "dashboard": "Tickets",
+    "new_ticket": "Nouveau Ticket",
+    "inventory": "Inventaire IT",
+    "rules": "Règles de Gestion",
+    "logout": "Déconnexion",
+    "plant": "Usine de Querétaro"
+  },
+  "auth": {
+    "title": "Portail de Tickets IT",
+    "subtitle": "CGR de México · Usine de Querétaro",
+    "email": "Adresse E-mail",
+    "password": "Mot de passe",
+    "login_btn": "Se Connecter",
+    "logging_in": "Connexion en cours...",
+    "error_login": "Identifiants invalides"
+  },
+  "dashboard": {
+    "title": "Tableau de Bord IT",
+    "subtitle": "Gestion et suivi des demandes de support technique",
+    "filter_all": "Tous los statuts",
+    "filter_abierto": "Ouvert",
+    "filter_en_proceso": "En cours",
+    "filter_espera_proveedor": "Chez le fournisseur",
+    "filter_resuelto": "Résolu",
+    "filter_cerrado": "Fermé",
+    "no_tickets": "Aucun ticket enregistré.",
+    "search_placeholder": "Rechercher par numéro ou description..."
+  },
+  "ticket": {
+    "folio": "Numéro",
+    "categoria": "Catégorie",
+    "prioridad": "Priorité",
+    "estado": "Statut",
+    "creado_por": "Signalé par",
+    "asignado_a": "Assigné à",
+    "canal": "Canal de résolution",
+    "fecha": "Date",
+    "descripcion": "Description del Problème",
+    "equipo_asociado": "Équipement Associé",
+    "sin_equipo": "Aucun équipement spécifique",
+    "comentarios": "Commentaires et Suivi",
+    "add_comment": "Ajouter un commentaire",
+    "send_comment": "Envoyer le commentaire",
+    "internal_note": "Note interne (équipe IT uniquement)"
+  },
+  "new_ticket": {
+    "title": "Signaler un Incident IT",
+    "step1_category": "Étape 1: Sélectionner la Catégorie",
+    "step2_checklist": "Étape 2: Vérification préalable",
+    "step3_details": "Étape 3: Détails del Demande",
+    "category_impresora": "Imprimante / Étiqueteuse",
+    "category_red": "Réseau / Wi-Fi",
+    "category_equipo": "Ordinateur / Matériel",
+    "category_software": "Logiciel / Système ERP",
+    "category_accesos": "Accès / Comptes / E-mail",
+    "category_otro": "Autre",
+    "checklist_notice": "Veuillez répondre à ces questions avant d'ouvrir un ticket.",
+    "question_resolved": "Le problème est-il résolu avec ces étapes ?",
+    "yes_resolved": "Oui, résolu (Ne pas créer de ticket)",
+    "no_continue": "Non, j'ai toujours besoin d'aide IT",
+    "ticket_resolved_checklist": "Excellent ! Votre problème a été résolu grâce au guide.",
+    "submit_btn": "Soumettre le Ticket"
+  },
+  "inventory": {
+    "title": "Inventaire des Équipements IT",
+    "subtitle": "Gestion des actifs de l'usine",
+    "add_btn": "Enregistrer un Équipement",
+    "tipo_activo": "Actif",
+    "tipo_pasivo": "Passif",
+    "tipo_consumible": "Consommable",
+    "serial": "Numéro de Série",
+    "location": "Emplacement",
+    "assigned": "Assigné à"
+  },
+  "checklists": {
+    "impresora": {
+      "encendida": "L'imprimante est-elle sous tension et branchée ?",
+      "papel_toner": "Y a-t-il suffisamment de papier/étiquettes et de ruban ?",
+      "reinicio": "Avez-vous essayé d'éteindre puis de rallumer l'imprimante ?"
+    },
+    "red": {
+      "cable": "Le câble réseau est-il bien connecté à l'ordinateur ?",
+      "wifi": "Le réseau Wi-Fi est-il actif sur votre appareil ?"
+    }
+  }
+}
