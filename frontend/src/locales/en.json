@@ -43,7 +43,20 @@
     "comentarios": "Comments & Audit Log",
     "add_comment": "Add comment",
     "send_comment": "Send Comment",
-    "internal_note": "Internal note (IT staff only)"
+    "internal_note": "Internal note (IT staff only)",
+    "descripcion_normalizada": "Normalized Description",
+    "solucion": "Applied Solution",
+    "solucion_placeholder": "Explain what was done to resolve the issue. This text feeds the knowledge base.",
+    "solucion_faltan": "{{n}} more characters needed to close.",
+    "solucion_ok": "The solution is detailed enough to document the closure.",
+    "cerrar_titulo_resuelto": "Mark as Resolved",
+    "cerrar_titulo_cerrado": "Close Ticket",
+    "cerrar_ayuda": "A ticket cannot be closed without explaining how it was resolved. The solution stays in the history and feeds the search for similar incidents.",
+    "confirmar_cierre": "Confirm and Close",
+    "cancelar": "Cancel",
+    "guardando": "Saving...",
+    "error_cierre": "The ticket could not be closed. Review the solution and try again.",
+    "pendiente_indexar": "Pending indexing into the knowledge base."
   },
   "new_ticket": {
     "title": "Report an IT Incident",
@@ -62,6 +75,30 @@
     "no_continue": "No, I still need IT assistance",
     "ticket_resolved_checklist": "Great! Your issue was resolved using the troubleshooting guide.",
     "submit_btn": "Submit Support Ticket"
+  },
+  "kb": {
+    "titulo": "We solved this before",
+    "te_sirvio": "Did this help?",
+    "si_sirvio": "Yes, it helped",
+    "no_sirvio": "It didn't help",
+    "gracias_util": "Thanks. Recorded as helpful.",
+    "gracias_no_util": "Thanks. Continuing with the ticket.",
+    "resuelto_titulo": "Done! Your issue was solved by a previous case.",
+    "resuelto_detalle": "No need to open a ticket. If the problem comes back, you can still raise one.",
+    "finalizar": "Finish and Return to Dashboard",
+    "crear_de_todos_modos": "Open a ticket anyway"
+  },
+  "chat": {
+    "titulo": "IT Assistant",
+    "abrir": "Open the assistant",
+    "cerrar": "Close the assistant",
+    "enviar": "Send",
+    "placeholder": "Describe your issue...",
+    "bienvenida": "Tell me what is going on and I will point you to the right place. You can also use the regular form if you prefer.",
+    "clasificado": "This looks like a {{categoria}} issue. Opening the form for you.",
+    "pedir_categoria": "To help you better, is this about...?",
+    "escalando": "Let us hand this to the IT team. Opening the form with what you wrote.",
+    "hablar_tecnico": "Talk to a technician"
   },
   "inventory": {
     "title": "IT Equipment Inventory",

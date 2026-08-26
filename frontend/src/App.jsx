@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
+import ChatFlotante from './components/ChatFlotante';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import NewTicket from './pages/NewTicket';
@@ -77,6 +78,9 @@ function AppRoutes() {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      {/* Visible desde que el usuario entra al portal. Se oculta solo si
+          Ollama no está disponible. */}
+      {user && <ChatFlotante />}
     </>
   );
 }

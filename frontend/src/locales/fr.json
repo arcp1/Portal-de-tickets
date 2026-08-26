@@ -43,7 +43,20 @@
     "comentarios": "Commentaires et Suivi",
     "add_comment": "Ajouter un commentaire",
     "send_comment": "Envoyer le commentaire",
-    "internal_note": "Note interne (équipe IT uniquement)"
+    "internal_note": "Note interne (équipe IT uniquement)",
+    "descripcion_normalizada": "Description Normalisée",
+    "solucion": "Solution Appliquée",
+    "solucion_placeholder": "Expliquez ce qui a été fait pour résoudre l'incident. Ce texte alimente la base de connaissances.",
+    "solucion_faltan": "{{n}} caractères manquants pour pouvoir clôturer.",
+    "solucion_ok": "La solution est suffisante pour documenter la clôture.",
+    "cerrar_titulo_resuelto": "Marquer comme Résolu",
+    "cerrar_titulo_cerrado": "Clôturer le Ticket",
+    "cerrar_ayuda": "Un ticket ne peut pas être clôturé sans expliquer comment il a été résolu. La solution reste dans l'historique et alimente la recherche d'incidents similaires.",
+    "confirmar_cierre": "Confirmer et Clôturer",
+    "cancelar": "Annuler",
+    "guardando": "Enregistrement...",
+    "error_cierre": "Le ticket n’a pas pu être clôturé. Vérifiez la solution et réessayez.",
+    "pendiente_indexar": "En attente d’indexation dans la base de connaissances."
   },
   "new_ticket": {
     "title": "Signaler un Incident IT",
@@ -62,6 +75,30 @@
     "no_continue": "Non, j'ai toujours besoin d'aide IT",
     "ticket_resolved_checklist": "Excellent ! Votre problème a été résolu grâce au guide.",
     "submit_btn": "Soumettre le Ticket"
+  },
+  "kb": {
+    "titulo": "Nous avons déjà résolu ceci",
+    "te_sirvio": "Cela vous a-t-il aidé ?",
+    "si_sirvio": "Oui, cela m’a aidé",
+    "no_sirvio": "Cela ne m’a pas aidé",
+    "gracias_util": "Merci. Enregistré comme utile.",
+    "gracias_no_util": "Merci. Nous continuons avec le ticket.",
+    "resuelto_titulo": "Terminé ! Votre problème a été résolu par un cas précédent.",
+    "resuelto_detalle": "Inutile de créer un ticket. Si le problème revient, vous pouvez toujours en ouvrir un.",
+    "finalizar": "Terminer et Revenir au Tableau de Bord",
+    "crear_de_todos_modos": "Créer un ticket quand même"
+  },
+  "chat": {
+    "titulo": "Assistant Informatique",
+    "abrir": "Ouvrir l’assistant",
+    "cerrar": "Fermer l’assistant",
+    "enviar": "Envoyer",
+    "placeholder": "Décrivez votre problème...",
+    "bienvenida": "Dites-moi ce qui se passe et je vous oriente au bon endroit. Vous pouvez aussi utiliser le formulaire habituel si vous préférez.",
+    "clasificado": "Cela ressemble à un problème de {{categoria}}. J’ouvre le formulaire.",
+    "pedir_categoria": "Pour mieux vous aider, s’agit-il de...?",
+    "escalando": "Passons-le à l’équipe informatique. J’ouvre le formulaire avec ce que vous avez écrit.",
+    "hablar_tecnico": "Parler à un technicien"
   },
   "inventory": {
     "title": "Inventaire des Équipements IT",

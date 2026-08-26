@@ -43,7 +43,20 @@
     "comentarios": "Comentarios y Seguimiento",
     "add_comment": "Agregar comentario",
     "send_comment": "Enviar Comentario",
-    "internal_note": "Nota interna (solo visibles para TI)"
+    "internal_note": "Nota interna (solo visibles para TI)",
+    "descripcion_normalizada": "Descripción Normalizada",
+    "solucion": "Solución Aplicada",
+    "solucion_placeholder": "Explique qué se hizo para resolver la incidencia. Este texto alimenta la base de conocimiento.",
+    "solucion_faltan": "Faltan {{n}} caracteres para poder cerrar.",
+    "solucion_ok": "La solución es suficiente para documentar el cierre.",
+    "cerrar_titulo_resuelto": "Marcar como Resuelto",
+    "cerrar_titulo_cerrado": "Cerrar Ticket",
+    "cerrar_ayuda": "No se puede cerrar un ticket sin explicar cómo se resolvió. La solución queda en el historial y alimenta la búsqueda de incidencias parecidas.",
+    "confirmar_cierre": "Confirmar y Cerrar",
+    "cancelar": "Cancelar",
+    "guardando": "Guardando...",
+    "error_cierre": "No se pudo cerrar el ticket. Revise la solución e intente de nuevo.",
+    "pendiente_indexar": "Pendiente de indexar en la base de conocimiento."
   },
   "new_ticket": {
     "title": "Reportar Incidencia de TI",
@@ -62,6 +75,30 @@
     "no_continue": "No, continuo necesitando ayuda de TI",
     "ticket_resolved_checklist": "¡Excelente! Su problema fue resuelto mediante la guía interactiva.",
     "submit_btn": "Generar Ticket de Soporte"
+  },
+  "kb": {
+    "titulo": "Esto ya lo resolvimos antes",
+    "te_sirvio": "¿Te sirvió?",
+    "si_sirvio": "Sí, me sirvió",
+    "no_sirvio": "No me sirvió",
+    "gracias_util": "Gracias. Registrado como útil.",
+    "gracias_no_util": "Gracias. Seguimos con el ticket.",
+    "resuelto_titulo": "¡Listo! Su problema se resolvió con un caso anterior.",
+    "resuelto_detalle": "No hace falta crear un ticket. Si el problema vuelve, puede levantarlo de todos modos.",
+    "finalizar": "Finalizar y Volver al Panel",
+    "crear_de_todos_modos": "Crear ticket de todos modos"
+  },
+  "chat": {
+    "titulo": "Asistente de TI",
+    "abrir": "Abrir el asistente",
+    "cerrar": "Cerrar el asistente",
+    "enviar": "Enviar",
+    "placeholder": "Describa su problema...",
+    "bienvenida": "Cuénteme qué está pasando y lo dirijo al lugar correcto. Si prefiere, también puede usar el formulario de siempre.",
+    "clasificado": "Parece un tema de {{categoria}}. Le abro el formulario.",
+    "pedir_categoria": "Para ayudarle mejor, ¿esto se trata de...?",
+    "escalando": "Mejor lo pasamos al equipo de TI. Le abro el formulario con lo que escribió.",
+    "hablar_tecnico": "Hablar con un técnico"
   },
   "inventory": {
     "title": "Inventario de Equipos TI",

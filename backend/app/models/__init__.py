@@ -1,8 +1,12 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Float
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Float, JSON
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from pgvector.sqlalchemy import Vector
 from app.core.db import Base
+
+# jsonb en Postgres, json genérico en SQLite (pruebas).
+JSONFlexible = JSON().with_variant(JSONB, "postgresql")
 
 class Sitio(Base):
     __tablename__ = "sitios"
@@ -72,6 +76,10 @@ class Ticket(Base):
     estado = Column(String(30), default="abierto") # abierto, en_proceso, espera_proveedor, resuelto, cerrado
     asignado_a = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     canal_resolucion = Column(String(30), nullable=True) # checklist, kb, ia, tecnico, proveedor
+    # Obligatorio al pasar a resuelto/cerrado. Se valida en la API, no en la BD,
+    # porque los tickets anteriores a este campo no la tienen.
+    solucion = Column(Text, nullable=True)
+    indexado_kb = Column(Boolean, default=False, nullable=False)
     creado_en = Column(DateTime, default=datetime.utcnow)
     resuelto_en = Column(DateTime, nullable=True)
     tiempo_resolucion = Column(Integer, nullable=True) # in minutes
@@ -106,7 +114,26 @@ class BaseConocimiento(Base):
     tags = Column(String(200), nullable=True)
     embedding = Column(Vector(768), nullable=True)
     ticket_origen_id = Column(Integer, ForeignKey("tickets.id"), nullable=True)
+    # Contadores de utilidad. veces_util / veces_sugerida es la métrica que calibra el umbral.
+    veces_sugerida = Column(Integer, default=0, nullable=False)
+    veces_util = Column(Integer, default=0, nullable=False)
+    ultima_sugerencia = Column(DateTime, nullable=True)
     creado_en = Column(DateTime, default=datetime.utcnow)
+
+class SugerenciaKB(Base):
+    """Una fila por sugerencia mostrada al usuario. fue_util queda en NULL
+    hasta que responde el botón de '¿te sirvió?'."""
+    __tablename__ = "sugerencias_kb"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=True)
+    kb_id = Column(Integer, ForeignKey("base_conocimiento.id"), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    similitud = Column(Float, nullable=False)
+    fue_util = Column(Boolean, nullable=True)
+    creado_en = Column(DateTime, default=datetime.utcnow)
+
+    kb = relationship("BaseConocimiento")
 
 class Checklist(Base):
     __tablename__ = "checklists"
@@ -130,6 +157,26 @@ class ReglaNegocio(Base):
     activa = Column(Boolean, default=True)
 
     sitio = relationship("Sitio", back_populates="reglas")
+
+class ChatSesion(Base):
+    """Una conversación del chatbot flotante.
+
+    El contexto vive dentro de la sesión y no se comparte entre incidencias
+    distintas: cada incidencia nueva abre una sesión nueva.
+    """
+    __tablename__ = "chat_sesiones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=True)
+    categoria_detectada = Column(String(50), nullable=True)
+    confianza = Column(Float, nullable=True)
+    # [{"rol": "usuario"|"asistente", "texto": ..., "creado_en": ...}, ...]
+    mensajes = Column(JSONFlexible, nullable=False, default=list)
+    cerrada = Column(Boolean, default=False, nullable=False)
+    creado_en = Column(DateTime, default=datetime.utcnow)
+
+    usuario = relationship("Usuario")
 
 class ConsumoIA(Base):
     __tablename__ = "consumo_ia"

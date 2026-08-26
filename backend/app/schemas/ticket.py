@@ -17,6 +17,8 @@ class TicketUpdate(BaseModel):
     asignado_a: Optional[int] = None
     canal_resolucion: Optional[str] = None
     descripcion_normalizada: Optional[str] = None
+    # Obligatoria al pasar el ticket a resuelto o cerrado.
+    solucion: Optional[str] = None
 
 class CommentCreate(BaseModel):
     comentario: str
@@ -50,6 +52,8 @@ class TicketResponse(BaseModel):
     asignado_a: Optional[int] = None
     asignado_usuario: Optional[UserResponse] = None
     canal_resolucion: Optional[str] = None
+    solucion: Optional[str] = None
+    indexado_kb: bool = False
     creado_en: datetime
     resuelto_en: Optional[datetime] = None
     tiempo_resolucion: Optional[int] = None

@@ -4,7 +4,13 @@ import { useTranslation } from 'react-i18next';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
-import { ArrowLeft, MessageSquare, Send, ShieldAlert, User, Laptop, Calendar, Clock, CheckCircle } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Send, ShieldAlert, User, Laptop, Calendar, Clock, CheckCircle, Wrench, X } from 'lucide-react';
+
+// Estados que exigen documentar la solución. Debe coincidir con
+// ESTADOS_DE_CIERRE en backend/app/api/tickets.py.
+const ESTADOS_DE_CIERRE = ['resuelto', 'cerrado'];
+// Igual que SOLUCION_MIN_LONGITUD en el backend.
+const SOLUCION_MIN_LONGITUD = 20;
 
 const TicketDetail = () => {
   const { id } = useParams();
@@ -17,6 +23,12 @@ const TicketDetail = () => {
   const [newComment, setNewComment] = useState('');
   const [isInternal, setIsInternal] = useState(false);
   const [submittingComment, setSubmittingComment] = useState(false);
+
+  // Cierre con solución obligatoria.
+  const [estadoPendiente, setEstadoPendiente] = useState(null);
+  const [solucion, setSolucion] = useState('');
+  const [errorCierre, setErrorCierre] = useState('');
+  const [guardandoCierre, setGuardandoCierre] = useState(false);
 
   useEffect(() => {
     fetchTicket();
@@ -33,13 +45,49 @@ const TicketDetail = () => {
     }
   };
 
-  const handleStatusChange = async (newStatus) => {
+  const handleStatusChange = async (nuevoEstado) => {
+    // Resolver o cerrar exige documentar la solución. Sin ella el ticket no
+    // se puede indexar en la base de conocimiento.
+    if (ESTADOS_DE_CIERRE.includes(nuevoEstado)) {
+      setSolucion(ticket.solucion || '');
+      setErrorCierre('');
+      setEstadoPendiente(nuevoEstado);
+      return;
+    }
+
     try {
-      const res = await api.patch(`/tickets/${id}`, { estado: newStatus });
+      const res = await api.patch(`/tickets/${id}`, { estado: nuevoEstado });
       setTicket(res.data);
     } catch (err) {
       console.error("Error updating status", err);
     }
+  };
+
+  const confirmarCierre = async (e) => {
+    e.preventDefault();
+    if (solucion.trim().length < SOLUCION_MIN_LONGITUD) return;
+
+    setGuardandoCierre(true);
+    setErrorCierre('');
+    try {
+      const res = await api.patch(`/tickets/${id}`, {
+        estado: estadoPendiente,
+        solucion: solucion.trim()
+      });
+      setTicket(res.data);
+      setEstadoPendiente(null);
+      setSolucion('');
+    } catch (err) {
+      setErrorCierre(err.response?.data?.detail || t('ticket.error_cierre'));
+    } finally {
+      setGuardandoCierre(false);
+    }
+  };
+
+  const cancelarCierre = () => {
+    setEstadoPendiente(null);
+    setSolucion('');
+    setErrorCierre('');
   };
 
   const handleAddComment = async (e) => {
@@ -162,7 +210,156 @@ const TicketDetail = () => {
             {ticket.descripcion_original}
           </div>
         </div>
+
+        {/* Descripción normalizada: solo aparece si Ollama la generó. */}
+        {ticket.descripcion_normalizada && (
+          <div style={{ marginTop: '20px' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px' }}>
+              {t('ticket.descripcion_normalizada')}
+            </h3>
+            <div style={{
+              fontSize: '1rem',
+              lineHeight: '1.6',
+              color: 'var(--text-secondary)',
+              background: 'var(--bg-tertiary)',
+              padding: '18px',
+              borderRadius: 'var(--radius-md)'
+            }}>
+              {ticket.descripcion_normalizada}
+            </div>
+          </div>
+        )}
+
+        {/* Solución documentada */}
+        {ticket.solucion && (
+          <div style={{ marginTop: '24px' }}>
+            <h3 style={{
+              fontSize: '1rem',
+              fontWeight: '600',
+              color: 'var(--text-primary)',
+              marginBottom: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <Wrench size={18} color="var(--status-resuelto-text)" />
+              {t('ticket.solucion')}
+            </h3>
+            <div style={{
+              fontSize: '1.05rem',
+              lineHeight: '1.6',
+              color: 'var(--text-primary)',
+              background: 'var(--status-resuelto-bg)',
+              padding: '20px',
+              borderRadius: 'var(--radius-md)',
+              whiteSpace: 'pre-line'
+            }}>
+              {ticket.solucion}
+            </div>
+            {user.rol === 'admin' && !ticket.indexado_kb && ESTADOS_DE_CIERRE.includes(ticket.estado) && (
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '10px' }}>
+                {t('ticket.pendiente_indexar')}
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Cierre: la solución es obligatoria */}
+      {estadoPendiente && (
+        <div
+          onClick={cancelarCierre}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            zIndex: 1000
+          }}
+        >
+          <form
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={confirmarCierre}
+            className="apple-card animate-fade-in"
+            style={{ padding: '32px', maxWidth: '620px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '8px' }}>
+              <h2 style={{ fontSize: '1.35rem', fontWeight: '700', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Wrench size={22} color="var(--accent-primary)" />
+                {estadoPendiente === 'resuelto' ? t('ticket.cerrar_titulo_resuelto') : t('ticket.cerrar_titulo_cerrado')}
+              </h2>
+              <button
+                type="button"
+                onClick={cancelarCierre}
+                className="btn-secondary"
+                style={{ padding: '6px 10px' }}
+                aria-label={t('ticket.cancelar')}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginBottom: '20px', lineHeight: '1.5' }}>
+              {t('ticket.cerrar_ayuda')}
+            </p>
+
+            <div className="form-group">
+              <label>{t('ticket.solucion')}</label>
+              <textarea
+                className="form-textarea"
+                rows={6}
+                autoFocus
+                required
+                minLength={SOLUCION_MIN_LONGITUD}
+                placeholder={t('ticket.solucion_placeholder')}
+                value={solucion}
+                onChange={(e) => setSolucion(e.target.value)}
+                style={{ fontSize: '1rem' }}
+              />
+              <div style={{
+                fontSize: '0.85rem',
+                marginTop: '8px',
+                color: solucion.trim().length >= SOLUCION_MIN_LONGITUD ? 'var(--status-resuelto-text)' : 'var(--text-muted)'
+              }}>
+                {solucion.trim().length < SOLUCION_MIN_LONGITUD
+                  ? t('ticket.solucion_faltan', { n: SOLUCION_MIN_LONGITUD - solucion.trim().length })
+                  : t('ticket.solucion_ok')}
+              </div>
+            </div>
+
+            {errorCierre && (
+              <div style={{
+                background: 'var(--status-espera-proveedor-bg)',
+                color: 'var(--status-espera-proveedor-text)',
+                padding: '12px 16px',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '0.9rem',
+                marginBottom: '16px'
+              }}>
+                {errorCierre}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px', flexWrap: 'wrap' }}>
+              <button type="button" onClick={cancelarCierre} className="btn-secondary" style={{ padding: '12px 22px' }}>
+                {t('ticket.cancelar')}
+              </button>
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={guardandoCierre || solucion.trim().length < SOLUCION_MIN_LONGITUD}
+                style={{ padding: '12px 22px' }}
+              >
+                <CheckCircle size={18} />
+                {guardandoCierre ? t('ticket.guardando') : t('ticket.confirmar_cierre')}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Comments Thread */}
       <div className="apple-card" style={{ padding: '32px' }}>

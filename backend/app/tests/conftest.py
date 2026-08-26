@@ -4,12 +4,23 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import settings
 from app.core.db import Base, get_db
 from app.main import app
 from app.core.security import get_password_hash
 from app.models import Sitio, Usuario
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+
+
+@pytest.fixture(autouse=True)
+def ia_desactivada_por_defecto(monkeypatch):
+    """La suite no toca la red.
+
+    Las pruebas que necesitan ejercitar la degradación de Ollama la vuelven a
+    activar apuntando a un host muerto (ver test_ia_nunca_bloquea.py).
+    """
+    monkeypatch.setattr(settings, "IA_HABILITADA", False)
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
