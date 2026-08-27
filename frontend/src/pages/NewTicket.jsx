@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import SugerenciasKB from '../components/SugerenciasKB';
+import AvisoHorario from '../components/AvisoHorario';
 import { CheckCircle2, AlertTriangle, ArrowRight, ArrowLeft, Send, HelpCircle } from 'lucide-react';
 
 const NewTicket = () => {
@@ -86,8 +87,39 @@ const NewTicket = () => {
     }
   };
 
+  /**
+   * Registra una incidencia que el usuario resolvió solo.
+   *
+   * Se guarda como ticket ya resuelto con su canal. Sin este registro, una
+   * incidencia deflectada no deja rastro y la tasa de deflección —la métrica
+   * estrella— no se puede calcular. Si falla, no se le estorba al usuario:
+   * ya resolvió su problema.
+   */
+  const registrarAutoResolucion = async (canal, solucion) => {
+    try {
+      await api.post('/tickets', {
+        sitio_id: user.sitio_id,
+        categoria,
+        descripcion_original: descripcion || t(`new_ticket.category_${categoria}`),
+        prioridad: 'baja',
+        equipo_id: equipoId ? parseInt(equipoId) : null,
+        canal_auto_resolucion: canal,
+        solucion,
+        chat_sesion_id: desdeChat.sesionId || null
+      });
+    } catch (err) {
+      console.error('No se pudo registrar la auto-resolución', err);
+    }
+  };
+
   const handleChecklistAnswer = (resolved) => {
     if (resolved) {
+      const paso = checklists[checklistIndex];
+      const pregunta = paso.pregunta_texto || t(paso.pregunta_key, { defaultValue: paso.pregunta_key });
+      registrarAutoResolucion(
+        'checklist',
+        `${t('new_ticket.resuelto_por_checklist')} ${pregunta}${paso.accion_si_no ? ` ${paso.accion_si_no}` : ''}`
+      );
       setResolvedByChecklist(true);
     } else {
       if (checklistIndex + 1 < checklists.length) {
@@ -107,7 +139,9 @@ const NewTicket = () => {
         categoria: categoria,
         descripcion_original: descripcion,
         prioridad: prioridad,
-        equipo_id: equipoId ? parseInt(equipoId) : null
+        equipo_id: equipoId ? parseInt(equipoId) : null,
+        // Enlaza la sesión del chatbot para poder medir su precisión.
+        chat_sesion_id: desdeChat.sesionId || null
       };
 
       const res = await api.post('/tickets', payload);
@@ -130,6 +164,8 @@ const NewTicket = () => {
         <ArrowLeft size={16} />
         Volver a Tickets
       </button>
+
+      <AvisoHorario />
 
       <div className="apple-card" style={{ padding: '40px' }}>
         <h1 style={{ fontSize: '1.85rem', fontWeight: '700', marginBottom: '8px', color: 'var(--text-primary)' }}>
@@ -213,7 +249,8 @@ const NewTicket = () => {
                 </div>
 
                 <div style={{ fontSize: '1.15rem', fontWeight: '600', marginBottom: '16px', color: 'var(--text-primary)', lineHeight: '1.4' }}>
-                  {t(checklists[checklistIndex].pregunta_key, { defaultValue: checklists[checklistIndex].pregunta_key })}
+                  {checklists[checklistIndex].pregunta_texto
+                    || t(checklists[checklistIndex].pregunta_key, { defaultValue: checklists[checklistIndex].pregunta_key })}
                 </div>
 
                 {checklists[checklistIndex].accion_si_no && (
@@ -330,7 +367,10 @@ const NewTicket = () => {
               texto={descripcion}
               categoria={categoria}
               sitioId={user.sitio_id}
-              onResuelto={() => setResolvedByKB(true)}
+              onResuelto={(sugerencia) => {
+                registrarAutoResolucion('kb', sugerencia.contenido);
+                setResolvedByKB(true);
+              }}
             />
 
             <button

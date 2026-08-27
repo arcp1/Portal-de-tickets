@@ -7,8 +7,11 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-cgr_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cgr_secure_password}
       POSTGRES_DB: ${POSTGRES_DB:-portal_tickets}
+    # Solo accesible desde la propia máquina y en un puerto alterno: el 5432
+    # suele estar ocupado por un Postgres local. El backend la alcanza por la
+    # red interna de compose, no por este puerto.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -16,6 +19,27 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # IA local. Sin este servicio el portal funciona igual, solo sin las ayudas
+  # de IA (ver perfil "sin-ia" más abajo).
+  # Los modelos se descargan una vez y quedan en el volumen:
+  #   docker compose exec ollama ollama pull nomic-embed-text
+  #   docker compose exec ollama ollama pull qwen2.5:3b
+  ollama:
+    image: ollama/ollama:latest
+    container_name: portal_tickets_ollama
+    restart: always
+    # Solo local: nada fuera del servidor necesita hablarle a Ollama.
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   backend:
     build:
@@ -25,13 +49,26 @@ services:
     restart: always
     env_file:
       - .env
+    environment:
+      # Gana sobre el .env: dentro de compose, Ollama es un servicio vecino.
+      # `host.docker.internal` solo aplica cuando Ollama corre nativo en el
+      # host (Windows/macOS), no aquí.
+      OLLAMA_HOST: ${OLLAMA_HOST_INTERNO:-http://ollama:11434}
+    # Solo local, para depurar y ver /docs. El trafico real entra por NGINX,
+    # que es el unico punto de entrada del sistema.
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy
+    # En Linux `host.docker.internal` no existe. Esto lo hace resolver al host
+    # por si se prefiere un Ollama nativo en lugar del contenedor.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./backend:/app
+      - adjuntos:/app/adjuntos
+      - documentos:/app/documentos
 
   frontend:
     build:
@@ -39,8 +76,9 @@ services:
       dockerfile: Dockerfile
     container_name: portal_tickets_frontend
     restart: always
+    # Solo local. En produccion se sirve a traves de NGINX.
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"
 
   nginx:
     image: nginx:alpine
@@ -56,3 +94,6 @@ services:
 
 volumes:
   postgres_data:
+  adjuntos:
+  documentos:
+  ollama_models:

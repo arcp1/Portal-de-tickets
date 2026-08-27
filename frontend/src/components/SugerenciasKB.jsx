@@ -52,14 +52,16 @@ const SugerenciasKB = ({ texto, categoria, sitioId, ticketId = null, onResuelto 
     };
   }, [texto, categoria, sitioId, ticketId]);
 
-  const enviarFeedback = async (sugerenciaId, fueUtil) => {
-    setRespuestas((previas) => ({ ...previas, [sugerenciaId]: fueUtil }));
+  const enviarFeedback = async (sugerencia, fueUtil) => {
+    setRespuestas((previas) => ({ ...previas, [sugerencia.sugerencia_id]: fueUtil }));
     try {
-      await api.post('/kb/feedback', { sugerencia_id: sugerenciaId, fue_util: fueUtil });
+      await api.post('/kb/feedback', { sugerencia_id: sugerencia.sugerencia_id, fue_util: fueUtil });
     } catch (err) {
       console.error('Error registrando feedback de sugerencia', err);
     }
-    if (fueUtil && onResuelto) onResuelto(sugerenciaId);
+    // Se pasa la sugerencia completa: su contenido es lo que queda como
+    // solución del ticket auto-resuelto, y sin eso la deflección no se mide.
+    if (fueUtil && onResuelto) onResuelto(sugerencia);
   };
 
   if (buscando && sugerencias.length === 0) return null;
@@ -128,7 +130,7 @@ const SugerenciasKB = ({ texto, categoria, sitioId, ticketId = null, onResuelto 
                     <div style={{ display: 'flex', gap: '10px' }}>
                       <button
                         type="button"
-                        onClick={() => enviarFeedback(s.sugerencia_id, true)}
+                        onClick={() => enviarFeedback(s, true)}
                         className="btn-secondary"
                         style={{ padding: '8px 16px', fontSize: '0.9rem', color: 'var(--status-resuelto-text)' }}
                       >
@@ -137,7 +139,7 @@ const SugerenciasKB = ({ texto, categoria, sitioId, ticketId = null, onResuelto 
                       </button>
                       <button
                         type="button"
-                        onClick={() => enviarFeedback(s.sugerencia_id, false)}
+                        onClick={() => enviarFeedback(s, false)}
                         className="btn-secondary"
                         style={{ padding: '8px 16px', fontSize: '0.9rem' }}
                       >

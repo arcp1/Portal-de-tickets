@@ -3,6 +3,17 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
+class NormalizarRequest(BaseModel):
+    texto: str
+
+
+class NormalizarResponse(BaseModel):
+    texto_normalizado: str
+    # 0.0 = Ollama no respondió y se devuelve el texto original tal cual.
+    confianza: float
+    degradado: bool = False
+
+
 class SimilaresRequest(BaseModel):
     texto: str
     sitio_id: int

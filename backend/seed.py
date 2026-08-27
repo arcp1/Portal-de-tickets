@@ -35,7 +35,9 @@ def seed_db():
                 sitio_id=site.id,
                 nombre="Alex Ríos Carballo (IT Admin)",
                 email="admin@cgr.mx",
+                numero_empleado="10001",
                 password_hash=get_password_hash("Admin123!"),
+                estado_cuenta="activa",
                 rol="admin",
                 area="Sistemas / TI",
                 idioma_preferido="es",
@@ -47,6 +49,10 @@ def seed_db():
             logger.info(f"Created admin user: {admin_user.email}")
         else:
             admin_user.password_hash = get_password_hash("Admin123!")
+            # La migración 0008 dejó un número provisional TMP-xxxxx en las
+            # cuentas que ya existían. La semilla corrige las suyas.
+            if not admin_user.numero_empleado or admin_user.numero_empleado.startswith("TMP-"):
+                admin_user.numero_empleado = "10001"
             db.commit()
             logger.info("Updated admin password hash")
 
@@ -56,7 +62,9 @@ def seed_db():
                 sitio_id=site.id,
                 nombre="Juan Pérez (Operador)",
                 email="operador@cgr.mx",
+                numero_empleado="10002",
                 password_hash=get_password_hash("User123!"),
+                estado_cuenta="activa",
                 rol="usuario",
                 area="Producción",
                 idioma_preferido="es",
@@ -68,6 +76,8 @@ def seed_db():
             logger.info(f"Created standard user: {normal_user.email}")
         else:
             normal_user.password_hash = get_password_hash("User123!")
+            if not normal_user.numero_empleado or normal_user.numero_empleado.startswith("TMP-"):
+                normal_user.numero_empleado = "10002"
             db.commit()
             logger.info("Updated standard user password hash")
 

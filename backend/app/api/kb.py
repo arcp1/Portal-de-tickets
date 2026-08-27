@@ -10,12 +10,35 @@ from app.schemas.kb import (
     FeedbackResponse,
     IndexarResponse,
     MetricasKBResponse,
+    NormalizarRequest,
+    NormalizarResponse,
     SimilaresRequest,
     SimilaresResponse,
 )
 from app.services.kb_service import KBService, solucion_es_valida
+from app.services.ollama_client import ollama
 
 router = APIRouter(tags=["Base de conocimiento"])
+
+
+@router.post("/ia/normalizar", response_model=NormalizarResponse)
+def normalizar(
+    peticion: NormalizarRequest,
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Reescribe texto libre en una descripción legible para el técnico.
+
+    Si Ollama no responde devuelve el texto original con confianza 0: la
+    normalización es una mejora, nunca un requisito.
+    """
+    normalizado = ollama.normalizar_descripcion(peticion.texto)
+    if normalizado is None:
+        return NormalizarResponse(
+            texto_normalizado=peticion.texto,
+            confianza=0.0,
+            degradado=True,
+        )
+    return NormalizarResponse(texto_normalizado=normalizado, confianza=1.0)
 
 
 @router.post("/ia/similares", response_model=SimilaresResponse)

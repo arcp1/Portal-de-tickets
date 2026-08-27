@@ -13,6 +13,9 @@ class ChecklistResponse(BaseModel):
     categoria: str
     orden: int
     pregunta_key: str
+    # Los pasos sembrados traen llave de traduccion; los que crea el admin
+    # desde el portal traen el texto directo aqui.
+    pregunta_texto: Optional[str] = None
     accion_si_no: Optional[str] = None
     resuelve: bool
 

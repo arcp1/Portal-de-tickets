@@ -1,15 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 import random
 
 from app.core.db import get_db
-from app.models import Ticket, TicketComentario, Sitio, Usuario
+from app.models import Ticket, TicketComentario, Sitio, Usuario, ChatSesion
 from app.schemas.ticket import TicketCreate, TicketUpdate, TicketResponse, CommentCreate, CommentResponse
 from app.api.deps import get_current_user
 from app.services.rules_engine import RulesEngine
 from app.services.kb_service import KBService, solucion_es_valida
+from app.services.temas_service import TemasService
+from app.services.horario_service import HorarioService
+from app.services.notificaciones_service import NotificacionesService
+from app.services.auditoria_service import AuditoriaService, TICKET_ASIGNADO, TICKET_ESTADO, TICKET_PRIORIDAD, TICKET_SOLUCION
 from app.services.ollama_client import ollama
 from app.core.config import settings
 from app.core.logging import logger
@@ -18,6 +22,11 @@ router = APIRouter(prefix="/tickets", tags=["Tickets"])
 
 # Estados que exigen una solución documentada para poder entrar en ellos.
 ESTADOS_DE_CIERRE = ("resuelto", "cerrado")
+
+# Canales que el propio usuario puede reportar al crear el ticket. Son los
+# niveles de autoservicio del flujo; "tecnico" y "proveedor" los decide el
+# sistema, nunca quien reporta.
+CANALES_AUTOSERVICIO = ("checklist", "kb")
 
 def generate_folio(db: Session, sitio_id: int) -> str:
     sitio = db.query(Sitio).filter(Sitio.id == sitio_id).first()
@@ -55,6 +64,7 @@ def create_ticket(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
+    ahora = datetime.utcnow()
     folio = generate_folio(db, ticket_in.sitio_id)
     
     # Evaluate business rules
@@ -67,6 +77,32 @@ def create_ticket(
     
     estado = rule_eval["estado"] if rule_eval["matched"] else "abierto"
     canal_resolucion = rule_eval["canal_resolucion"] if rule_eval["matched"] else "tecnico"
+
+    # Auto-resolución declarada por el usuario (checklist o base de conocimiento).
+    # Se guarda como ticket ya resuelto: es la única forma de medir la tasa de
+    # deflección. No se indexa en la KB —el checklist ya existe y la sugerencia
+    # de KB ya está indexada—, solo se registra el canal.
+    auto_resuelto = False
+    if ticket_in.canal_auto_resolucion is not None:
+        if ticket_in.canal_auto_resolucion not in CANALES_AUTOSERVICIO:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "Canal de auto-resolución inválido. Solo se acepta: "
+                    + ", ".join(CANALES_AUTOSERVICIO)
+                ),
+            )
+        if not solucion_es_valida(ticket_in.solucion):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "Una auto-resolución debe indicar qué resolvió el problema "
+                    f"(mínimo {settings.SOLUCION_MIN_LONGITUD} caracteres)."
+                ),
+            )
+        auto_resuelto = True
+        estado = "resuelto"
+        canal_resolucion = ticket_in.canal_auto_resolucion
 
     # Normalización de la descripción: es una mejora, no un requisito.
     # Si Ollama no responde o tarda de más, descripcion_normalizada queda en
@@ -86,7 +122,14 @@ def create_ticket(
         prioridad=ticket_in.prioridad,
         estado=estado,
         canal_resolucion=canal_resolucion,
-        creado_en=datetime.utcnow()
+        solucion=ticket_in.solucion if auto_resuelto else None,
+        creado_en=ahora,
+        resuelto_en=ahora if auto_resuelto else None,
+        tiempo_resolucion=0 if auto_resuelto else None,
+        # El SLA cuenta solo horas hábiles y, si entra de madrugada, empieza a
+        # correr cuando abren. Una auto-resolución ya está cerrada: no vence.
+        vence_en=None if auto_resuelto else HorarioService.calcular_vencimiento(ticket_in.prioridad, ahora),
+        fuera_horario=not HorarioService.es_horario_laboral(ahora),
     )
     db.add(new_ticket)
     db.commit()
@@ -103,6 +146,26 @@ def create_ticket(
         db.add(system_comment)
         db.commit()
         db.refresh(new_ticket)
+
+    # Enlaza la sesión de chat que originó el ticket. Solo la del propio
+    # usuario, y solo si aún no está enlazada.
+    if ticket_in.chat_sesion_id is not None:
+        sesion = db.query(ChatSesion).filter(
+            ChatSesion.id == ticket_in.chat_sesion_id,
+            ChatSesion.usuario_id == current_user.id,
+            ChatSesion.ticket_id.is_(None),
+        ).first()
+        if sesion:
+            sesion.ticket_id = new_ticket.id
+            db.commit()
+
+    # Un problema que no encaja en las categorias se agrupa con lo parecido
+    # ya reportado. Si se repite, se le propone al admin como tema nuevo.
+    # Nunca levanta: el ticket ya esta creado.
+    TemasService.registrar_incidencia(db, new_ticket)
+
+    # Acuse de recibo. Si el correo falla, el ticket ya esta creado y no pasa nada.
+    NotificacionesService.ticket_creado(db, new_ticket, new_ticket.fuera_horario)
 
     logger.info("Ticket created", extra={"ticket_id": new_ticket.id, "folio": folio, "usuario_id": current_user.id})
     return new_ticket
@@ -124,6 +187,7 @@ def get_ticket(
 def update_ticket(
     ticket_id: int,
     ticket_in: TicketUpdate,
+    peticion: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -156,6 +220,12 @@ def update_ticket(
     # La solución puede venir en esta misma petición o estar ya documentada.
     # Se valida antes de tocar el objeto para que un rechazo no deje nada
     # a medias en la sesión.
+    # Valores previos, para dejar constancia de que cambio exactamente.
+    estado_previo = ticket.estado
+    prioridad_previa = ticket.prioridad
+    asignado_previo = ticket.asignado_a
+    tenia_solucion = bool(ticket.solucion)
+
     solucion_efectiva = ticket_in.solucion if ticket_in.solucion is not None else ticket.solucion
     se_esta_cerrando = ticket_in.estado is not None and ticket_in.estado in ESTADOS_DE_CIERRE
 
@@ -182,7 +252,13 @@ def update_ticket(
 
     if ticket_in.prioridad is not None:
         ticket.prioridad = ticket_in.prioridad
+        # Cambiar la prioridad cambia el compromiso: se recalcula desde que se
+        # creó el ticket, no desde ahora, para no regalar tiempo.
+        if ticket.estado not in ESTADOS_DE_CIERRE:
+            ticket.vence_en = HorarioService.calcular_vencimiento(ticket.prioridad, ticket.creado_en)
+    asignado_cambio = False
     if ticket_in.asignado_a is not None:
+        asignado_cambio = ticket.asignado_a != ticket_in.asignado_a
         ticket.asignado_a = ticket_in.asignado_a
     if ticket_in.canal_resolucion is not None:
         ticket.canal_resolucion = ticket_in.canal_resolucion
@@ -195,9 +271,27 @@ def update_ticket(
     # Indexación en la base de conocimiento. Va después del commit y nunca
     # levanta: si Ollama está caído el ticket queda cerrado igual, solo
     # pendiente de indexar.
+    # Bitacora de lo que cambio (spec 12).
+    if ticket_in.estado is not None and ticket_in.estado != estado_previo:
+        AuditoriaService.registrar(db, current_user, TICKET_ESTADO, "ticket", ticket.id,
+                                   AuditoriaService.cambio(estado_previo, ticket.estado), peticion)
+    if ticket_in.prioridad is not None and ticket_in.prioridad != prioridad_previa:
+        AuditoriaService.registrar(db, current_user, TICKET_PRIORIDAD, "ticket", ticket.id,
+                                   AuditoriaService.cambio(prioridad_previa, ticket.prioridad), peticion)
+    if asignado_cambio:
+        AuditoriaService.registrar(db, current_user, TICKET_ASIGNADO, "ticket", ticket.id,
+                                   AuditoriaService.cambio(asignado_previo, ticket.asignado_a), peticion)
+    if ticket_in.solucion is not None:
+        AuditoriaService.registrar(db, current_user, TICKET_SOLUCION, "ticket", ticket.id,
+                                   {"documentada_por_primera_vez": not tenia_solucion}, peticion)
+
     if se_esta_cerrando:
         KBService.indexar_ticket(db, ticket)
         db.refresh(ticket)
+        NotificacionesService.ticket_resuelto(db, ticket)
+
+    if asignado_cambio:
+        NotificacionesService.ticket_asignado(db, ticket)
 
     return ticket
 
@@ -224,4 +318,9 @@ def add_comment(
     db.add(comment)
     db.commit()
     db.refresh(comment)
+
+    # Las notas internas son para el equipo de TI: al usuario no se le avisan.
+    if not comment.es_interno:
+        NotificacionesService.comentario_nuevo(db, ticket, current_user, comment.comentario)
+
     return comment

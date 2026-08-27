@@ -331,11 +331,85 @@ def test_el_parser_acepta_lo_valido(crudo, esperado):
     assert (resultado["categoria"], resultado["confianza"]) == esperado
 
 
-def test_clasificar_no_levanta_con_host_muerto(monkeypatch):
+# ----------------------------------------------------------------------
+# Corte previo: un texto sin contenido no se le pregunta al modelo
+#
+# Medido contra qwen2.5:3b real: a "no sirve" le asigna categoría "equipo" con
+# 0.9 de confianza. La confianza que se auto-reporta un modelo pequeño no
+# distingue lo que sabe de lo que supone, así que el corte es determinista.
+# ----------------------------------------------------------------------
+@pytest.mark.parametrize("vago", [
+    "no sirve", "ayuda", "ya no jala", "esta mal", "no funciona nada", "tengo un problema",
+])
+def test_texto_sin_contenido_no_llega_al_modelo(vago, monkeypatch):
+    monkeypatch.setattr(settings, "IA_HABILITADA", True)
+    llamadas = []
+    cliente = OllamaClient(host="http://127.0.0.1:1")
+    monkeypatch.setattr(cliente, "_parsear_clasificacion", lambda c: llamadas.append(c))
+
+    assert cliente.clasificar_categoria(vago) is None
+    # Ni siquiera se intentó la llamada: se cortó antes.
+    assert llamadas == []
+
+
+@pytest.mark.parametrize("concreto,esperada", [
+    ("la etiquetadora de embarques no saca etiquetas", "impresora"),
+    ("no hay internet en el area de calidad", "red"),
+    ("se me olvido la contrasena del correo", "accesos"),
+    ("el monitor de la estacion 4 no da imagen", "equipo"),
+])
+def test_el_vocabulario_clasifica_sin_ollama(concreto, esperada, monkeypatch):
+    """El atajo por vocabulario funciona aunque Ollama esté caído.
+
+    Es la ventaja de no depender del modelo para lo que ya se sabe: instantáneo,
+    y sobrevive a una caída de Ollama.
+    """
     monkeypatch.setattr(settings, "IA_HABILITADA", True)
     cliente = OllamaClient(host="http://127.0.0.1:1")
 
-    assert cliente.clasificar_categoria("la impresora no imprime") is None
+    resultado = cliente.clasificar_categoria(concreto)
+    assert resultado is not None
+    assert resultado["categoria"] == esperada
+
+
+def test_el_vocabulario_no_decide_ante_un_empate():
+    """'La impresora no aparece en la red' toca dos mundos: que decida el modelo."""
+    assert OllamaClient.clasificar_por_vocabulario("la impresora no aparece en la red") is None
+
+
+def test_sin_vocabulario_conocido_se_consulta_al_modelo(monkeypatch):
+    """Texto con contenido pero sin palabras conocidas: el corte no aplica y se
+    intenta la llamada, que aquí falla por host muerto."""
+    monkeypatch.setattr(settings, "IA_HABILITADA", True)
+    cliente = OllamaClient(host="http://127.0.0.1:1")
+
+    texto = "el gafete no me abre la puerta del almacen general"
+    assert cliente.clasificar_por_vocabulario(texto) is None
+    assert cliente.clasificar_categoria(texto) is None
+
+
+def test_el_chat_pide_dropdowns_ante_un_mensaje_vago(client, ollama_activo):
+    """De punta a punta: mensaje vago -> dropdowns, sin adivinar categoría."""
+    ollama_activo.setattr(settings, "IA_HABILITADA", True)
+    # Se usa el clasificador real (con host muerto da None, igual que el corte).
+    ollama_activo.setattr(ollama, "clasificar_categoria",
+                          lambda texto: OllamaClient(host="http://127.0.0.1:1").clasificar_categoria(texto))
+
+    respuesta = client.post(
+        "/api/chat/mensaje", json={"mensaje": "no sirve"}, headers=headers(client)
+    ).json()
+
+    assert respuesta["accion"] == ACCION_PEDIR
+    assert respuesta["categoria"] is None
+
+
+def test_clasificar_no_levanta_con_host_muerto(monkeypatch):
+    """Sin vocabulario conocido tiene que llamar al modelo, y con el host muerto
+    devuelve None en lugar de reventar."""
+    monkeypatch.setattr(settings, "IA_HABILITADA", True)
+    cliente = OllamaClient(host="http://127.0.0.1:1")
+
+    assert cliente.clasificar_categoria("el gafete no me abre la puerta del almacen") is None
 
 
 def test_la_sesion_guarda_el_historial(client, ollama_activo, db_session):

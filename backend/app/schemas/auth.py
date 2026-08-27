@@ -2,7 +2,10 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    # Se conserva el nombre "email" por compatibilidad con lo ya construido,
+    # pero acepta número de empleado o correo: en planta mucha gente no tiene
+    # correo corporativo. Por eso es str y no EmailStr.
+    email: str
     password: str
 
 class TokenResponse(BaseModel):
@@ -14,7 +17,8 @@ class UserResponse(BaseModel):
     id: int
     sitio_id: int
     nombre: str
-    email: str
+    numero_empleado: Optional[str] = None
+    email: Optional[str] = None
     rol: str
     area: Optional[str] = None
     idioma_preferido: str = "es"
@@ -23,11 +27,3 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
-class UserCreate(BaseModel):
-    sitio_id: int
-    nombre: str
-    email: EmailStr
-    password: str
-    rol: str = "usuario"
-    area: Optional[str] = None
-    idioma_preferido: str = "es"

@@ -45,18 +45,22 @@ def db_session():
         sitio_id=site.id,
         nombre="Admin Test",
         email="admin@test.com",
+        numero_empleado="1001",
         password_hash=get_password_hash("Secret123!"),
         rol="admin",
-        activo=True
+        activo=True,
+        estado_cuenta="activa"
     )
     # Create user
     user = Usuario(
         sitio_id=site.id,
         nombre="User Test",
         email="user@test.com",
+        numero_empleado="1002",
         password_hash=get_password_hash("Secret123!"),
         rol="usuario",
-        activo=True
+        activo=True,
+        estado_cuenta="activa"
     )
     db.add_all([admin, user])
     db.commit()

@@ -45,7 +45,7 @@ const ChatFlotante = () => {
 
   const irAlFormulario = (categoria, descripcion) => {
     setAbierto(false);
-    navigate('/new-ticket', { state: { categoria, descripcion } });
+    navigate('/new-ticket', { state: { categoria, descripcion, sesionId } });
   };
 
   const manejarRespuesta = (datos) => {
@@ -116,6 +116,7 @@ const ChatFlotante = () => {
       {!abierto && (
         <button
           onClick={() => setAbierto(true)}
+          className="animate-scale-in"
           aria-label={t('chat.abrir')}
           style={{
             position: 'fixed',
@@ -142,7 +143,7 @@ const ChatFlotante = () => {
       {/* Panel */}
       {abierto && (
         <div
-          className="apple-card animate-fade-in"
+          className="apple-card animate-scale-in"
           style={{
             position: 'fixed',
             bottom: '24px',
@@ -196,11 +197,16 @@ const ChatFlotante = () => {
             {mensajes.map((m) => (
               <div
                 key={m.id}
+                className="animate-scale-in"
                 style={{
                   alignSelf: m.rol === 'usuario' ? 'flex-end' : 'flex-start',
                   maxWidth: '85%',
                   padding: '10px 14px',
                   borderRadius: 'var(--radius-md)',
+                  // La esquina que apunta a quien habla se recorta, como en
+                  // cualquier mensajería: se lee de quién es sin leer nada.
+                  borderBottomRightRadius: m.rol === 'usuario' ? '4px' : 'var(--radius-md)',
+                  borderBottomLeftRadius: m.rol === 'usuario' ? 'var(--radius-md)' : '4px',
                   fontSize: '0.95rem',
                   lineHeight: '1.45',
                   background: m.rol === 'usuario' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
@@ -211,9 +217,30 @@ const ChatFlotante = () => {
               </div>
             ))}
 
+            {/* "Está escribiendo". Sin esto el chat se siente muerto mientras
+                Ollama piensa, que puede ser un par de segundos. */}
+            {enviando && (
+              <div
+                className="animate-scale-in"
+                style={{
+                  alignSelf: 'flex-start',
+                  padding: '12px 16px',
+                  borderRadius: 'var(--radius-md)',
+                  borderBottomLeftRadius: '4px',
+                  background: 'var(--bg-tertiary)'
+                }}
+                aria-live="polite"
+                aria-label={t('chat.escribiendo')}
+              >
+                <span className="puntos-escribiendo">
+                  <span /><span /><span />
+                </span>
+              </div>
+            )}
+
             {/* Dropdown de categorías cuando no hubo confianza */}
             {categorias.length > 0 && !enviando && mensajes.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+              <div className="lista-escalonada" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
                 {categorias.map((c) => (
                   <button
                     key={c}

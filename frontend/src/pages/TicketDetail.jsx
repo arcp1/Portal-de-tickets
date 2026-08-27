@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/StatusBadge';
+import AdjuntosTicket from '../components/AdjuntosTicket';
+import { EtiquetaSLA } from '../components/AvisoHorario';
 import { ArrowLeft, MessageSquare, Send, ShieldAlert, User, Laptop, Calendar, Clock, CheckCircle, Wrench, X } from 'lucide-react';
 
 // Estados que exigen documentar la solución. Debe coincidir con
@@ -140,6 +142,7 @@ const TicketDetail = () => {
                 {ticket.folio}
               </h1>
               <StatusBadge estado={ticket.estado} />
+              <EtiquetaSLA venceEn={ticket.vence_en} estado={ticket.estado} />
             </div>
             <div style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
               Creado el {new Date(ticket.creado_en).toLocaleString()}
@@ -360,6 +363,15 @@ const TicketDetail = () => {
           </form>
         </div>
       )}
+
+      {/* Adjuntos */}
+      <div className="apple-card" style={{ padding: '32px', marginBottom: '24px' }}>
+        <AdjuntosTicket
+          ticketId={ticket.id}
+          adjuntos={ticket.adjuntos || []}
+          onCambio={fetchTicket}
+        />
+      </div>
 
       {/* Comments Thread */}
       <div className="apple-card" style={{ padding: '32px' }}>

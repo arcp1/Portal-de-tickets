@@ -12,7 +12,7 @@ columnas pueden existir ya, y en una base que viene de la Fase 1 no. Se
 inspecciona antes de crear para que funcione en ambos casos.
 
 Revision ID: 0001_solucion_kb
-Revises:
+Revises: 0000_esquema_base
 Create Date: 2026-08-25
 """
 
@@ -20,7 +20,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0001_solucion_kb"
-down_revision = None
+down_revision = "0000_esquema_base"
 branch_labels = None
 depends_on = None
 

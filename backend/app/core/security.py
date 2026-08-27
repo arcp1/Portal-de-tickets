@@ -5,6 +5,10 @@ import bcrypt
 from app.core.config import settings
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    # Una cuenta dada de alta y sin activar no tiene hash: no hay contra qué
+    # comparar, así que no coincide con nada.
+    if not hashed_password:
+        return False
     try:
         pwd_bytes = plain_password.encode('utf-8')[:72]
         hash_bytes = hashed_password.encode('utf-8')

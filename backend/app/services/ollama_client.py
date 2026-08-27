@@ -11,6 +11,8 @@ que se levante, se atienda o se cierre un ticket.
 
 import json
 import re
+import time
+from collections import deque
 from typing import List, Optional
 
 import httpx
@@ -21,6 +23,46 @@ from app.core.logging import logger
 # Las mismas seis del dropdown. El modelo clasifica dentro de esta lista o no
 # clasifica: nunca inventa una categoría nueva.
 CATEGORIAS_VALIDAS = ("impresora", "red", "equipo", "software", "accesos", "otro")
+
+# Vocabulario real de la planta. Es un atajo determinista antes del modelo:
+# cuando el usuario usa una de estas palabras, la categoría es inequívoca y no
+# hace falta gastar 2-4 segundos de LLM para averiguarla.
+#
+# Esto es más rápido Y más preciso que un modelo de 3B para los casos conocidos,
+# y encima es auditable: si clasifica mal, se corrige una línea de esta tabla en
+# lugar de reentrenar nada.
+VOCABULARIO_PLANTA = {
+    "impresora": (
+        "impresora", "impresoras", "etiquetadora", "etiquetadoras", "zebra",
+        "toner", "tóner", "ribbon", "etiqueta", "etiquetas", "imprimir",
+        "imprime", "impresion", "impresión", "atasco", "atascada", "papel",
+        "codigo de barras", "código de barras", "termica", "térmica",
+    ),
+    "red": (
+        "wifi", "wi-fi", "internet", "red", "conexion", "conexión", "cable de red",
+        "ethernet", "switch", "router", "vpn", "ip", "dns", "lento el internet",
+        "sin señal", "sin senal", "access point", "nodo", "rack",
+    ),
+    "equipo": (
+        "laptop", "computadora", "compu", "pc", "monitor", "pantalla", "teclado",
+        "mouse", "raton", "ratón", "cpu", "disco duro", "bateria", "batería",
+        "cargador", "docking", "escaner", "escáner", "scanner", "no enciende",
+        "se apaga", "pantalla azul", "handheld", "terminal portatil",
+        "terminal portátil", "lectora",
+    ),
+    "software": (
+        "sap", "erp", "excel", "office", "outlook", "word", "programa",
+        "aplicacion", "aplicación", "sistema", "licencia", "actualizacion",
+        "actualización", "windows", "navegador", "chrome", "edge", "mes",
+        "scada", "error de sistema",
+    ),
+    "accesos": (
+        "contraseña", "contrasena", "password", "usuario bloqueado", "cuenta",
+        "acceso", "accesos", "permiso", "permisos", "correo", "email",
+        "no me deja entrar", "bloqueado", "bloqueada", "credenciales",
+        "vpn acceso", "carpeta compartida", "unidad de red",
+    ),
+}
 
 PROMPT_CLASIFICACION = (
     "Eres un clasificador de incidencias de soporte técnico de una planta industrial.\n"
@@ -55,8 +97,26 @@ PROMPT_NORMALIZACION = (
 class OllamaClient:
     """Envoltura sobre la API de Ollama con degradación silenciosa."""
 
+    # Cuántas muestras se conservan por operación para el promedio.
+    MUESTRAS_LATENCIA = 50
+
     def __init__(self, host: Optional[str] = None):
         self.host = (host or settings.OLLAMA_HOST).rstrip("/")
+        # Latencias en memoria, por proceso. Sirven para ver si Ollama va lento
+        # ahora mismo; no son un histórico y se pierden al reiniciar.
+        self._latencias = {"embedding": deque(maxlen=self.MUESTRAS_LATENCIA),
+                           "normalizacion": deque(maxlen=self.MUESTRAS_LATENCIA),
+                           "clasificacion": deque(maxlen=self.MUESTRAS_LATENCIA)}
+
+    def _registrar(self, operacion: str, inicio: float):
+        self._latencias[operacion].append((time.monotonic() - inicio) * 1000.0)
+
+    def latencias(self) -> dict:
+        """Promedio en milisegundos por operación. None si no hay muestras."""
+        return {
+            nombre: round(sum(muestras) / len(muestras), 1) if muestras else None
+            for nombre, muestras in self._latencias.items()
+        }
 
     # ------------------------------------------------------------------
     # Disponibilidad
@@ -79,16 +139,30 @@ class OllamaClient:
     # ------------------------------------------------------------------
     # Embeddings
     # ------------------------------------------------------------------
-    def generar_embedding(self, texto: str) -> Optional[List[float]]:
+    def generar_embedding(self, texto: str, tarea: str = "documento") -> Optional[List[float]]:
         """Devuelve el vector del texto, o None si algo falla.
 
         None significa "sigue sin búsqueda por similitud", no "error".
+
+        ``tarea`` es "documento" al indexar y "consulta" al buscar.
+        nomic-embed-text está entrenado con prefijos de tarea y sin ellos la
+        recuperación pierde precisión; se aplican solo a ese modelo para no
+        romper otros que no los esperan.
+
+        Ojo al cambiar esto: los vectores ya guardados se generaron con el
+        criterio anterior. Hay que correr `reindexar_kb.py` para que la base
+        quede consistente.
         """
         if not settings.IA_HABILITADA:
             return None
         if not texto or not texto.strip():
             return None
 
+        if "nomic" in settings.OLLAMA_MODELO_EMBEDDING.lower():
+            prefijo = "search_query: " if tarea == "consulta" else "search_document: "
+            texto = prefijo + texto
+
+        inicio = time.monotonic()
         try:
             with httpx.Client(timeout=settings.OLLAMA_TIMEOUT_EMBEDDING) as cliente:
                 respuesta = cliente.post(
@@ -96,10 +170,12 @@ class OllamaClient:
                     json={
                         "model": settings.OLLAMA_MODELO_EMBEDDING,
                         "prompt": texto,
+                        "keep_alive": settings.OLLAMA_KEEP_ALIVE,
                     },
                 )
                 respuesta.raise_for_status()
                 vector = respuesta.json().get("embedding")
+            self._registrar("embedding", inicio)
 
             if not isinstance(vector, list) or not vector:
                 logger.warning(
@@ -135,6 +211,7 @@ class OllamaClient:
         if not texto or not texto.strip():
             return None
 
+        inicio = time.monotonic()
         try:
             with httpx.Client(timeout=settings.OLLAMA_TIMEOUT_NORMALIZACION) as cliente:
                 respuesta = cliente.post(
@@ -144,11 +221,13 @@ class OllamaClient:
                         "system": PROMPT_NORMALIZACION,
                         "prompt": texto,
                         "stream": False,
+                        "keep_alive": settings.OLLAMA_KEEP_ALIVE,
                         "options": {"num_predict": 300, "temperature": 0.2},
                     },
                 )
                 respuesta.raise_for_status()
                 normalizada = (respuesta.json().get("response") or "").strip()
+            self._registrar("normalizacion", inicio)
 
             if not normalizada:
                 return None
@@ -186,6 +265,27 @@ class OllamaClient:
         if not texto or not texto.strip():
             return None
 
+        # Un texto sin contenido suficiente no se manda al modelo: "no sirve"
+        # no pertenece a ninguna categoría, pero qwen2.5:3b le asigna 0.9 de
+        # confianza igual. Se corta antes de preguntar y se piden los dropdowns.
+        limpio = texto.strip()
+        if len(limpio) < settings.CHAT_MIN_CARACTERES or len(limpio.split()) < settings.CHAT_MIN_PALABRAS:
+            logger.info(
+                "Mensaje sin contenido suficiente para clasificar; se piden los dropdowns",
+                extra={"caracteres": len(limpio), "palabras": len(limpio.split())},
+            )
+            return None
+
+        # Atajo por vocabulario: instantáneo y sin ambigüedad.
+        rapida = self.clasificar_por_vocabulario(limpio)
+        if rapida is not None:
+            logger.info(
+                "Clasificado por vocabulario, sin llamar al modelo",
+                extra={"categoria": rapida["categoria"]},
+            )
+            return rapida
+
+        inicio = time.monotonic()
         try:
             with httpx.Client(timeout=settings.OLLAMA_TIMEOUT_CLASIFICACION) as cliente:
                 respuesta = cliente.post(
@@ -195,12 +295,14 @@ class OllamaClient:
                         "system": PROMPT_CLASIFICACION,
                         "prompt": texto,
                         "stream": False,
+                        "keep_alive": settings.OLLAMA_KEEP_ALIVE,
                         "format": "json",
                         "options": {"num_predict": 120, "temperature": 0.0},
                     },
                 )
                 respuesta.raise_for_status()
                 crudo = (respuesta.json().get("response") or "").strip()
+            self._registrar("clasificacion", inicio)
 
             return self._parsear_clasificacion(crudo)
 
@@ -216,6 +318,37 @@ class OllamaClient:
                 extra={"error": str(exc), "modelo": settings.OLLAMA_MODELO_TEXTO},
             )
             return None
+
+    @staticmethod
+    def clasificar_por_vocabulario(texto: str) -> Optional[dict]:
+        """Clasifica por palabras de la planta, sin llamar al modelo.
+
+        Devuelve None si no hay coincidencias o si hay empate entre dos
+        categorías: en la duda decide el modelo, y si tampoco puede, el usuario.
+        """
+        minusculas = " " + texto.lower() + " "
+        puntajes = {}
+
+        for categoria, terminos in VOCABULARIO_PLANTA.items():
+            aciertos = sum(1 for termino in terminos if termino in minusculas)
+            if aciertos:
+                puntajes[categoria] = aciertos
+
+        if not puntajes:
+            return None
+
+        ordenadas = sorted(puntajes.items(), key=lambda par: par[1], reverse=True)
+        mejor, puntaje_mejor = ordenadas[0]
+
+        # Empate: el texto menciona dos mundos a la vez ("la impresora no
+        # aparece en la red"). No se adivina, que decida el modelo.
+        if len(ordenadas) > 1 and ordenadas[1][1] == puntaje_mejor:
+            return None
+
+        # Más términos coincidentes = más señal. Se topa en 0.95 para no
+        # afirmar certeza absoluta a partir de una coincidencia de texto.
+        confianza = min(0.95, 0.80 + 0.05 * (puntaje_mejor - 1))
+        return {"categoria": mejor, "confianza": round(confianza, 2)}
 
     @staticmethod
     def _parsear_clasificacion(crudo: str) -> Optional[dict]:

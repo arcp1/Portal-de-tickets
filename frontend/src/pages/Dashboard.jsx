@@ -3,7 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../api/client';
 import StatusBadge from '../components/StatusBadge';
+import AvisoHorario, { EtiquetaSLA } from '../components/AvisoHorario';
+import AvisoResguardos from '../components/AvisoResguardos';
+import { EsqueletoLista } from '../components/Cargando';
+import { Paperclip } from 'lucide-react';
 import { Search, Filter, Plus, ChevronRight, MessageSquare, CheckCircle } from 'lucide-react';
+
+// Un ticket abierto cuyo compromiso ya paso.
+const estaVencido = (ticket) =>
+  ticket.vence_en &&
+  !['resuelto', 'cerrado'].includes(ticket.estado) &&
+  new Date(ticket.vence_en) < new Date();
 
 const Dashboard = () => {
   const { t } = useTranslation();
@@ -118,11 +128,12 @@ const Dashboard = () => {
         </div>
       </div>
 
+      <AvisoResguardos />
+      <AvisoHorario compacto />
+
       {/* Ticket List */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
-          Cargando tickets...
-        </div>
+        <EsqueletoLista filas={4} />
       ) : filteredTickets.length === 0 ? (
         <div className="apple-card" style={{ textAlign: 'center', padding: '60px' }}>
           <CheckCircle size={48} style={{ color: 'var(--text-muted)', marginBottom: '16px', margin: '0 auto' }} />
@@ -130,7 +141,7 @@ const Dashboard = () => {
           <p style={{ color: 'var(--text-secondary)' }}>No se encontraron tickets con los filtros actuales.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div className="lista-escalonada" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {filteredTickets.map((ticket) => (
             <div
               key={ticket.id}
@@ -142,7 +153,9 @@ const Dashboard = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                gap: '20px'
+                gap: '20px',
+                // Un vistazo basta para ver que se paso de tiempo.
+                borderLeft: estaVencido(ticket) ? '3px solid #D8000C' : '3px solid transparent'
               }}
             >
               <div style={{ flex: 1 }}>
@@ -159,6 +172,15 @@ const Dashboard = () => {
                     {ticket.folio}
                   </span>
                   <StatusBadge estado={ticket.estado} />
+                  <EtiquetaSLA venceEn={ticket.vence_en} estado={ticket.estado} />
+                  {(ticket.adjuntos || []).length > 0 && (
+                    <span title={t('adjuntos.titulo')} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '4px',
+                      fontSize: '0.78rem', color: 'var(--text-muted)'
+                    }}>
+                      <Paperclip size={13} />{ticket.adjuntos.length}
+                    </span>
+                  )}
                   <span style={{
                     fontSize: '0.8rem',
                     background: 'var(--bg-tertiary)',

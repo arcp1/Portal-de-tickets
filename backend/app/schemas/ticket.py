@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 from app.schemas.auth import UserResponse
+from app.schemas.comunes import FechaUTC
 
 class TicketCreate(BaseModel):
     sitio_id: int
@@ -10,6 +11,16 @@ class TicketCreate(BaseModel):
     subcategoria: Optional[str] = None
     descripcion_original: str
     prioridad: str = "media"
+    # Auto-resolución: el usuario resolvió solo con el checklist o con una
+    # sugerencia de la base de conocimiento. Se registra como ticket ya resuelto
+    # para que la tasa de deflección sea medible; sin esto una incidencia
+    # resuelta sin TI no deja rastro en ningún lado.
+    # Solo acepta canales de autoservicio: "checklist" o "kb".
+    canal_auto_resolucion: Optional[str] = None
+    solucion: Optional[str] = None
+    # Sesión del chatbot que originó el ticket. Enlazarla es lo que permite
+    # medir la precisión del clasificador: categoría detectada vs. la final.
+    chat_sesion_id: Optional[int] = None
 
 class TicketUpdate(BaseModel):
     estado: Optional[str] = None
@@ -31,7 +42,18 @@ class CommentResponse(BaseModel):
     autor: UserResponse
     comentario: str
     es_interno: bool
-    creado_en: datetime
+    creado_en: FechaUTC
+
+    class Config:
+        from_attributes = True
+
+class AdjuntoResponse(BaseModel):
+    id: int
+    ticket_id: int
+    nombre_original: str
+    tipo_mime: str
+    tamano_bytes: int
+    creado_en: FechaUTC
 
     class Config:
         from_attributes = True
@@ -54,10 +76,14 @@ class TicketResponse(BaseModel):
     canal_resolucion: Optional[str] = None
     solucion: Optional[str] = None
     indexado_kb: bool = False
-    creado_en: datetime
-    resuelto_en: Optional[datetime] = None
+    creado_en: FechaUTC
+    resuelto_en: Optional[FechaUTC] = None
     tiempo_resolucion: Optional[int] = None
+    # SLA: cuándo vence contando solo horas hábiles.
+    vence_en: Optional[FechaUTC] = None
+    fuera_horario: bool = False
     comentarios: List[CommentResponse] = []
+    adjuntos: List[AdjuntoResponse] = []
 
     class Config:
         from_attributes = True

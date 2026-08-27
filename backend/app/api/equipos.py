@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.core.db import get_db
-from app.models import Equipo, Usuario
+from app.models import Equipo, Usuario, Ticket
 from app.schemas.equipo import EquipoCreate, EquipoUpdate, EquipoResponse
 from app.api.deps import get_current_user, get_current_admin
 
@@ -78,3 +78,50 @@ def update_equipo(
     db.commit()
     db.refresh(equipo)
     return equipo
+
+
+@router.get("/{equipo_id}/historial")
+def historial_del_equipo(
+    equipo_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Todos los tickets de este equipo.
+
+    Es lo que revela cuál impresora conviene cambiar en vez de seguir
+    reparándola: si un solo equipo concentra veinte incidencias, el problema
+    no es de soporte, es de compras.
+    """
+    equipo = db.query(Equipo).filter(Equipo.id == equipo_id).first()
+    if not equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+
+    tickets = (
+        db.query(Ticket)
+        .filter(Ticket.equipo_id == equipo_id)
+        .order_by(Ticket.creado_en.desc())
+        .all()
+    )
+
+    resueltos = [t for t in tickets if t.tiempo_resolucion is not None]
+    return {
+        "equipo_id": equipo_id,
+        "total_tickets": len(tickets),
+        "abiertos": sum(1 for t in tickets if t.estado not in ("resuelto", "cerrado")),
+        "tiempo_promedio_min": (
+            round(sum(t.tiempo_resolucion for t in resueltos) / len(resueltos), 1)
+            if resueltos else None
+        ),
+        "tickets": [
+            {
+                "id": t.id,
+                "folio": t.folio,
+                "categoria": t.categoria,
+                "estado": t.estado,
+                "prioridad": t.prioridad,
+                "creado_en": t.creado_en.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z") if t.creado_en else None,
+                "solucion": t.solucion,
+            }
+            for t in tickets
+        ],
+    }

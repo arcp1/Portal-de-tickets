@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import LanguageSelector from '../components/LanguageSelector';
-import { Lock, Mail, ArrowRight, Shield } from 'lucide-react';
+import { Lock, User, ArrowRight, Shield } from 'lucide-react';
 
 const Login = () => {
   const { t } = useTranslation();
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const [email, setEmail] = useState('admin@cgr.mx');
-  const [password, setPassword] = useState('Admin123!');
+  // Número de empleado. Se acepta también el correo para quien lo tenga:
+  // el backend resuelve cualquiera de los dos.
+  const [identificador, setIdentificador] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -20,11 +23,11 @@ const Login = () => {
     setError('');
     setSubmitting(true);
     try {
-      await login(email, password);
-      navigate('/');
+      await login(identificador.trim(), password);
+      // `replace` para que el botón de atrás no regrese al login.
+      navigate(location.state?.desde || '/', { replace: true });
     } catch (err) {
       setError(t('auth.error_login'));
-    } finally {
       setSubmitting(false);
     }
   };
@@ -88,9 +91,9 @@ const Login = () => {
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>{t('auth.email')}</label>
+            <label>{t('auth.identificador')}</label>
             <div style={{ position: 'relative' }}>
-              <Mail size={18} style={{
+              <User size={18} style={{
                 position: 'absolute',
                 left: '14px',
                 top: '50%',
@@ -98,13 +101,20 @@ const Login = () => {
                 color: 'var(--text-muted)'
               }} />
               <input
-                type="email"
+                type="text"
                 className="form-input"
                 style={{ width: '100%', paddingLeft: '42px' }}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                placeholder={t('auth.identificador_ejemplo')}
+                autoComplete="username"
+                autoCapitalize="off"
+                spellCheck={false}
+                value={identificador}
+                onChange={(e) => setIdentificador(e.target.value)}
                 required
               />
+            </div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+              {t('auth.identificador_ayuda')}
             </div>
           </div>
 
@@ -143,19 +153,28 @@ const Login = () => {
             )}
           </button>
         </form>
-
-        <div style={{
-          marginTop: '32px',
-          paddingTop: '20px',
-          borderTop: '1px solid var(--border-color)',
-          fontSize: '0.85rem',
-          color: 'var(--text-muted)',
-          textAlign: 'center'
+        <Link to="/activar" style={{
+          display: 'block', textAlign: 'center', marginTop: '20px',
+          fontSize: '0.9rem', color: 'var(--accent-primary)',
+          textDecoration: 'none', fontWeight: '600'
         }}>
-          <div style={{ marginBottom: '8px' }}><strong>Demostración:</strong></div>
-          <div style={{ marginBottom: '4px' }}>Admin: admin@cgr.mx / Admin123!</div>
-          <div>Usuario: operador@cgr.mx / User123!</div>
-        </div>
+          {t('activar.primera_vez')}
+        </Link>
+
+        {import.meta.env.DEV && (
+          <div style={{
+            marginTop: '32px',
+            paddingTop: '20px',
+            borderTop: '1px solid var(--border-color)',
+            fontSize: '0.85rem',
+            color: 'var(--text-muted)',
+            textAlign: 'center'
+          }}>
+            <div style={{ marginBottom: '8px' }}><strong>Solo en desarrollo:</strong></div>
+            <div style={{ marginBottom: '4px' }}>10001 / Admin123!</div>
+            <div>10002 / User123!</div>
+          </div>
+        )}
       </div>
     </div>
   );

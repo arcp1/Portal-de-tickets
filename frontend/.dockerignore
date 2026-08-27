@@ -1,0 +1,8 @@
+# node_modules se instala dentro de la imagen con `npm ci`. Sin excluirlo aquí,
+# el `COPY . .` lo sobrescribe con el de la máquina de desarrollo — que en
+# Windows trae binarios nativos que no sirven en Linux.
+node_modules
+dist
+.env
+.env.local
+npm-debug.log*

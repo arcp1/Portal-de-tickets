@@ -27,13 +27,27 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const login = async (email, password) => {
-    const res = await api.post('/auth/login', { email, password });
+  const login = async (identificador, password) => {
+    // El backend acepta número de empleado o correo en el mismo campo.
+    const res = await api.post('/auth/login', { email: identificador, password });
     const { access_token, user: userData } = res.data;
     localStorage.setItem('portal_tickets_token', access_token);
     localStorage.setItem('portal_tickets_user', JSON.stringify(userData));
     setUser(userData);
     return userData;
+  };
+
+  /**
+   * Guarda una sesión ya emitida por el backend.
+   *
+   * La usa la activación de cuenta: el backend devuelve token al activar, así
+   * que no tiene sentido pedirle a la persona que inicie sesión otra vez con
+   * la contraseña que acaba de escribir.
+   */
+  const aplicarSesion = (token, datosUsuario) => {
+    localStorage.setItem('portal_tickets_token', token);
+    localStorage.setItem('portal_tickets_user', JSON.stringify(datosUsuario));
+    setUser(datosUsuario);
   };
 
   const logout = () => {
@@ -43,7 +57,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, aplicarSesion }}>
       {children}
     </AuthContext.Provider>
   );

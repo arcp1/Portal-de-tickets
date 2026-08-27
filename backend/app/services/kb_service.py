@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.logging import logger
 from app.models import BaseConocimiento, SugerenciaKB, Ticket
+from app.services.horario_service import HorarioService
 from app.services.ollama_client import ollama
 
 
@@ -56,7 +57,7 @@ class KBService:
             return False
 
         texto = construir_texto_indexable(ticket)
-        embedding = ollama.generar_embedding(texto)
+        embedding = ollama.generar_embedding(texto, tarea="documento")
 
         if embedding is None:
             # Ollama no está. El ticket queda cerrado igual y sin indexar;
@@ -118,7 +119,7 @@ class KBService:
             "degradado": True,
         }
 
-        embedding = ollama.generar_embedding(texto)
+        embedding = ollama.generar_embedding(texto, tarea="consulta")
         if embedding is None:
             return vacio
 
@@ -133,7 +134,15 @@ class KBService:
             if categoria:
                 consulta = consulta.filter(BaseConocimiento.categoria.ilike(categoria))
 
-            filas = consulta.order_by("distancia").limit(settings.KB_MAX_SUGERENCIAS).all()
+            # Fuera de horario se muestran mas sugerencias antes de rendirse:
+            # no hay personal a quien escalar hasta el dia siguiente, asi que
+            # vale la pena que el usuario tenga mas de donde escoger.
+            cuantas = (
+                settings.KB_MAX_SUGERENCIAS
+                if HorarioService.es_horario_laboral()
+                else settings.KB_MAX_SUGERENCIAS_FUERA_HORARIO
+            )
+            filas = consulta.order_by("distancia").limit(cuantas).all()
         except Exception as exc:  # noqa: BLE001 - degradación deliberada
             logger.error(
                 "Fallo consultando la base de conocimiento; se omite la sugerencia",

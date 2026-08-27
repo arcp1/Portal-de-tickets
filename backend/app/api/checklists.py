@@ -15,7 +15,9 @@ def list_checklists(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    query = db.query(Checklist)
+    # Solo los pasos activos: los que el admin dio de baja siguen en la tabla
+    # por su historial, pero no se le muestran a nadie.
+    query = db.query(Checklist).filter(Checklist.activo.is_(True))
     if categoria:
         query = query.filter(Checklist.categoria.ilike(categoria))
     return query.order_by(Checklist.orden.asc()).all()
