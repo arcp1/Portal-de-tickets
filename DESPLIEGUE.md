@@ -248,6 +248,32 @@ Los nombres que se le pasan son **por los que la gente va a llegar al portal**.
 Si no coinciden con lo que teclean, el navegador avisa aunque el certificado
 esté bien.
 
+#### Son dos certificados, y hay una razón
+
+El script genera dos cosas:
+
+| Archivo | Dura | Qué es |
+|---|---|---|
+| `ca.crt` | 10 años | La autoridad de la planta. **Esto es lo que se instala en los equipos**, una sola vez. |
+| `portal.crt` | 397 días | El del servidor, firmado por la anterior. Se renueva cada año **sin tocar ningún equipo**. |
+
+Con un solo certificado autofirmado, cada renovación obligaría a repetir el
+despliegue en las 300 máquinas. Con la CA propia, se vuelve a correr el script y
+ya está.
+
+#### Dos cosas que invalidan un certificado en Chrome
+
+Las dos se probaron y las dos dejaron el portal **inaccesible**, con
+`NET::ERR_CERT_INVALID` y **sin ofrecer el botón de "continuar de todas
+formas"**. El script las comprueba antes de terminar, pero conviene saberlas:
+
+1. **Más de 398 días de validez.** Chrome no avisa: invalida el certificado. Por
+   eso el del servidor dura 397.
+2. **Una extensión duplicada.** `openssl req -x509` agrega `basicConstraints`
+   por su cuenta; si además se le pasa otra con `-addext`, el certificado queda
+   con la extensión dos veces y **malformado**. Por eso las extensiones van en un
+   archivo aparte y no con `-addext`.
+
 #### El aviso del navegador
 
 Un certificado autofirmado cifra igual que uno comprado, pero nadie conocido lo
@@ -258,11 +284,18 @@ sirve". Dos salidas, en orden de preferencia:
 1. **Que Sistemas lo emita desde la CA interna** de la empresa. Si hay dominio de
    Windows, casi seguro la hay, y entonces no hay aviso en ninguna máquina del
    dominio.
-2. **Instalar `nginx/certs/portal.crt` como entidad de confianza** en los
-   equipos, con una GPO. En una máquina suelta: doble clic → Instalar
-   certificado → Equipo local → Entidades de certificación raíz de confianza.
+2. **Instalar `nginx/certs/ca.crt` como entidad de confianza** en los equipos,
+   con una GPO. **Ojo: se instala `ca.crt`, no `portal.crt`.** En una máquina
+   suelta: doble clic → Instalar certificado → Equipo local → Colocar todos los
+   certificados en el siguiente almacén → Entidades de certificación raíz de
+   confianza.
 
-Haga esto **antes** de anunciar el portal, no después.
+   Por GPO: Configuración del equipo → Directivas → Configuración de Windows →
+   Configuración de seguridad → Directivas de clave pública → Entidades de
+   certificación raíz de confianza.
+
+Haga esto **antes** de anunciar el portal, no después. Comprobado: con la CA
+instalada, la cadena valida limpia y el navegador no avisa.
 
 #### El interruptor de marcha atrás
 

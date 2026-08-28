@@ -11,7 +11,10 @@ Dos superficies:
 """
 
 from datetime import datetime, timedelta
+from pathlib import Path
 
+from cryptography import x509
+from cryptography.x509.oid import NameOID
 from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -39,6 +42,47 @@ def horario(current_user: Usuario = Depends(get_current_user)):
             "media": settings.SLA_HORAS_MEDIA,
             "baja": settings.SLA_HORAS_BAJA,
         },
+    }
+
+
+def _estado_certificado() -> dict:
+    """Cuánto le queda al certificado TLS. Sin TLS, se dice y ya."""
+    ruta = Path(settings.RUTA_CERTIFICADO)
+    base = {"nombre": "Certificado TLS", "clave": "certificado", "critico": False}
+
+    if not ruta.exists():
+        return {**base, "estado": "apagado",
+                "detalle": "El portal responde por HTTP",
+                "degradacion": ("Sin TLS, las contraseñas y los códigos de activación "
+                                "viajan en claro por la red de planta.")}
+
+    try:
+        with open(ruta, "rb") as archivo:
+            cert = x509.load_pem_x509_certificate(archivo.read())
+        vence = cert.not_valid_after_utc.replace(tzinfo=None)
+        dias = (vence - datetime.utcnow()).days
+        emisor = next(
+            (a.value for a in cert.issuer if a.oid == NameOID.COMMON_NAME), "desconocido"
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {**base, "estado": "abajo",
+                "detalle": f"No se pudo leer el certificado: {str(exc)[:120]}"}
+
+    if dias < 0:
+        estado = "abajo"
+    elif dias <= settings.CERTIFICADO_AVISO_DIAS:
+        estado = "en_espera"      # amarillo: hay que renovarlo ya
+    else:
+        estado = "arriba"
+
+    return {
+        **base,
+        "estado": estado,
+        "detalle": f"{emisor} · vence en {dias} día(s)",
+        "dias_restantes": dias,
+        "degradacion": ("Un certificado vencido no degrada nada: el navegador "
+                        "simplemente no deja entrar. Renuévelo antes de que llegue "
+                        "a cero."),
     }
 
 
@@ -93,6 +137,13 @@ def sistema(db: Session = Depends(get_db), admin: Usuario = Depends(get_current_
         "degradacion": ("Sin Gemini el portal enseña los tickets parecidos tal cual, "
                         "sin redactar una respuesta."),
     })
+
+    # --- El certificado: caduca sin avisar y tumba el portal entero ---
+    #
+    # Un certificado vencido no degrada nada: el navegador simplemente no deja
+    # entrar. Y vence en silencio, un martes cualquiera. Por eso se vigila aquí
+    # y no en la cabeza de nadie.
+    servicios.append(_estado_certificado())
 
     hace_24h = datetime.utcnow() - timedelta(hours=24)
     return {

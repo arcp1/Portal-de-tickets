@@ -68,6 +68,9 @@ services:
     volumes:
       - ./backend:/app
       - adjuntos:/app/adjuntos
+      # Solo lectura y solo el .crt: para vigilar cuando vence. La llave
+      # privada no se monta; el backend no tiene nada que hacer con ella.
+      - ./nginx/certs/portal.crt:/certs/portal.crt:ro
       - documentos:/app/documentos
 
   frontend:
@@ -92,6 +95,8 @@ services:
       - ./nginx/plantillas:/etc/nginx/plantillas:ro
       - ./nginx/comun:/etc/nginx/comun:ro
       - ./nginx/certs:/etc/nginx/certs:ro
+      # Donde Let's Encrypt deja el reto de validacion por HTTP.
+      - ./nginx/certbot:/var/www/certbot
       - ./nginx/entrada.sh:/entrada.sh:ro
     environment:
       # auto = HTTPS si hay certificado. off = HTTP siempre, para dar marcha

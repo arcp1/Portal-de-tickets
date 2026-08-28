@@ -4,7 +4,7 @@ import api from '../api/client';
 import { EsqueletoLista } from '../components/Cargando';
 import {
   Activity, CheckCircle2, XCircle, PauseCircle, KeyRound, RefreshCw,
-  Database, Cpu, Sparkles, Clock, Ticket, Users
+  Database, Cpu, Sparkles, Clock, Ticket, Users, ShieldCheck
 } from 'lucide-react';
 
 /**
@@ -18,6 +18,7 @@ import {
 
 const ICONOS = {
   db: Database,
+  certificado: ShieldCheck,
   ollama: Cpu,
   gemini: Sparkles
 };

@@ -151,6 +151,12 @@ class Settings(BaseSettings):
     # La activacion asistida se gasta en el mostrador, con la persona enfrente.
     # Dura minutos a proposito: no es un codigo para entregar.
     ACTIVACION_ASISTIDA_MINUTOS: int = int(os.getenv("ACTIVACION_ASISTIDA_MINUTOS", "20"))
+
+    # --- Certificado TLS ---
+    # Se vigila desde la pantalla de Estado porque vence en silencio, y un
+    # certificado vencido no degrada nada: el navegador no deja entrar y ya.
+    RUTA_CERTIFICADO: str = os.getenv("RUTA_CERTIFICADO", "/certs/portal.crt")
+    CERTIFICADO_AVISO_DIAS: int = int(os.getenv("CERTIFICADO_AVISO_DIAS", "20"))
     # Cuantos datos personales hay que acertar para activar sin codigo.
     # Con 1, quien vea la lista de RH puede activar cuentas ajenas. Con 2 tiene
     # que conocer dos cosas distintas de esa persona en concreto. Si la cuenta
