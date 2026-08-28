@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import SugerenciasKB from '../components/SugerenciasKB';
+import RespuestaAsistente from '../components/RespuestaAsistente';
 import AvisoHorario from '../components/AvisoHorario';
 import { CheckCircle2, AlertTriangle, ArrowRight, ArrowLeft, Send, HelpCircle } from 'lucide-react';
 
@@ -372,6 +373,11 @@ const NewTicket = () => {
                 setResolvedByKB(true);
               }}
             />
+
+            {/* La respuesta redactada sobre lo que TI ya resolvió y escribió,
+                con sus fuentes a la vista. Si de esto no hay nada en la planta,
+                lo dice en vez de inventar. */}
+            <RespuestaAsistente texto={descripcion} categoria={categoria} />
 
             <button
               type="submit"

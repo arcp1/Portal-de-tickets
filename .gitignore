@@ -1,6 +1,10 @@
 .env
 .env.local
 .env.*.local
+# Los respaldos del .env traen el JWT_SECRET y la contraseña de la base.
+.env.respaldo-*
+nginx/certs/*.key
+nginx/certs/*.crt
 *.pem
 *.key
 /data/

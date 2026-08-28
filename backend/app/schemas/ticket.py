@@ -18,6 +18,7 @@ class TicketCreate(BaseModel):
     # Solo acepta canales de autoservicio: "checklist" o "kb".
     canal_auto_resolucion: Optional[str] = None
     solucion: Optional[str] = None
+    descartado: Optional[str] = None
     # Sesión del chatbot que originó el ticket. Enlazarla es lo que permite
     # medir la precisión del clasificador: categoría detectada vs. la final.
     chat_sesion_id: Optional[int] = None
@@ -30,6 +31,7 @@ class TicketUpdate(BaseModel):
     descripcion_normalizada: Optional[str] = None
     # Obligatoria al pasar el ticket a resuelto o cerrado.
     solucion: Optional[str] = None
+    descartado: Optional[str] = None
 
 class CommentCreate(BaseModel):
     comentario: str
@@ -75,6 +77,7 @@ class TicketResponse(BaseModel):
     asignado_usuario: Optional[UserResponse] = None
     canal_resolucion: Optional[str] = None
     solucion: Optional[str] = None
+    descartado: Optional[str] = None
     indexado_kb: bool = False
     creado_en: FechaUTC
     resuelto_en: Optional[FechaUTC] = None

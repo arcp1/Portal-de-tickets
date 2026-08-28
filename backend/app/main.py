@@ -30,6 +30,35 @@ app.add_middleware(
 )
 
 @app.on_event("startup")
+def revisar_secreto():
+    """El portal no arranca en producción con el secreto de desarrollo puesto.
+
+    `JWT_SECRET` es lo único que separa una sesión legítima de una falsificada:
+    quien lo conozca se firma un token de administrador. Los valores de la
+    plantilla del repositorio los conoce cualquiera que haya visto el proyecto,
+    así que valen tanto como no tener secreto.
+
+    Se falla ruidosamente en vez de arrancar inseguro y en silencio, que es como
+    estas cosas llegan a producción y ahí se quedan.
+    """
+    if settings.JWT_SECRET not in settings.SECRETOS_PROHIBIDOS:
+        return
+
+    mensaje = (
+        "JWT_SECRET tiene un valor de ejemplo, conocido por cualquiera que haya "
+        "visto el repositorio. Genere uno con:\n"
+        "    python -c \"import secrets; print(secrets.token_urlsafe(48))\"\n"
+        "y póngalo en el .env. Al cambiarlo se cierran las sesiones abiertas."
+    )
+
+    if settings.ENVIRONMENT.lower() in ("development", "dev", "local", "test"):
+        logger.warning("INSEGURO: " + mensaje.replace("\n", " "))
+        return
+
+    raise RuntimeError(mensaje)
+
+
+@app.on_event("startup")
 def startup_db():
     """Pone el esquema al día con Alembic.
 

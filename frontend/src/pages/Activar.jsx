@@ -4,7 +4,9 @@ import { useTranslation } from 'react-i18next';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import LanguageSelector from '../components/LanguageSelector';
-import { KeyRound, User, Lock, Calendar, ArrowRight, ArrowLeft, Check, AlertTriangle } from 'lucide-react';
+import {
+  KeyRound, User, Lock, Calendar, HardHat, ArrowRight, ArrowLeft, Check, AlertTriangle
+} from 'lucide-react';
 
 /**
  * Activación de cuenta.
@@ -12,8 +14,12 @@ import { KeyRound, User, Lock, Calendar, ArrowRight, ArrowLeft, Check, AlertTria
  * Hay dos caminos, según cómo se dio de alta la cuenta:
  *
  *   1. Código de un solo uso, cuando TI la dio de alta una por una.
- *   2. Fecha de ingreso, para las cargas masivas de 300+ personas, donde
- *      repartir 300 códigos en papel no es realista.
+ *   2. Una fecha que la persona sabe —normalmente la de nacimiento—, para las
+ *      cargas masivas de 300+ personas, donde repartir 300 códigos en papel no
+ *      es realista.
+ *
+ * Cuál de las dos fechas se pide lo dice el backend en `dato_verificacion`: no
+ * tiene caso enseñarle a alguien un campo que en su caso no sirve.
  *
  * En los dos casos la contraseña la elige la persona y TI nunca la conoce.
  */
@@ -24,7 +30,9 @@ const Activar = () => {
 
   const [identificador, setIdentificador] = useState('');
   const [codigo, setCodigo] = useState('');
-  const [fechaIngreso, setFechaIngreso] = useState('');
+  // Los datos de verificación, indexados por campo: el backend dice cuáles
+  // pedir y aquí se guarda lo que la persona escriba en cada uno.
+  const [datos, setDatos] = useState({});
   // Qué métodos acepta esta cuenta. Se consulta al escribir el identificador.
   const [metodos, setMetodos] = useState(null);
   const [metodo, setMetodo] = useState('codigo');
@@ -54,9 +62,15 @@ const Activar = () => {
 
   const largaSuficiente = password.length >= minimo;
   const coinciden = password.length > 0 && password === repetir;
+  // Qué datos toca pedir: lo dice el backend, porque depende de lo que tenga
+  // registrado esa cuenta. Sin respuesta se asume el par de la carga masiva.
+  const campos = metodos?.datos_verificacion?.length
+    ? metodos.datos_verificacion
+    : ['numero_epp', 'fecha_nacimiento'];
+  // Hay que llenarlos todos: acertar uno de dos no demuestra nada.
   const credencialLista = metodo === 'codigo'
     ? codigo.replace(/[^A-Za-z0-9]/g, '').length >= 8
-    : fechaIngreso.length > 0;
+    : campos.every((c) => (datos[c] || '').trim().length > 0);
   const puedeEnviar = identificador && credencialLista && largaSuficiente && coinciden && !enviando;
 
   const enviar = async (e) => {
@@ -70,7 +84,7 @@ const Activar = () => {
         password,
         ...(metodo === 'codigo'
           ? { codigo: codigo.trim() }
-          : { fecha_ingreso: fechaIngreso })
+          : Object.fromEntries(campos.map((c) => [c, (datos[c] || '').trim()])))
       });
       // El backend ya devolvió sesión: no se le pide entrar otra vez.
       aplicarSesion(res.data.access_token, res.data.user);
@@ -170,7 +184,7 @@ const Activar = () => {
               <Pestana activa={metodo === 'codigo'} onClick={() => setMetodo('codigo')}
                 icono={<KeyRound size={15} />} texto={t('activar.con_codigo')} />
               <Pestana activa={metodo === 'verificacion'} onClick={() => setMetodo('verificacion')}
-                icono={<Calendar size={15} />} texto={t('activar.con_fecha')} />
+                icono={<Calendar size={15} />} texto={t('activar.con_verificacion')} />
             </div>
           )}
 
@@ -189,21 +203,15 @@ const Activar = () => {
               </div>
             </div>
           ) : (
-            <div className="form-group">
-              <label>{t('activar.fecha_ingreso')}</label>
-              <div style={{ position: 'relative' }}>
-                <Calendar size={18} style={{
-                  position: 'absolute', left: '14px', top: '50%',
-                  transform: 'translateY(-50%)', color: 'var(--text-muted)'
-                }} />
-                <input type="date" className="form-input" required
-                  style={{ width: '100%', paddingLeft: '42px' }}
-                  value={fechaIngreso} onChange={(e) => setFechaIngreso(e.target.value)} />
-              </div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '6px' }}>
-                {t('activar.donde_fecha')}
-              </div>
-            </div>
+            campos.map((campo) => (
+              <CampoVerificacion
+                key={campo}
+                campo={campo}
+                valor={datos[campo] || ''}
+                onCambiar={(v) => setDatos((previo) => ({ ...previo, [campo]: v }))}
+                t={t}
+              />
+            ))
           )}
 
           <div className="form-group">
@@ -251,6 +259,44 @@ const Activar = () => {
         }}>
           <ArrowLeft size={15} /> {t('activar.ya_tengo_cuenta')}
         </Link>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Un dato de verificación. El número de EPP es texto corto de dígitos; las
+ * fechas van con selector de calendario.
+ */
+const CampoVerificacion = ({ campo, valor, onCambiar, t }) => {
+  const esFecha = campo.startsWith('fecha_');
+  const Icono = esFecha ? Calendar : HardHat;
+
+  return (
+    <div className="form-group">
+      <label>{t('activar.pedir_' + campo)}</label>
+      <div style={{ position: 'relative' }}>
+        <Icono size={18} style={{
+          position: 'absolute', left: '14px', top: '50%',
+          transform: 'translateY(-50%)', color: 'var(--text-muted)'
+        }} />
+        <input
+          type={esFecha ? 'date' : 'text'}
+          className="form-input"
+          required
+          style={{ width: '100%', paddingLeft: '42px' }}
+          {...(esFecha ? {} : {
+            inputMode: 'numeric',
+            maxLength: 10,
+            autoComplete: 'off',
+            placeholder: t('activar.epp_ejemplo')
+          })}
+          value={valor}
+          onChange={(e) => onCambiar(e.target.value)}
+        />
+      </div>
+      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+        {t('activar.donde_' + campo)}
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ from app.schemas.chat import (
     ChatMensajeRequest,
     ChatMensajeResponse,
 )
+from app.services.asistente_service import AsistenteService
 from app.services.chat_service import ChatService
 from app.services.ollama_client import ollama
 
@@ -36,11 +37,28 @@ def enviar_mensaje(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    """Clasifica el mensaje hacia una categoría y decide el siguiente paso.
+    """Primero busca la respuesta; solo si no la hay, clasifica y escala.
+
+    Ese orden es el punto. Si alguien escribe "me sale una raya negra" y eso ya
+    se resolvió antes, **no tiene sentido preguntarle de qué categoría es**: se
+    le da la solución ahí mismo y se acabó. La clasificación existe para lo que
+    todavía no sabemos, no para lo que ya está escrito.
 
     Nunca devuelve error por un fallo de IA: responde 200 con
     ``accion: "no_disponible"`` y el widget se oculta solo.
     """
+    respuesta = AsistenteService.responder(
+        db, pregunta=peticion.mensaje, sitio_id=current_user.sitio_id
+    )
+    if respuesta["fundamentada"] and respuesta["respuesta"]:
+        return ChatMensajeResponse(
+            sesion_id=peticion.sesion_id,
+            respuesta=respuesta["respuesta"],
+            accion="solucion",
+            fuentes=respuesta["fuentes"],
+            descripcion_sugerida=peticion.mensaje,
+        )
+
     return ChatService.procesar_mensaje(
         db=db,
         usuario=current_user,

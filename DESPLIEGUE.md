@@ -130,6 +130,13 @@ openssl rand -base64 48
 Ese valor va en `JWT_SECRET`, y otro distinto en `POSTGRES_PASSWORD`. La
 `DATABASE_URL` tiene que llevar la misma contraseña que `POSTGRES_PASSWORD`.
 
+`JWT_SECRET` es lo único que separa una sesión legítima de una falsificada:
+quien lo conozca se firma un token de administrador. Los valores de ejemplo están
+en el repositorio, así que valen tanto como no tener secreto — **con
+`ENVIRONMENT` distinto de `development`, el backend se niega a arrancar si
+detecta uno de ellos**. Cambiarlo cierra todas las sesiones abiertas, así que
+conviene hacerlo antes de dar de alta a la gente, no después.
+
 ### 2.6 Levantar
 
 ```bash
@@ -193,19 +200,88 @@ proceso muere. Esta unidad cubre el caso de reinicio de la máquina.
 
 ### 2.8 Activar TLS
 
-La spec pide NGINX desde el día uno justo para que esto sean cinco líneas.
-Con un certificado en `/opt/portal-tickets/nginx/certs/`, en
-`nginx/default.conf`:
+#### Qué es esto, en corto
 
-```nginx
-listen 443 ssl;
-ssl_certificate     /etc/nginx/certs/portal.crt;
-ssl_certificate_key /etc/nginx/certs/portal.key;
+Sin TLS, todo lo que se teclea en el portal viaja por la red **como texto plano**.
+Cualquiera conectado al mismo switch puede leerlo con herramientas que se bajan
+gratis: contraseñas, códigos de activación, todo. No hace falta ser hacker; hace
+falta estar en la misma red.
+
+TLS es lo que pone la "s" en `https` y el candado en el navegador. Hace dos cosas:
+
+1. **Cifra** lo que va y viene, para que quien lo intercepte solo vea basura.
+2. **Identifica** al servidor, para que el navegador sepa que está hablando con
+   nuestro portal y no con la laptop de alguien haciéndose pasar por él.
+
+El **certificado** es el archivo que hace la segunda parte: la credencial del
+servidor. Como cualquier credencial, importa quién la firma.
+
+- Un certificado **autofirmado** —el que genera el script— es como una credencial
+  que uno mismo se imprime. Cifra exactamente igual de bien; lo que no tiene es
+  quién responda por ella. Por eso el navegador enseña *"Tu conexión no es
+  privada"*: no está diciendo que sea insegura, está diciendo *"no conozco a quien
+  firmó esto"*.
+- Un certificado firmado por una **autoridad conocida** —la CA interna de la
+  empresa, o una pública— no enseña ese aviso, porque el navegador ya confía en
+  quien lo firmó.
+
+La solución para la planta es **decirle a las computadoras de la empresa que
+confíen en nuestro certificado**. Eso se hace una vez, por GPO, y el aviso
+desaparece en todas. Mientras no se haga, el candado funciona pero con
+advertencia.
+
+#### Por qué no es opcional
+
+**Esto no es opcional en planta.** Sin TLS, la contraseña que teclea un operador
+y el código de activación que le entrega TI viajan en claro por la red. Con 300
+personas cargando sus contraseñas la primera semana, deja de ser teórico.
+
+Ya no hay que editar configuración: NGINX sirve por HTTPS en cuanto encuentra el
+certificado, y el 80 pasa a redirigir al 443.
+
+```bash
+./scripts/generar-certificado.sh portal.cgr.local 192.168.1.50
+docker compose up -d nginx
 ```
 
-Y montar los certificados en el servicio `nginx` del compose. Redirige el 80 al
-443 y, en `AuthContext`, cambia el token de `localStorage` a cookie con
-`secure` + `samesite` (spec §12).
+Los nombres que se le pasan son **por los que la gente va a llegar al portal**.
+Si no coinciden con lo que teclean, el navegador avisa aunque el certificado
+esté bien.
+
+#### El aviso del navegador
+
+Un certificado autofirmado cifra igual que uno comprado, pero nadie conocido lo
+respalda, así que el navegador enseña "Tu conexión no es privada". Si eso pasa el
+primer día que entran 300 personas, la conclusión de todas va a ser "el portal no
+sirve". Dos salidas, en orden de preferencia:
+
+1. **Que Sistemas lo emita desde la CA interna** de la empresa. Si hay dominio de
+   Windows, casi seguro la hay, y entonces no hay aviso en ninguna máquina del
+   dominio.
+2. **Instalar `nginx/certs/portal.crt` como entidad de confianza** en los
+   equipos, con una GPO. En una máquina suelta: doble clic → Instalar
+   certificado → Equipo local → Entidades de certificación raíz de confianza.
+
+Haga esto **antes** de anunciar el portal, no después.
+
+#### El interruptor de marcha atrás
+
+Si el aviso causa problemas y hace falta volver a HTTP en un minuto:
+
+```bash
+TLS_ACTIVO=off docker compose up -d nginx
+```
+
+Y `TLS_ACTIVO=auto` (o quitarlo) para volver a HTTPS. Es para salir del paso,
+no para quedarse ahí.
+
+#### Después de activarlo
+
+- `PORTAL_URL` en el `.env` pasa a `https://...`: es la dirección que sale en
+  los correos de aviso.
+- Queda pendiente mover el token de `localStorage` a cookie `secure` +
+  `samesite` (spec §12). Con TLS ya no viaja en claro, pero seguiría siendo
+  legible por cualquier script en la página.
 
 ### 2.9 Actualizar
 

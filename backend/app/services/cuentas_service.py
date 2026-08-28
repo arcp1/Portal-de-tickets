@@ -99,6 +99,65 @@ def validar_password(password: str) -> Optional[str]:
     return None
 
 
+# Datos con los que una persona puede demostrar que es ella sin código, en
+# orden de preferencia. El de EPP va primero porque es el que mejor cumple las
+# dos condiciones: la persona se lo sabe de memoria (lo usa para sacar su
+# equipo) y no está a la vista de sus compañeros.
+FACTORES_VERIFICACION = ("numero_epp", "fecha_nacimiento", "fecha_ingreso")
+
+# De los tres, solo dos los recuerda la persona sin pensarlo: el número de EPP
+# porque lo usa para sacar su equipo, y su cumpleaños. La fecha de ingreso es la
+# excepción, y por eso **nunca se exige como segundo factor**: pedirla sería
+# repetir el error que dejó fuera a media planta. Solo se usa cuando es lo único
+# que hay en el padrón.
+FACTORES_MEMORABLES = ("numero_epp", "fecha_nacimiento")
+
+
+def normalizar_epp(valor: Optional[str]) -> Optional[str]:
+    """Deja el número de EPP comparable: solo dígitos, sin ceros de más.
+
+    La misma persona lo escribe "0421", "421" o "04 21" según el día, y las
+    tres deberían valer.
+    """
+    if valor is None:
+        return None
+    digitos = "".join(c for c in str(valor) if c.isdigit())
+    return digitos.lstrip("0") or ("0" if digitos else None)
+
+
+def _coincide(usuario: Usuario, factor: str, declarado: str) -> bool:
+    """Si lo que la persona escribió corresponde a lo que hay en el padrón."""
+    esperado = getattr(usuario, factor, None)
+    if not esperado or not declarado:
+        return False
+    if factor == "numero_epp":
+        return normalizar_epp(declarado) == normalizar_epp(esperado)
+    fecha = _leer_fecha_simple(declarado)
+    return bool(fecha and fecha.date() == esperado.date())
+
+
+def factores_de(usuario: Usuario) -> list:
+    """Qué datos de verificación tiene registrados esta cuenta."""
+    return [f for f in FACTORES_VERIFICACION if getattr(usuario, f, None)]
+
+
+def factores_a_pedir(usuario: Usuario) -> list:
+    """Cuáles se le van a pedir a esta persona para activarse sin código.
+
+    Los memorables que tenga, hasta el tope configurado. Si no tiene ninguno,
+    queda la fecha de ingreso como último recurso —mejor un factor débil que
+    mandar a todo el mundo al mostrador—.
+
+    Cuando solo hay uno, se pide uno: no se puede exigir un dato que nadie
+    capturó. Esas cuentas salen marcadas en el panel para que TI sepa cuáles
+    quedaron con verificación de un solo factor y le pida a RH la lista de EPP.
+    """
+    memorables = [f for f in FACTORES_MEMORABLES if getattr(usuario, f, None)]
+    if memorables:
+        return memorables[:max(1, settings.VERIFICACION_FACTORES)]
+    return ["fecha_ingreso"] if usuario.fecha_ingreso else []
+
+
 class CuentasService:
 
     @staticmethod
@@ -112,6 +171,8 @@ class CuentasService:
         area: Optional[str] = None,
         idioma: str = "es",
         fecha_ingreso=None,
+        fecha_nacimiento=None,
+        numero_epp=None,
     ) -> Tuple[Usuario, str]:
         """Da de alta a una persona. Devuelve (usuario, código en claro).
 
@@ -143,6 +204,8 @@ class CuentasService:
             nombre=nombre.strip(),
             numero_empleado=numero_empleado,
             email=email,
+            numero_epp=normalizar_epp(numero_epp),
+            fecha_nacimiento=fecha_nacimiento,
             fecha_ingreso=fecha_ingreso,
             sitio_id=sitio_id,
             rol=rol,
@@ -198,14 +261,22 @@ class CuentasService:
         password: str,
         codigo: Optional[str] = None,
         fecha_ingreso: Optional[str] = None,
+        fecha_nacimiento: Optional[str] = None,
+        numero_epp: Optional[str] = None,
     ) -> Usuario:
-        """Activa la cuenta por código o por dato de verificación.
+        """Activa la cuenta por código o por datos de verificación.
 
-        El **código** es lo más seguro y sirve para altas individuales. La
-        **fecha de ingreso** existe para la carga inicial de cientos de
-        personas, donde repartir un papelito a cada quien no es viable: se
-        apoya en un dato que la persona sabe y que no está a la vista de sus
-        compañeros.
+        El **código** es lo más seguro y sirve para altas individuales, y es lo
+        que usa por debajo la activación asistida en mostrador.
+
+        Los **datos de verificación** existen para la carga inicial de cientos
+        de personas, donde repartir un papelito a cada quien no es viable. Se
+        piden **dos** (los que la cuenta tenga, hasta `VERIFICACION_FACTORES`):
+        con uno solo, quien viera la lista de RH podría activar cuentas ajenas.
+
+        Cuáles dos, importa. El número de EPP y la fecha de nacimiento los sabe
+        la persona de memoria; la fecha de ingreso casi nadie la recuerda, así
+        que queda de última y solo para quien no tenga las otras.
         """
         usuario = CuentasService.buscar_por_identificador(db, identificador)
 
@@ -223,21 +294,28 @@ class CuentasService:
             if not verify_password(normalizar_codigo(codigo), usuario.codigo_activacion_hash):
                 raise ErrorCuenta(generico)
 
-        elif fecha_ingreso:
-            if not usuario.fecha_ingreso:
+        elif numero_epp or fecha_nacimiento or fecha_ingreso:
+            declarados = {"numero_epp": numero_epp,
+                          "fecha_nacimiento": fecha_nacimiento,
+                          "fecha_ingreso": fecha_ingreso}
+            exigidos = factores_a_pedir(usuario)
+            if not exigidos:
                 raise ErrorCuenta(generico)
+
             # La ventana acota el riesgo del modo sin código: pasada la fecha,
             # lo que quede sin activar necesita que TI entregue un código.
             if usuario.codigo_expira and usuario.codigo_expira < datetime.utcnow():
                 raise ErrorCuenta(
                     "El periodo de activación terminó. Solicite un código al área de TI."
                 )
-            declarada = _leer_fecha_simple(fecha_ingreso)
-            if not declarada or declarada.date() != usuario.fecha_ingreso.date():
+
+            # Hay que acertarlos todos. Nada de crédito parcial: acertar uno de
+            # dos no acerca a nadie a demostrar que es quien dice.
+            if not all(_coincide(usuario, f, declarados.get(f)) for f in exigidos):
                 raise ErrorCuenta(generico)
 
         else:
-            raise ErrorCuenta("Falta el código o la fecha de ingreso.")
+            raise ErrorCuenta("Faltan los datos de verificación.")
 
         problema = validar_password(password)
         if problema:
@@ -254,8 +332,38 @@ class CuentasService:
 
         logger.info("Cuenta activada",
                     extra={"numero_empleado": usuario.numero_empleado,
-                           "via": "codigo" if codigo else "verificacion"})
+                           "via": "codigo" if codigo else "+".join(factores_a_pedir(usuario))})
         return usuario
+
+    @staticmethod
+    def abrir_activacion_asistida(db: Session, usuario: Usuario) -> Tuple[str, datetime]:
+        """Código de vida corta para activar a alguien en mostrador.
+
+        Es la salida para quien no recuerda ninguna fecha y para quien nunca va
+        a recibir un papelito: TI lo tiene enfrente, comprueba el gafete y le
+        gira la pantalla para que **la persona teclee su propia contraseña**.
+        TI sigue sin conocerla.
+
+        El código dura minutos, no días: no está pensado para entregarse, sino
+        para gastarse ahí mismo.
+        """
+        if usuario.estado_cuenta == BLOQUEADA:
+            raise ErrorCuenta("La cuenta está bloqueada.")
+        if not usuario.activo:
+            raise ErrorCuenta("La cuenta está desactivada.")
+
+        codigo = generar_codigo()
+        expira = datetime.utcnow() + timedelta(minutes=settings.ACTIVACION_ASISTIDA_MINUTOS)
+        usuario.password_hash = None
+        usuario.estado_cuenta = PENDIENTE
+        usuario.codigo_activacion_hash = get_password_hash(normalizar_codigo(codigo))
+        usuario.codigo_expira = expira
+        usuario.debe_cambiar_password = False
+        db.commit()
+
+        logger.info("Activación asistida abierta",
+                    extra={"numero_empleado": usuario.numero_empleado})
+        return codigo, expira
 
     @staticmethod
     def cambiar_password(db: Session, usuario: Usuario, actual: str, nueva: str) -> Usuario:
@@ -305,10 +413,14 @@ class CuentasService:
         usuario = CuentasService.buscar_por_identificador(db, identificador)
 
         if usuario and usuario.activo and usuario.estado_cuenta == PENDIENTE:
-            # Se le dice qué puede usar, sin revelar sus datos.
+            # Se le dice qué campos llenar, sin revelar su contenido: la
+            # pantalla necesita saber qué preguntar, no qué contestar.
+            pedir = factores_a_pedir(usuario)
             return {
                 "accion": "activar",
                 "acepta_codigo": usuario.codigo_activacion_hash is not None,
-                "acepta_verificacion": usuario.fecha_ingreso is not None,
+                "acepta_verificacion": bool(pedir),
+                "datos_verificacion": pedir,
             }
-        return {"accion": "iniciar_sesion", "acepta_codigo": False, "acepta_verificacion": False}
+        return {"accion": "iniciar_sesion", "acepta_codigo": False,
+                "acepta_verificacion": False, "datos_verificacion": []}

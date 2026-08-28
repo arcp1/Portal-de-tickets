@@ -10,6 +10,8 @@ import Login from './pages/Login';
 import Activar from './pages/Activar';
 import Usuarios from './pages/Usuarios';
 import Importar from './pages/Importar';
+import EstadoSistema from './pages/EstadoSistema';
+import Soluciones from './pages/Soluciones';
 import DocumentacionTI from './pages/DocumentacionTI';
 import Dashboard from './pages/Dashboard';
 import NewTicket from './pages/NewTicket';
@@ -76,6 +78,8 @@ function AppRoutes() {
         <Route path="/resguardos" element={<ProtectedRoute adminOnly><Resguardos /></ProtectedRoute>} />
         <Route path="/usuarios" element={<ProtectedRoute adminOnly><Usuarios /></ProtectedRoute>} />
         <Route path="/importar" element={<ProtectedRoute adminOnly><Importar /></ProtectedRoute>} />
+        <Route path="/estado" element={<ProtectedRoute adminOnly><EstadoSistema /></ProtectedRoute>} />
+        <Route path="/soluciones" element={<ProtectedRoute adminOnly><Soluciones /></ProtectedRoute>} />
         <Route path="/documentacion" element={<ProtectedRoute adminOnly><DocumentacionTI /></ProtectedRoute>} />
         <Route path="/rules" element={<ProtectedRoute adminOnly><RulesAdmin /></ProtectedRoute>} />
         <Route path="/temas" element={<ProtectedRoute adminOnly><Temas /></ProtectedRoute>} />

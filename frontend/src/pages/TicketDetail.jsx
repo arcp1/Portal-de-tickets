@@ -29,6 +29,9 @@ const TicketDetail = () => {
   // Cierre con solución obligatoria.
   const [estadoPendiente, setEstadoPendiente] = useState(null);
   const [solucion, setSolucion] = useState('');
+  // Lo que se probó y NO era. Opcional, pero es lo que le ahorra media hora al
+  // siguiente que atienda la misma falla.
+  const [descartado, setDescartado] = useState('');
   const [errorCierre, setErrorCierre] = useState('');
   const [guardandoCierre, setGuardandoCierre] = useState(false);
 
@@ -52,6 +55,7 @@ const TicketDetail = () => {
     // se puede indexar en la base de conocimiento.
     if (ESTADOS_DE_CIERRE.includes(nuevoEstado)) {
       setSolucion(ticket.solucion || '');
+      setDescartado(ticket.descartado || '');
       setErrorCierre('');
       setEstadoPendiente(nuevoEstado);
       return;
@@ -74,7 +78,8 @@ const TicketDetail = () => {
     try {
       const res = await api.patch(`/tickets/${id}`, {
         estado: estadoPendiente,
-        solucion: solucion.trim()
+        solucion: solucion.trim(),
+        descartado: descartado.trim()
       });
       setTicket(res.data);
       setEstadoPendiente(null);
@@ -330,6 +335,21 @@ const TicketDetail = () => {
                 {solucion.trim().length < SOLUCION_MIN_LONGITUD
                   ? t('ticket.solucion_faltan', { n: SOLUCION_MIN_LONGITUD - solucion.trim().length })
                   : t('ticket.solucion_ok')}
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>{t('ticket.descartado')}</label>
+              <textarea
+                className="form-textarea"
+                rows={3}
+                placeholder={t('ticket.descartado_placeholder')}
+                value={descartado}
+                onChange={(e) => setDescartado(e.target.value)}
+                style={{ fontSize: '0.95rem' }}
+              />
+              <div style={{ fontSize: '0.83rem', marginTop: '8px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                {t('ticket.descartado_ayuda')}
               </div>
             </div>
 

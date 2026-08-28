@@ -12,6 +12,14 @@ class Settings(BaseSettings):
     )
     
     JWT_SECRET: str = os.getenv("JWT_SECRET", "dev_secret_key_cgr_queretaro_2026")
+    # Secretos que alguna vez estuvieron en el repo o en la plantilla del .env.
+    # Quien los conozca puede firmarse un token de administrador, asi que en
+    # produccion el portal se niega a arrancar con ellos puestos.
+    SECRETOS_PROHIBIDOS: tuple = (
+        "dev_secret_key_cgr_queretaro_2026",
+        "cambiar_esta_clave_secreta_en_produccion_123456789",
+        "changeme", "secret", "cambiar",
+    )
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
 
@@ -19,7 +27,25 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 
     OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+    # --- Gemini (Fase 3) ---
+    # La llave se pone en el .env y NUNCA en el repositorio. Sin llave, el
+    # portal funciona igual: Ollama se queda con todo y Gemini no se usa.
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    # Interruptor aparte de la llave: permite apagarlo sin borrarla, por
+    # ejemplo si se dispara el gasto y hay que frenar mientras se revisa.
+    GEMINI_HABILITADO: bool = os.getenv("GEMINI_HABILITADO", "true").lower() == "true"
+    # Flash es el que corresponde a este uso: respuestas cortas sobre extractos
+    # ya recuperados. Pro cuesta varias veces mas y aqui no aporta.
+    GEMINI_MODELO: str = os.getenv("GEMINI_MODELO", "gemini-2.5-flash")
+    GEMINI_TIMEOUT: float = float(os.getenv("GEMINI_TIMEOUT", "20"))
+    # Cuantos tickets resueltos se le mandan como contexto. Cada uno cuesta
+    # tokens de entrada: cinco alcanzan y el gasto se mantiene predecible.
+    GEMINI_MAX_EXTRACTOS: int = int(os.getenv("GEMINI_MAX_EXTRACTOS", "5"))
+    GEMINI_MAX_TOKENS_RESPUESTA: int = int(os.getenv("GEMINI_MAX_TOKENS_RESPUESTA", "600"))
+    GEMINI_MAX_TOKENS_RESUMEN: int = int(os.getenv("GEMINI_MAX_TOKENS_RESUMEN", "500"))
+    # Al recibir un 429 se deja de insistir este rato, en vez de gastar el
+    # timeout completo en cada peticion que llegue.
+    GEMINI_ESPERA_CUOTA: float = float(os.getenv("GEMINI_ESPERA_CUOTA", "60"))
 
     # --- Fase 2: asistente local ---
     # Interruptor general. En off el portal funciona igual, solo sin ayudas de IA.
@@ -28,6 +54,10 @@ class Settings(BaseSettings):
     OLLAMA_MODELO_TEXTO: str = os.getenv("OLLAMA_MODELO_TEXTO", "qwen2.5:3b")
     # Si se rebasan, se abandona la operación y el flujo continúa sin ella.
     OLLAMA_TIMEOUT_NORMALIZACION: float = float(os.getenv("OLLAMA_TIMEOUT_NORMALIZACION", "10"))
+    # Tareas de una sola vez donde alguien esta esperando delante de la pantalla
+    # (proponer el mapeo de un archivo de RH). Se aguanta mas que en el flujo de
+    # un ticket, porque si el modelo estaba dormido la primera respuesta tarda.
+    OLLAMA_TIMEOUT_ASISTENCIA: float = float(os.getenv("OLLAMA_TIMEOUT_ASISTENCIA", "30"))
     OLLAMA_TIMEOUT_EMBEDDING: float = float(os.getenv("OLLAMA_TIMEOUT_EMBEDDING", "5"))
 
     # Similitud coseno mínima para sugerir una entrada de la base de conocimiento.
@@ -38,6 +68,65 @@ class Settings(BaseSettings):
     # Recalibrar con veces_util / veces_sugerida cuando haya ~100 casos.
     KB_UMBRAL_SIMILITUD: float = float(os.getenv("KB_UMBRAL_SIMILITUD", "0.65"))
     KB_MAX_SUGERENCIAS: int = int(os.getenv("KB_MAX_SUGERENCIAS", "3"))
+
+    # --- Recuperacion: de donde sale lo que el asistente "sabe" ---
+    # Cuantos pasajes propios se le dan al modelo como unica fuente. Mas
+    # pasajes no es mejor: diluyen la pregunta y encarecen la consulta.
+    RECUPERACION_MAX_PASAJES: int = int(os.getenv("RECUPERACION_MAX_PASAJES", "5"))
+    # Por debajo de esto no se considera parecido, y si no queda nada NO se le
+    # pregunta a ningun modelo. Es el corte que mas previene inventos.
+    RECUPERACION_UMBRAL: float = float(os.getenv("RECUPERACION_UMBRAL", "0.62"))
+    # Tope de la redaccion del asistente. Nadie lee mas en una pantalla de
+    # soporte, y acota lo que se paga cuando redacta Gemini.
+    ASISTENTE_MAX_TOKENS: int = int(os.getenv("ASISTENTE_MAX_TOKENS", "400"))
+    # Cuanto peor que el mejor resultado puede ser un pasaje y aun asi mostrarse.
+    # Es lo que de verdad quita el ruido: medido, la pregunta de la raya negra
+    # trae el ticket correcto al 69% y uno de "cuenta bloqueada" al 64%. Los dos
+    # pasan cualquier umbral fijo; lo que los separa es la distancia entre ellos.
+    RECUPERACION_MARGEN: float = float(os.getenv("RECUPERACION_MARGEN", "0.04"))
+    # Una respuesta que solo trae la cita ("[1]") cumple la regla y no dice
+    # nada. El corte es contra el vacio, no contra la brevedad: "Reinicie la
+    # impresora [1]." son 22 caracteres y es una respuesta perfectamente util.
+    ASISTENTE_MIN_CARACTERES: int = int(os.getenv("ASISTENTE_MIN_CARACTERES", "15"))
+    # Que fraccion del vocabulario con contenido de la respuesta tiene que venir
+    # de las fuentes. Es la red que atrapa al modelo cuando se va por otro lado.
+    # Heuristica, no demostracion: por eso las fuentes se enseñan siempre.
+    # Medido: una respuesta buena del modelo local queda cerca de 0.5 —parte de
+    # su vocabulario es relleno ("es posible que", "se debe verificar")— y una
+    # que se fue por otro lado queda cerca de 0. El corte va en medio.
+    ASISTENTE_ANCLAJE_MINIMO: float = float(os.getenv("ASISTENTE_ANCLAJE_MINIMO", "0.4"))
+    # Arriba de esto la coincidencia no deja dudas y se entrega la solucion ya
+    # escrita, sin que ningun modelo la redacte. Es el nivel 0 de la escalera:
+    # instantaneo, gratis y sin manera de que se distorsione en el camino.
+    ASISTENTE_UMBRAL_DIRECTO: float = float(os.getenv("ASISTENTE_UMBRAL_DIRECTO", "0.75"))
+    # Cuanto se tienen que parecer dos pasajes para considerarlos el mismo
+    # contenido repetido. La misma falla reportada tres veces son tres tickets y
+    # una sola respuesta; sin esto se tomaban por tres fuentes distintas.
+    ASISTENTE_DUPLICADO_MINIMO: float = float(
+        os.getenv("ASISTENTE_DUPLICADO_MINIMO", "0.7"))
+    # Ventaja de una solucion general sobre un ticket suelto. Esta escrita para
+    # responder la pregunta; el ticket cuenta lo que paso un dia concreto.
+    RECUPERACION_VENTAJA_GENERAL: float = float(
+        os.getenv("RECUPERACION_VENTAJA_GENERAL", "0.05"))
+
+    # --- Soluciones generales ---
+    # Cuantos tickets del mismo problema hacen falta para que valga la pena
+    # escribir un procedimiento. Con uno no hay patron, hay un caso.
+    SOLUCION_GENERAL_MIN_TICKETS: int = int(os.getenv("SOLUCION_GENERAL_MIN_TICKETS", "3"))
+    # Que tan parecidos tienen que ser dos tickets para considerarlos el mismo
+    # problema. Alto a proposito: juntar cosas distintas produce procedimientos
+    # que no sirven para ninguna de las dos.
+    SOLUCION_GENERAL_UMBRAL: float = float(os.getenv("SOLUCION_GENERAL_UMBRAL", "0.80"))
+    # Tope de tickets que se le pasan al modelo. Mas no mejora el resultado y si
+    # encarece la consulta.
+    SOLUCION_GENERAL_MAX_TICKETS: int = int(os.getenv("SOLUCION_GENERAL_MAX_TICKETS", "10"))
+    SOLUCION_GENERAL_MIN_CARACTERES: int = int(
+        os.getenv("SOLUCION_GENERAL_MIN_CARACTERES", "80"))
+    # Que fraccion del borrador tiene que venir de los tickets. Mas exigente que
+    # en el asistente: un borrador se lee una vez y se publica, mientras que una
+    # respuesta del asistente lleva sus fuentes al lado para comprobarla.
+    SOLUCION_GENERAL_ANCLAJE_MINIMO: float = float(
+        os.getenv("SOLUCION_GENERAL_ANCLAJE_MINIMO", "0.5"))
     # Longitud mínima de una solución para que sirva de algo en la base de conocimiento.
     SOLUCION_MIN_LONGITUD: int = int(os.getenv("SOLUCION_MIN_LONGITUD", "20"))
 
@@ -59,6 +148,14 @@ class Settings(BaseSettings):
     DOMINIOS_PERMITIDOS: str = os.getenv("DOMINIOS_PERMITIDOS", "cgr.mx")
     # Cuanto vive el codigo de activacion que TI le entrega a la persona.
     CODIGO_ACTIVACION_HORAS: int = int(os.getenv("CODIGO_ACTIVACION_HORAS", "168"))
+    # La activacion asistida se gasta en el mostrador, con la persona enfrente.
+    # Dura minutos a proposito: no es un codigo para entregar.
+    ACTIVACION_ASISTIDA_MINUTOS: int = int(os.getenv("ACTIVACION_ASISTIDA_MINUTOS", "20"))
+    # Cuantos datos personales hay que acertar para activar sin codigo.
+    # Con 1, quien vea la lista de RH puede activar cuentas ajenas. Con 2 tiene
+    # que conocer dos cosas distintas de esa persona en concreto. Si la cuenta
+    # solo tiene uno registrado, se exige ese: no se puede pedir lo que no hay.
+    VERIFICACION_FACTORES: int = int(os.getenv("VERIFICACION_FACTORES", "2"))
     # La longitud es lo que mas aporta a una contrasena y lo que la gente si
     # cumple sin apuntarla en un papel pegado al monitor.
     PASSWORD_MIN_LONGITUD: int = int(os.getenv("PASSWORD_MIN_LONGITUD", "10"))

@@ -240,6 +240,290 @@ def test_el_estado_dice_que_metodo_acepta(client):
     assert estado["acepta_verificacion"] is True
 
 
+# ----------------------------------------------------------------------
+# Fecha de nacimiento: el dato que la gente sí recuerda
+# ----------------------------------------------------------------------
+def test_se_activa_con_la_fecha_de_nacimiento(client):
+    """La de ingreso no la recuerda medio mundo; su cumpleaños sí."""
+    crear_usuario(client, numero="20520", fecha_nacimiento="1966-06-09")
+
+    r = client.post("/api/auth/activar", json={
+        "identificador": "20520", "fecha_nacimiento": "09/06/1966",
+        "password": "MiClaveSegura1"})
+
+    assert r.status_code == 200
+
+
+def test_una_fecha_de_nacimiento_equivocada_no_activa(client):
+    crear_usuario(client, numero="20521", fecha_nacimiento="1966-06-09")
+
+    r = client.post("/api/auth/activar", json={
+        "identificador": "20521", "fecha_nacimiento": "1966-06-10",
+        "password": "MiClaveSegura1"})
+    assert r.status_code == 400
+
+
+def test_no_se_puede_activar_con_la_fecha_de_otro_campo(client):
+    """Traer una fecha no habilita la otra: cada dato verifica lo suyo."""
+    crear_usuario(client, numero="20522", fecha_nacimiento="1966-06-09")
+
+    r = client.post("/api/auth/activar", json={
+        "identificador": "20522", "fecha_ingreso": "1966-06-09",
+        "password": "MiClaveSegura1"})
+    assert r.status_code == 400
+
+
+def test_el_estado_dice_que_datos_pedir(client):
+    """Para no pedirle en pantalla un dato que esa cuenta no tiene."""
+    crear_usuario(client, numero="20523", fecha_nacimiento="1966-06-09")
+    crear_usuario(client, numero="20524", fecha_ingreso="2021-03-15")
+
+    con_nacimiento = client.post("/api/auth/estado-cuenta",
+                                 json={"identificador": "20523"}).json()
+    con_ingreso = client.post("/api/auth/estado-cuenta",
+                              json={"identificador": "20524"}).json()
+
+    assert con_nacimiento["datos_verificacion"] == ["fecha_nacimiento"]
+    assert con_ingreso["datos_verificacion"] == ["fecha_ingreso"]
+
+
+def test_sin_ningun_dato_no_hay_verificacion(client):
+    crear_usuario(client, numero="20525")
+    estado = client.post("/api/auth/estado-cuenta", json={"identificador": "20525"}).json()
+
+    assert estado["acepta_verificacion"] is False
+    assert estado["datos_verificacion"] == []
+
+
+# ----------------------------------------------------------------------
+# Número de EPP: el segundo factor
+#
+# Cada quien tiene cuatro dígitos con los que saca su equipo de protección. Los
+# usa seguido, así que se los sabe. Eso permite pedir dos datos en vez de uno.
+# ----------------------------------------------------------------------
+def test_con_epp_y_cumpleanos_se_piden_los_dos(client):
+    crear_usuario(client, numero="20540", numero_epp="0421",
+                  fecha_nacimiento="1966-06-09")
+
+    estado = client.post("/api/auth/estado-cuenta",
+                         json={"identificador": "20540"}).json()
+
+    assert estado["datos_verificacion"] == ["numero_epp", "fecha_nacimiento"]
+
+
+def test_acertando_los_dos_se_activa(client):
+    crear_usuario(client, numero="20541", numero_epp="0421",
+                  fecha_nacimiento="1966-06-09")
+
+    r = client.post("/api/auth/activar", json={
+        "identificador": "20541", "numero_epp": "0421",
+        "fecha_nacimiento": "09/06/1966", "password": "MiClaveSegura1"})
+
+    assert r.status_code == 200
+
+
+def test_acertar_uno_de_dos_no_alcanza(client):
+    """Sin crédito parcial: media identidad no es identidad."""
+    crear_usuario(client, numero="20542", numero_epp="0421",
+                  fecha_nacimiento="1966-06-09")
+
+    solo_fecha = client.post("/api/auth/activar", json={
+        "identificador": "20542", "fecha_nacimiento": "09/06/1966",
+        "password": "MiClaveSegura1"})
+    solo_epp = client.post("/api/auth/activar", json={
+        "identificador": "20542", "numero_epp": "0421",
+        "password": "MiClaveSegura1"})
+
+    assert solo_fecha.status_code == 400
+    assert solo_epp.status_code == 400
+
+
+def test_el_epp_se_acepta_con_o_sin_ceros(client):
+    """La misma persona lo escribe 0421 o 421 según el día."""
+    crear_usuario(client, numero="20543", numero_epp="0421",
+                  fecha_nacimiento="1966-06-09")
+
+    r = client.post("/api/auth/activar", json={
+        "identificador": "20543", "numero_epp": "421",
+        "fecha_nacimiento": "1966-06-09", "password": "MiClaveSegura1"})
+
+    assert r.status_code == 200
+
+
+def test_un_epp_equivocado_no_activa(client):
+    crear_usuario(client, numero="20544", numero_epp="0421",
+                  fecha_nacimiento="1966-06-09")
+
+    r = client.post("/api/auth/activar", json={
+        "identificador": "20544", "numero_epp": "9999",
+        "fecha_nacimiento": "1966-06-09", "password": "MiClaveSegura1"})
+
+    assert r.status_code == 400
+
+
+def test_la_fecha_de_ingreso_nunca_se_pide_como_segundo_factor(client):
+    """Pedirla sería repetir el error que dejó fuera a media planta."""
+    crear_usuario(client, numero="20545", fecha_nacimiento="1966-06-09",
+                  fecha_ingreso="2021-03-15")
+
+    estado = client.post("/api/auth/estado-cuenta",
+                         json={"identificador": "20545"}).json()
+
+    assert estado["datos_verificacion"] == ["fecha_nacimiento"]
+    assert client.post("/api/auth/activar", json={
+        "identificador": "20545", "fecha_nacimiento": "1966-06-09",
+        "password": "MiClaveSegura1"}).status_code == 200
+
+
+def test_con_un_solo_factor_se_pide_uno(client):
+    """No se puede exigir un dato que nadie capturó."""
+    crear_usuario(client, numero="20546", numero_epp="0421")
+
+    estado = client.post("/api/auth/estado-cuenta",
+                         json={"identificador": "20546"}).json()
+    assert estado["datos_verificacion"] == ["numero_epp"]
+
+    assert client.post("/api/auth/activar", json={
+        "identificador": "20546", "numero_epp": "0421",
+        "password": "MiClaveSegura1"}).status_code == 200
+
+
+def test_se_puede_exigir_un_solo_factor_por_configuracion(client, monkeypatch):
+    """El tope es ajustable: en una planta chica quizá con uno basta."""
+    monkeypatch.setattr(settings, "VERIFICACION_FACTORES", 1)
+    crear_usuario(client, numero="20547", numero_epp="0421",
+                  fecha_nacimiento="1966-06-09")
+
+    r = client.post("/api/auth/activar", json={
+        "identificador": "20547", "numero_epp": "0421",
+        "password": "MiClaveSegura1"})
+
+    assert r.status_code == 200
+
+
+def test_el_panel_dice_quien_quedo_con_un_solo_factor(client):
+    """Para que TI sepa a quién pedirle a RH el número de EPP."""
+    crear_usuario(client, numero="20548", fecha_nacimiento="1966-06-09")
+    crear_usuario(client, numero="20549", numero_epp="0421",
+                  fecha_nacimiento="1966-06-09")
+
+    filas = client.get("/api/admin/usuarios?buscar=2054", headers=cab(client)).json()
+    por_numero = {u["numero_empleado"]: u for u in filas}
+
+    assert por_numero["20548"]["datos_verificacion"] == ["fecha_nacimiento"]
+    assert len(por_numero["20549"]["datos_verificacion"]) == 2
+
+
+def test_se_puede_buscar_por_numero_de_epp(client):
+    """En el almacén la gente llega diciendo su número de EPP, no el otro."""
+    crear_usuario(client, numero="20550", numero_epp="7788")
+
+    filas = client.get("/api/admin/usuarios?buscar=7788", headers=cab(client)).json()
+
+    assert any(u["numero_empleado"] == "20550" for u in filas)
+
+
+# ----------------------------------------------------------------------
+# Activación asistida en mostrador
+#
+# La salida para quien no recuerda ninguna fecha y nunca va a recibir un
+# papelito: TI comprueba el gafete y la persona teclea su contraseña ahí mismo.
+# ----------------------------------------------------------------------
+def test_ti_abre_una_activacion_en_mostrador(client):
+    crear_usuario(client, numero="20530")
+
+    r = client.post("/api/admin/usuarios/{}/activacion-asistida".format(
+        _id_de(client, "20530")), headers=cab(client))
+
+    assert r.status_code == 200
+    assert r.json()["codigo"]
+
+
+def test_la_persona_define_su_contrasena_en_el_mostrador(client, db_session):
+    """Lo importante: TI abre la puerta, pero la contraseña no la conoce."""
+    crear_usuario(client, numero="20531")
+    codigo = client.post(
+        "/api/admin/usuarios/{}/activacion-asistida".format(_id_de(client, "20531")),
+        headers=cab(client)).json()["codigo"]
+
+    r = client.post("/api/auth/activar", json={
+        "identificador": "20531", "codigo": codigo, "password": "LaQueYoElija1"})
+
+    assert r.status_code == 200
+    assert client.post("/api/auth/login", json={
+        "email": "20531", "password": "LaQueYoElija1"}).status_code == 200
+
+
+def test_la_asistida_sirve_una_sola_vez(client):
+    crear_usuario(client, numero="20532")
+    codigo = client.post(
+        "/api/admin/usuarios/{}/activacion-asistida".format(_id_de(client, "20532")),
+        headers=cab(client)).json()["codigo"]
+
+    client.post("/api/auth/activar", json={
+        "identificador": "20532", "codigo": codigo, "password": "LaQueYoElija1"})
+    segunda = client.post("/api/auth/activar", json={
+        "identificador": "20532", "codigo": codigo, "password": "OtraDistinta12"})
+
+    assert segunda.status_code == 400
+
+
+def test_la_asistida_dura_minutos_no_dias(client, db_session):
+    """No es un código para entregar: se gasta en el momento."""
+    from datetime import datetime
+
+    crear_usuario(client, numero="20533")
+    client.post("/api/admin/usuarios/{}/activacion-asistida".format(
+        _id_de(client, "20533")), headers=cab(client))
+
+    usuario = db_session.query(Usuario).filter(Usuario.numero_empleado == "20533").first()
+    db_session.refresh(usuario)
+    minutos = (usuario.codigo_expira - datetime.utcnow()).total_seconds() / 60
+    assert 0 < minutos <= settings.ACTIVACION_ASISTIDA_MINUTOS + 1
+
+
+def test_tambien_sirve_para_quien_ya_tenia_contrasena(client, db_session):
+    """Se le olvidó y está enfrente: se le reabre sin inventarle una temporal."""
+    crear_usuario(client, numero="20534", fecha_nacimiento="1966-06-09")
+    client.post("/api/auth/activar", json={
+        "identificador": "20534", "fecha_nacimiento": "1966-06-09",
+        "password": "LaPrimeraQueUse"})
+
+    client.post("/api/admin/usuarios/{}/activacion-asistida".format(
+        _id_de(client, "20534")), headers=cab(client))
+
+    usuario = db_session.query(Usuario).filter(Usuario.numero_empleado == "20534").first()
+    db_session.refresh(usuario)
+    assert usuario.estado_cuenta == PENDIENTE
+    assert usuario.password_hash is None
+
+
+def test_la_asistida_es_solo_de_ti(client):
+    crear_usuario(client, numero="20535")
+    r = client.post("/api/admin/usuarios/{}/activacion-asistida".format(
+        _id_de(client, "20535")), headers=cab(client, "user@test.com"))
+    assert r.status_code == 403
+
+
+def test_la_asistida_queda_en_bitacora(client):
+    """Es una acción con poder: tiene que saberse quién asistió a quién."""
+    crear_usuario(client, numero="20536")
+    client.post("/api/admin/usuarios/{}/activacion-asistida".format(
+        _id_de(client, "20536")), headers=cab(client))
+
+    bitacora = client.get("/api/auditoria?accion=usuario.activacion_asistida",
+                          headers=cab(client)).json()
+    eventos = bitacora if isinstance(bitacora, list) else bitacora.get("items", [])
+    assert len(eventos) >= 1
+
+
+def _id_de(client, numero):
+    """El id de una persona, buscándola por su número de empleado."""
+    resultado = client.get(f"/api/admin/usuarios?buscar={numero}", headers=cab(client)).json()
+    filas = resultado if isinstance(resultado, list) else resultado.get("items", [])
+    return next(u["id"] for u in filas if u["numero_empleado"] == numero)
+
+
 def test_el_estado_no_delata_a_nadie(client):
     inexistente = client.post("/api/auth/estado-cuenta", json={"identificador": "99999"}).json()
     activo = client.post("/api/auth/estado-cuenta", json={"identificador": "1001"}).json()

@@ -242,6 +242,10 @@ def update_ticket(
 
     if ticket_in.solucion is not None:
         ticket.solucion = ticket_in.solucion
+    # Lo que se probó y no era. Opcional: no todo ticket tiene descartes, pero
+    # cuando los tiene valen tanto como la solución.
+    if ticket_in.descartado is not None:
+        ticket.descartado = ticket_in.descartado.strip() or None
 
     if ticket_in.estado is not None:
         ticket.estado = ticket_in.estado

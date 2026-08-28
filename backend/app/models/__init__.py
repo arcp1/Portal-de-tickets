@@ -37,8 +37,19 @@ class Usuario(Base):
     email = Column(String(100), unique=True, index=True, nullable=True)
     rol = Column(String(20), nullable=False, default="usuario") # admin, usuario
     area = Column(String(50), nullable=True)
-    # Dato de verificación para la activación masiva: algo que la persona sabe
-    # y que no está a la vista de sus compañeros.
+    # Datos de verificación para la activación masiva: algo que la persona
+    # sabe y que no está a la vista de sus compañeros.
+    #
+    # La de **nacimiento** es la que se usa en la práctica: buena parte de la
+    # plantilla lleva años aquí y no se acuerda de en qué mes entró, pero de su
+    # cumpleaños se acuerda todo el mundo. La de ingreso queda como alternativa.
+    #
+    # El de EPP son los cuatro dígitos con los que la persona saca su equipo de
+    # protección. Lo usa seguido, así que se lo sabe; y como no está impreso en
+    # el gafete, no basta con ver a alguien de lejos para conocerlo. Sin índice
+    # único a propósito: es un dato de verificación, no una llave de acceso.
+    numero_epp = Column(String(10), nullable=True)
+    fecha_nacimiento = Column(DateTime, nullable=True)
     fecha_ingreso = Column(DateTime, nullable=True)
     idioma_preferido = Column(String(5), default="es")
     activo = Column(Boolean, default=True)
@@ -104,6 +115,9 @@ class Ticket(Base):
     # Obligatorio al pasar a resuelto/cerrado. Se valida en la API, no en la BD,
     # porque los tickets anteriores a este campo no la tienen.
     solucion = Column(Text, nullable=True)
+    # Lo que se probó y NO era. Media hora de un técnico se va en repetir lo que
+    # alguien ya descartó; guardarlo se la ahorra al siguiente.
+    descartado = Column(Text, nullable=True)
     indexado_kb = Column(Boolean, default=False, nullable=False)
     creado_en = Column(DateTime, default=datetime.utcnow)
     resuelto_en = Column(DateTime, nullable=True)
@@ -273,6 +287,9 @@ class BaseConocimiento(Base):
     contenido = Column(Text, nullable=False)
     categoria = Column(String(50), nullable=False)
     tags = Column(String(200), nullable=True)
+    # Se arrastra del ticket de origen: el asistente lo cita para que nadie
+    # repita lo que ya se descartó.
+    descartado = Column(Text, nullable=True)
     embedding = Column(Vector(768), nullable=True)
     ticket_origen_id = Column(Integer, ForeignKey("tickets.id"), nullable=True)
     # Contadores de utilidad. veces_util / veces_sugerida es la métrica que calibra el umbral.
@@ -374,6 +391,38 @@ class ChatSesion(Base):
     creado_en = Column(DateTime, default=datetime.utcnow)
 
     usuario = relationship("Usuario")
+
+class SolucionGeneral(Base):
+    """Un procedimiento consolidado a partir de varios tickets del mismo problema.
+
+    Diez tickets sobre la misma impresora dejan diez soluciones parecidas y
+    ninguna completa. Esto es el paso siguiente: qué revisar primero, qué suele
+    ser, qué ya se descartó.
+
+    **El borrador lo escribe la máquina; la publicación la firma una persona.**
+    Mientras es borrador no tiene embedding y por lo tanto no aparece en ninguna
+    búsqueda: un procedimiento sin revisar no debería contestarle a nadie.
+    """
+    __tablename__ = "soluciones_generales"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=False, index=True)
+    titulo = Column(String(200), nullable=False)
+    categoria = Column(String(50), nullable=True)
+    contenido = Column(Text, nullable=False)
+    descartado = Column(Text, nullable=True)
+    # borrador | publicada | archivada
+    estado = Column(String(20), default="borrador", nullable=False, index=True)
+    # De cuántos tickets salió: es lo que dice si vale la pena leerla.
+    tickets_origen = Column(Integer, default=0, nullable=False)
+    redactada_por = Column(String(20), nullable=True)   # gemini | ollama | persona
+    revisada_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    embedding = Column(Vector(768), nullable=True)
+    veces_sugerida = Column(Integer, default=0, nullable=False)
+    veces_util = Column(Integer, default=0, nullable=False)
+    creado_en = Column(DateTime, default=datetime.utcnow)
+    publicado_en = Column(DateTime, nullable=True)
+
 
 class DocumentoTI(Base):
     """Documentación operativa interna del área de TI.

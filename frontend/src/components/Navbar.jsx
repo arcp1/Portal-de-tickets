@@ -6,7 +6,7 @@ import LanguageSelector from './LanguageSelector';
 import {
   Ticket, PlusCircle, Laptop, Sliders, LogOut, ShieldCheck, User,
   TrendingUp, ListChecks, FolderOpen, FileSignature, Users, BookOpen,
-  Upload
+  Upload, Activity, BookOpenCheck
 } from 'lucide-react';
 
 const Navbar = () => {
@@ -37,10 +37,12 @@ const Navbar = () => {
       { ruta: '/usuarios', icono: <Users size={18} />, texto: t('nav.usuarios') },
       { ruta: '/importar', icono: <Upload size={18} />, texto: t('nav.importar') },
       { ruta: '/resguardos', icono: <FileSignature size={18} />, texto: t('nav.resguardos') },
+      { ruta: '/soluciones', icono: <BookOpenCheck size={18} />, texto: t('nav.soluciones') },
       { ruta: '/documentacion', icono: <BookOpen size={18} />, texto: t('nav.documentacion') },
       { ruta: '/temas', icono: <ListChecks size={18} />, texto: t('nav.temas') },
       { ruta: '/rules', icono: <Sliders size={18} />, texto: t('nav.rules') },
-      { ruta: '/metricas', icono: <TrendingUp size={18} />, texto: t('nav.metricas') }
+      { ruta: '/metricas', icono: <TrendingUp size={18} />, texto: t('nav.metricas') },
+      { ruta: '/estado', icono: <Activity size={18} />, texto: t('nav.estado') }
     ] : [])
   ];
 

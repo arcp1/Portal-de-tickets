@@ -26,9 +26,16 @@ def solucion_es_valida(solucion: Optional[str]) -> bool:
 
 
 def construir_texto_indexable(ticket: Ticket) -> str:
-    """categoría + descripción normalizada + solución."""
+    """categoría + descripción + solución + lo que se descartó.
+
+    El descarte entra en el texto indexado a propósito: quien reporte la misma
+    falla debe encontrar el ticket aunque su síntoma se parezca más a lo que se
+    probó y no era, que a la solución final.
+    """
     descripcion = ticket.descripcion_normalizada or ticket.descripcion_original
     partes = [ticket.categoria, ticket.subcategoria, descripcion, ticket.solucion]
+    if ticket.descartado and ticket.descartado.strip():
+        partes.append("Se descartó: " + ticket.descartado.strip())
     return "\n".join(parte.strip() for parte in partes if parte and parte.strip())
 
 
@@ -75,6 +82,7 @@ class KBService:
                 contenido=texto,
                 categoria=ticket.categoria,
                 tags=ticket.subcategoria,
+                descartado=ticket.descartado,
                 embedding=embedding,
                 ticket_origen_id=ticket.id,
                 creado_en=datetime.utcnow(),

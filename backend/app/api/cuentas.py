@@ -24,7 +24,7 @@ from app.schemas.comunes import FechaUTC
 from app.services.auditoria_service import AuditoriaService, ip_de
 from app.services.cuentas_service import (
     ACTIVA, BLOQUEADA, PENDIENTE, CuentasService, ErrorCuenta,
-    dominios_permitidos, validar_password,
+    dominios_permitidos, factores_a_pedir, normalizar_epp, validar_password,
 )
 
 publico_router = APIRouter(prefix="/auth", tags=["Cuentas"])
@@ -35,6 +35,7 @@ USUARIO_EDITADO = "usuario.editado"
 USUARIO_DESACTIVADO = "usuario.desactivado"
 USUARIO_RESTABLECIDO = "usuario.restablecido"
 CODIGO_REGENERADO = "usuario.codigo_regenerado"
+ACTIVACION_ASISTIDA = "usuario.activacion_asistida"
 
 # La activación también se limita: el código es corto y adivinable a fuerza
 # bruta si se deja intentar sin freno.
@@ -53,8 +54,10 @@ class EstadoCuentaRequest(BaseModel):
 class ActivarRequest(BaseModel):
     identificador: str = Field(min_length=1, max_length=100)
     password: str
-    # Uno de los dos, según cómo se dio de alta la cuenta.
+    # Uno de los tres, según cómo se dio de alta la cuenta.
     codigo: Optional[str] = None
+    numero_epp: Optional[str] = None
+    fecha_nacimiento: Optional[str] = None
     fecha_ingreso: Optional[str] = None
 
 
@@ -71,6 +74,8 @@ class CrearUsuarioRequest(BaseModel):
     rol: str = "usuario"
     area: Optional[str] = None
     idioma_preferido: str = "es"
+    numero_epp: Optional[str] = None
+    fecha_nacimiento: Optional[str] = None
     fecha_ingreso: Optional[str] = None
 
 
@@ -81,6 +86,9 @@ class EditarUsuarioRequest(BaseModel):
     rol: Optional[str] = None
     area: Optional[str] = None
     activo: Optional[bool] = None
+    numero_epp: Optional[str] = None
+    fecha_nacimiento: Optional[str] = None
+    fecha_ingreso: Optional[str] = None
 
 
 class UsuarioAdminResponse(BaseModel):
@@ -96,6 +104,8 @@ class UsuarioAdminResponse(BaseModel):
     ultimo_acceso: Optional[FechaUTC] = None
     creado_en: Optional[FechaUTC] = None
     codigo_expira: Optional[FechaUTC] = None
+    numero_epp: Optional[str] = None
+    datos_verificacion: List[str] = []
     # Resumen para el panel: qué tiene esta persona a su cargo.
     equipos_a_cargo: int = 0
     resguardos_pendientes: int = 0
@@ -153,6 +163,8 @@ def activar(peticion: ActivarRequest, request: Request, db: Session = Depends(ge
             password=peticion.password,
             codigo=peticion.codigo,
             fecha_ingreso=peticion.fecha_ingreso,
+            fecha_nacimiento=peticion.fecha_nacimiento,
+            numero_epp=peticion.numero_epp,
         )
     except ErrorCuenta as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
@@ -210,6 +222,10 @@ def _resumen(db: Session, usuario: Usuario) -> dict:
         "ultimo_acceso": usuario.ultimo_acceso,
         "creado_en": usuario.creado_en,
         "codigo_expira": usuario.codigo_expira,
+        # Para que TI vea de un vistazo quién no puede activarse solo y
+        # quién quedó con un solo factor.
+        "datos_verificacion": factores_a_pedir(usuario),
+        "numero_epp": usuario.numero_epp,
         "equipos_a_cargo": db.query(func.count(Equipo.id))
             .filter(Equipo.asignado_a == usuario.id).scalar() or 0,
         "resguardos_pendientes": db.query(func.count(Resguardo.id))
@@ -238,6 +254,7 @@ def listar(
         consulta = consulta.filter(or_(
             Usuario.nombre.ilike(patron),
             Usuario.numero_empleado.ilike(patron),
+            Usuario.numero_epp.ilike(patron),
             Usuario.email.ilike(patron),
             Usuario.area.ilike(patron),
         ))
@@ -275,6 +292,9 @@ def crear(
             area=datos.area,
             idioma=datos.idioma_preferido,
             fecha_ingreso=_leer_fecha_simple(datos.fecha_ingreso) if datos.fecha_ingreso else None,
+            fecha_nacimiento=(_leer_fecha_simple(datos.fecha_nacimiento)
+                              if datos.fecha_nacimiento else None),
+            numero_epp=datos.numero_epp,
         )
     except ErrorCuenta as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
@@ -290,8 +310,8 @@ def crear(
         expira=usuario.codigo_expira,
         instrucciones=(
             "Entregue este código a la persona. En el portal debe elegir "
-            "«Activar mi cuenta», escribir su correo y este código, y crear su "
-            "propia contraseña. El código sirve una sola vez."
+            "«Activar mi cuenta», escribir su número de empleado y este código, "
+            "y crear su propia contraseña. El código sirve una sola vez."
         ),
     )
 
@@ -341,6 +361,16 @@ def editar(
             Usuario.email == correo).first():
             raise HTTPException(status_code=409, detail="Ya existe una cuenta con ese correo.")
         usuario.email = correo
+    if cambios.numero_epp is not None:
+        usuario.numero_epp = normalizar_epp(cambios.numero_epp)
+    for campo in ("fecha_nacimiento", "fecha_ingreso"):
+        valor = getattr(cambios, campo)
+        if valor is not None:
+            from app.services.cuentas_service import _leer_fecha_simple
+            fecha = _leer_fecha_simple(valor) if valor.strip() else None
+            if valor.strip() and not fecha:
+                raise HTTPException(status_code=422, detail=f"Fecha inválida en {campo}.")
+            setattr(usuario, campo, fecha)
     if cambios.nombre is not None:
         usuario.nombre = cambios.nombre.strip()
     if cambios.area is not None:
@@ -384,6 +414,45 @@ def restablecer(
         instrucciones=(
             "La contraseña anterior quedó anulada. Entregue este código a la "
             "persona para que defina una nueva."
+        ),
+    )
+
+
+@admin_router.post("/{usuario_id}/activacion-asistida", response_model=CodigoResponse)
+def activacion_asistida(
+    usuario_id: int,
+    peticion: Request,
+    db: Session = Depends(get_db),
+    admin: Usuario = Depends(get_current_admin),
+):
+    """Abre una activación para hacerla con la persona enfrente.
+
+    Es la salida para quien no recuerda ninguna fecha y para quien nunca va a
+    recibir un papelito: TI comprueba el gafete, abre esto y le gira la pantalla
+    para que **la persona teclee su propia contraseña**. TI sigue sin conocerla.
+
+    El código que devuelve dura minutos y no está pensado para entregarse: se
+    gasta ahí mismo, en la misma pantalla.
+    """
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not usuario or usuario.sitio_id != admin.sitio_id:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    try:
+        codigo, expira = CuentasService.abrir_activacion_asistida(db, usuario)
+    except ErrorCuenta as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    # Queda en bitácora quién asistió a quién: es una acción con poder.
+    AuditoriaService.registrar(db, admin, ACTIVACION_ASISTIDA, "usuario", usuario.id,
+                               {"numero_empleado": usuario.numero_empleado}, peticion)
+
+    return CodigoResponse(
+        usuario_id=usuario.id, numero_empleado=usuario.numero_empleado,
+        email=usuario.email, codigo=codigo, expira=expira,
+        instrucciones=(
+            f"Entregue el teclado a la persona para que escriba su contraseña. "
+            f"Tiene {settings.ACTIVACION_ASISTIDA_MINUTOS} minutos."
         ),
     )
 

@@ -86,8 +86,18 @@ services:
     restart: always
     ports:
       - "80:80"
+      - "443:443"
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # Las dos variantes; el punto de entrada elige segun haya certificado.
+      - ./nginx/plantillas:/etc/nginx/plantillas:ro
+      - ./nginx/comun:/etc/nginx/comun:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ./nginx/entrada.sh:/entrada.sh:ro
+    environment:
+      # auto = HTTPS si hay certificado. off = HTTP siempre, para dar marcha
+      # atras en un minuto si el aviso del navegador causa problemas.
+      TLS_ACTIVO: ${TLS_ACTIVO:-auto}
+    entrypoint: ["/bin/sh", "/entrada.sh"]
     depends_on:
       - backend
       - frontend

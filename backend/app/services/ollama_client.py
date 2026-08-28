@@ -106,10 +106,20 @@ class OllamaClient:
         # ahora mismo; no son un histórico y se pierden al reiniciar.
         self._latencias = {"embedding": deque(maxlen=self.MUESTRAS_LATENCIA),
                            "normalizacion": deque(maxlen=self.MUESTRAS_LATENCIA),
-                           "clasificacion": deque(maxlen=self.MUESTRAS_LATENCIA)}
+                           "clasificacion": deque(maxlen=self.MUESTRAS_LATENCIA),
+                           "asistencia": deque(maxlen=self.MUESTRAS_LATENCIA)}
 
     def _registrar(self, operacion: str, inicio: float):
-        self._latencias[operacion].append((time.monotonic() - inicio) * 1000.0)
+        """Anota cuánto tardó una llamada.
+
+        Crea el cajón si no existía. Antes reventaba con KeyError ante una
+        operación nueva, y como toda esta clase atrapa excepciones para
+        degradar en silencio, **la llamada se daba por fallida aunque Ollama
+        hubiera contestado bien**. Llevar la cuenta de una métrica no puede
+        tumbar la función que mide.
+        """
+        cajon = self._latencias.setdefault(operacion, deque(maxlen=self.MUESTRAS_LATENCIA))
+        cajon.append((time.monotonic() - inicio) * 1000.0)
 
     def latencias(self) -> dict:
         """Promedio en milisegundos por operación. None si no hay muestras."""
@@ -349,6 +359,86 @@ class OllamaClient:
         # afirmar certeza absoluta a partir de una coincidencia de texto.
         confianza = min(0.95, 0.80 + 0.05 * (puntaje_mejor - 1))
         return {"categoria": mejor, "confianza": round(confianza, 2)}
+
+    def responder_texto(self, instruccion: str, num_predict: int = 400,
+                        timeout: Optional[float] = None) -> Optional[str]:
+        """Redacción libre con el modelo local. None si no está o falla.
+
+        La usa el asistente para redactar sobre pasajes que ya se recuperaron.
+        Como todo aquí: si Ollama no contesta, devuelve None y quien llama sigue
+        su camino sin él.
+        """
+        if not settings.IA_HABILITADA or not instruccion or not instruccion.strip():
+            return None
+
+        inicio = time.monotonic()
+        try:
+            with httpx.Client(timeout=timeout or settings.OLLAMA_TIMEOUT_ASISTENCIA) as cliente:
+                respuesta = cliente.post(
+                    self.host + "/api/generate",
+                    json={
+                        "model": settings.OLLAMA_MODELO_TEXTO,
+                        "prompt": instruccion,
+                        "stream": False,
+                        "keep_alive": settings.OLLAMA_KEEP_ALIVE,
+                        "options": {"num_predict": num_predict, "temperature": 0.1},
+                    },
+                )
+                respuesta.raise_for_status()
+                texto = (respuesta.json().get("response") or "").strip()
+            self._registrar("asistencia", inicio)
+            return texto or None
+        except Exception as exc:  # noqa: BLE001 - degradación deliberada
+            logger.warning("No se pudo redactar con el modelo local; se sigue sin él",
+                           extra={"error": str(exc)})
+            return None
+
+    def responder_json(self, instruccion: str, num_predict: int = 300,
+                       timeout: Optional[float] = None) -> Optional[dict]:
+        """Le pide al modelo un objeto JSON. Devuelve None si algo falla.
+
+        De uso general, para tareas donde el modelo **propone** y una persona
+        confirma —el mapeo de columnas de un archivo de RH, por ejemplo—. Como
+        todo en este cliente: si Ollama no está, esto devuelve None y quien
+        llama sigue su camino sin el modelo.
+        """
+        if not settings.IA_HABILITADA or not instruccion or not instruccion.strip():
+            return None
+
+        inicio = time.monotonic()
+        try:
+            with httpx.Client(timeout=timeout or settings.OLLAMA_TIMEOUT_ASISTENCIA) as cliente:
+                respuesta = cliente.post(
+                    self.host + "/api/generate",
+                    json={
+                        "model": settings.OLLAMA_MODELO_TEXTO,
+                        "prompt": instruccion,
+                        "stream": False,
+                        "format": "json",
+                        "keep_alive": settings.OLLAMA_KEEP_ALIVE,
+                        "options": {"num_predict": num_predict, "temperature": 0.0},
+                    },
+                )
+                respuesta.raise_for_status()
+                crudo = (respuesta.json().get("response") or "").strip()
+            self._registrar("asistencia", inicio)
+        except Exception as exc:  # noqa: BLE001 - degradación deliberada
+            logger.warning("No se pudo consultar al modelo; se sigue sin él",
+                           extra={"error": str(exc)})
+            return None
+
+        try:
+            datos = json.loads(crudo)
+        except (ValueError, TypeError):
+            encontrado = re.search(r"\{.*\}", crudo, re.DOTALL)
+            if not encontrado:
+                return None
+            try:
+                datos = json.loads(encontrado.group(0))
+            except (ValueError, TypeError):
+                return None
+
+        return datos if isinstance(datos, dict) else None
 
     @staticmethod
     def _parsear_clasificacion(crudo: str) -> Optional[dict]:

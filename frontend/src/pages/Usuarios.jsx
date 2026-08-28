@@ -5,7 +5,8 @@ import api from '../api/client';
 import { EsqueletoLista } from '../components/Cargando';
 import {
   UserPlus, Search, KeyRound, RotateCcw, FolderOpen, FileText,
-  Check, X, AlertTriangle, Copy, ShieldCheck, User, Laptop, Ticket, Upload, Pencil
+  Check, X, AlertTriangle, Copy, ShieldCheck, User, Laptop, Ticket, Upload, Pencil,
+  UserCheck, Lock
 } from 'lucide-react';
 
 const ESTADOS = {
@@ -25,6 +26,8 @@ const Usuarios = () => {
   const [filtroEstado, setFiltroEstado] = useState('');
   const [creando, setCreando] = useState(false);
   const [codigo, setCodigo] = useState(null);
+  // Persona a la que se le está activando la cuenta con ella enfrente.
+  const [asistida, setAsistida] = useState(null);
   const [aviso, setAviso] = useState('');
 
   const cargar = async () => {
@@ -62,6 +65,17 @@ const Usuarios = () => {
     try {
       await api.patch(`/admin/usuarios/${u.id}`, { activo: !u.activo });
       cargar();
+    } catch (err) {
+      setAviso(err.response?.data?.detail || t('usuarios.error_accion'));
+    }
+  };
+
+  // Para quien no recuerda ninguna fecha y nunca va a recibir un papelito:
+  // TI comprueba el gafete y le gira la pantalla para que teclee su contraseña.
+  const activarEnMostrador = async (u) => {
+    try {
+      const res = await api.post(`/admin/usuarios/${u.id}/activacion-asistida`);
+      setAsistida({ usuario: u, ...res.data });
     } catch (err) {
       setAviso(err.response?.data?.detail || t('usuarios.error_accion'));
     }
@@ -127,6 +141,14 @@ const Usuarios = () => {
 
       {codigo && <TarjetaCodigo datos={codigo} onCerrar={() => setCodigo(null)} />}
 
+      {asistida && (
+        <ActivacionEnMostrador
+          datos={asistida}
+          onCerrar={() => setAsistida(null)}
+          onListo={() => { setAsistida(null); setAviso(t('usuarios.asistida_lista')); cargar(); }}
+        />
+      )}
+
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
         <button onClick={() => setCreando(true)} className="btn-primary"
           style={{ padding: '10px 18px', fontSize: '0.9rem' }}>
@@ -175,6 +197,13 @@ const Usuarios = () => {
           {usuarios.map((u) => {
             const [color, fondo] = ESTADOS[u.estado_cuenta] || ESTADOS.bloqueada;
             const provisional = (u.numero_empleado || '').startsWith('TMP-');
+            // Sin fecha registrada, esa persona depende de un código o del
+            // mostrador: conviene que TI lo vea sin tener que abrir la ficha.
+            const factores = u.datos_verificacion?.length || 0;
+            const soloAsistida = u.estado_cuenta === 'pendiente_activacion' && factores === 0;
+            // Con un solo dato, la verificación es más débil de lo que el
+            // portal pretende ofrecer: conviene pedirle a RH el número de EPP.
+            const unSoloFactor = u.estado_cuenta === 'pendiente_activacion' && factores === 1;
             return (
               <div key={u.id} className="apple-card" style={{
                 padding: '18px 22px', display: 'flex', justifyContent: 'space-between',
@@ -194,6 +223,25 @@ const Usuarios = () => {
                     }}>
                       {t(`usuarios.estado_${u.estado_cuenta}`)}
                     </span>
+                    {unSoloFactor && (
+                      <span title={t('usuarios.un_factor_ayuda')} style={{
+                        fontSize: '0.72rem', fontWeight: '600', padding: '3px 10px',
+                        borderRadius: 'var(--radius-full)',
+                        color: 'var(--status-espera-proveedor-text)',
+                        background: 'var(--status-espera-proveedor-bg)'
+                      }}>
+                        {t('usuarios.un_factor')}
+                      </span>
+                    )}
+                    {soloAsistida && (
+                      <span title={t('usuarios.solo_asistida_ayuda')} style={{
+                        fontSize: '0.72rem', fontWeight: '600', padding: '3px 10px',
+                        borderRadius: 'var(--radius-full)',
+                        color: 'var(--text-secondary)', background: 'var(--bg-tertiary)'
+                      }}>
+                        {t('usuarios.solo_asistida')}
+                      </span>
+                    )}
                     {!u.activo && (
                       <span style={{
                         fontSize: '0.72rem', fontWeight: '600', padding: '3px 10px',
@@ -255,11 +303,22 @@ const Usuarios = () => {
                     <FileText size={15} />
                   </button>
                   {u.estado_cuenta === 'pendiente_activacion' ? (
-                    <button
-                      onClick={() => accion(`/admin/usuarios/${u.id}/regenerar-codigo`)}
-                      className="btn-secondary" style={{ padding: '9px 14px', fontSize: '0.84rem' }}>
-                      <KeyRound size={15} /> {t('usuarios.nuevo_codigo')}
-                    </button>
+                    <>
+                      {/* Lo que resuelve a quien no recuerda ninguna fecha:
+                          se activa con la persona enfrente. Solo aparece en
+                          cuentas pendientes; para una activa hay que pasar
+                          antes por «Restablecer», que sí pide confirmación. */}
+                      <button onClick={() => activarEnMostrador(u)} className="btn-secondary"
+                        title={t('usuarios.asistida_ayuda')}
+                        style={{ padding: '9px 14px', fontSize: '0.84rem' }}>
+                        <UserCheck size={15} /> {t('usuarios.activar_aqui')}
+                      </button>
+                      <button
+                        onClick={() => accion(`/admin/usuarios/${u.id}/regenerar-codigo`)}
+                        className="btn-secondary" style={{ padding: '9px 14px', fontSize: '0.84rem' }}>
+                        <KeyRound size={15} /> {t('usuarios.nuevo_codigo')}
+                      </button>
+                    </>
                   ) : (
                     <button
                       onClick={() => accion(`/admin/usuarios/${u.id}/restablecer`,
@@ -352,11 +411,153 @@ const TarjetaCodigo = ({ datos, onCerrar }) => {
 };
 
 /* ================================================================ */
+/**
+ * Activación con la persona enfrente.
+ *
+ * Existe porque el autoservicio no alcanza para todos: hay quien no recuerda
+ * ninguna fecha y quien nunca va a recibir un papelito. TI comprueba el gafete,
+ * abre esto y **le gira la pantalla**. La contraseña la teclea la persona; TI
+ * no la ve ni la puede recuperar después.
+ */
+const ActivacionEnMostrador = ({ datos, onCerrar, onListo }) => {
+  const { t } = useTranslation();
+  const [password, setPassword] = useState('');
+  const [repetir, setRepetir] = useState('');
+  const [minimo, setMinimo] = useState(10);
+  const [error, setError] = useState('');
+  const [enviando, setEnviando] = useState(false);
+
+  useEffect(() => {
+    api.get('/auth/requisitos-password')
+      .then((r) => setMinimo(r.data.longitud_minima))
+      .catch(() => {});
+  }, []);
+
+  const larga = password.length >= minimo;
+  const coinciden = password.length > 0 && password === repetir;
+
+  const enviar = async (e) => {
+    e.preventDefault();
+    if (!larga || !coinciden || enviando) return;
+    setEnviando(true);
+    setError('');
+    try {
+      // La sesión que devuelve es de la persona, no de quien está asistiendo:
+      // se descarta a propósito para no sacar al admin de su sesión.
+      await api.post('/auth/activar', {
+        identificador: datos.numero_empleado,
+        codigo: datos.codigo,
+        password
+      });
+      onListo();
+    } catch (err) {
+      setError(err.response?.data?.detail || t('activar.error'));
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '20px', zIndex: 1000
+    }}>
+      <form onSubmit={enviar} onClick={(e) => e.stopPropagation()}
+        className="apple-card animate-scale-in"
+        style={{ padding: '32px', maxWidth: '460px', width: '100%' }}>
+        <div style={{ textAlign: 'center', marginBottom: '18px' }}>
+          <UserCheck size={34} color="var(--accent-primary)" style={{ marginBottom: '10px' }} />
+          <h2 style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+            {t('usuarios.asistida_titulo')}
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '6px' }}>
+            {datos.usuario.nombre} · {datos.usuario.numero_empleado}
+          </p>
+        </div>
+
+        <div style={{
+          background: 'var(--status-espera-proveedor-bg)',
+          color: 'var(--status-espera-proveedor-text)',
+          padding: '12px 14px', borderRadius: 'var(--radius-md)',
+          fontSize: '0.86rem', lineHeight: 1.5, marginBottom: '18px'
+        }}>
+          <strong>{t('usuarios.asistida_entregue')}</strong>
+          <div style={{ marginTop: '4px' }}>{t('usuarios.asistida_nota')}</div>
+        </div>
+
+        {error && (
+          <div style={{
+            background: '#FFF0F0', border: '1px solid #FFD6D6', color: '#D8000C',
+            padding: '11px 13px', borderRadius: 'var(--radius-sm)',
+            fontSize: '0.86rem', marginBottom: '14px'
+          }}>
+            {error}
+          </div>
+        )}
+
+        <div className="form-group">
+          <label>{t('activar.nueva_password')}</label>
+          <div style={{ position: 'relative' }}>
+            <Lock size={17} style={{
+              position: 'absolute', left: '13px', top: '50%',
+              transform: 'translateY(-50%)', color: 'var(--text-muted)'
+            }} />
+            <input type="password" className="form-input" required autoFocus
+              style={{ width: '100%', paddingLeft: '40px' }}
+              value={password} onChange={(e) => setPassword(e.target.value)} />
+          </div>
+          <div style={{
+            fontSize: '0.8rem', marginTop: '5px',
+            color: larga ? 'var(--status-resuelto-text)' : 'var(--text-muted)'
+          }}>
+            {t('activar.req_longitud', { n: minimo })}
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label>{t('activar.repetir')}</label>
+          <div style={{ position: 'relative' }}>
+            <Lock size={17} style={{
+              position: 'absolute', left: '13px', top: '50%',
+              transform: 'translateY(-50%)', color: 'var(--text-muted)'
+            }} />
+            <input type="password" className="form-input" required
+              style={{ width: '100%', paddingLeft: '40px' }}
+              value={repetir} onChange={(e) => setRepetir(e.target.value)} />
+          </div>
+          {repetir.length > 0 && (
+            <div style={{
+              fontSize: '0.8rem', marginTop: '5px',
+              color: coinciden ? 'var(--status-resuelto-text)' : '#D8000C'
+            }}>
+              {coinciden ? t('activar.req_coinciden') : t('usuarios.no_coinciden')}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '18px' }}>
+          <button type="button" onClick={onCerrar} className="btn-secondary"
+            style={{ padding: '10px 18px' }}>
+            <X size={15} /> {t('temas.cancelar')}
+          </button>
+          <button type="submit" className="btn-primary"
+            disabled={!larga || !coinciden || enviando} style={{ padding: '10px 18px' }}>
+            <Check size={15} /> {enviando ? t('activar.activando') : t('usuarios.asistida_confirmar')}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+/* ================================================================ */
 const FormularioAlta = ({ onCerrar, onCreado, onError }) => {
   const { t } = useTranslation();
   const [nombre, setNombre] = useState('');
   const [numeroEmpleado, setNumeroEmpleado] = useState('');
   const [email, setEmail] = useState('');
+  const [numeroEpp, setNumeroEpp] = useState('');
+  const [fechaNacimiento, setFechaNacimiento] = useState('');
   const [fechaIngreso, setFechaIngreso] = useState('');
   const [area, setArea] = useState('');
   const [rol, setRol] = useState('usuario');
@@ -378,6 +579,8 @@ const FormularioAlta = ({ onCerrar, onCreado, onError }) => {
         numero_empleado: numeroEmpleado.trim(),
         // En planta mucha gente no tiene correo: se manda null, no cadena vacía.
         email: email.trim() ? email.trim().toLowerCase() : null,
+        numero_epp: numeroEpp.trim() || null,
+        fecha_nacimiento: fechaNacimiento || null,
         fecha_ingreso: fechaIngreso || null,
         area: area.trim() || null, rol
       });
@@ -419,6 +622,23 @@ const FormularioAlta = ({ onCerrar, onCreado, onError }) => {
               {t('usuarios.dominios', { lista: dominios.map((d) => '@' + d).join(', ') })}
             </div>
           )}
+        </div>
+        <div className="form-group">
+          <label>{t('usuarios.numero_epp')}</label>
+          <input className="form-input" style={{ width: '100%' }}
+            inputMode="numeric" maxLength={10} autoComplete="off" placeholder="0421"
+            value={numeroEpp} onChange={(e) => setNumeroEpp(e.target.value)} />
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '5px' }}>
+            {t('usuarios.numero_epp_ayuda')}
+          </div>
+        </div>
+        <div className="form-group">
+          <label>{t('usuarios.fecha_nacimiento')}</label>
+          <input type="date" className="form-input" style={{ width: '100%' }}
+            value={fechaNacimiento} onChange={(e) => setFechaNacimiento(e.target.value)} />
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '5px' }}>
+            {t('usuarios.fecha_nacimiento_ayuda')}
+          </div>
         </div>
         <div className="form-group">
           <label>{t('usuarios.fecha_ingreso')}</label>

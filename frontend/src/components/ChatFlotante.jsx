@@ -53,6 +53,18 @@ const ChatFlotante = () => {
     setCategorias(datos.categorias || []);
 
     switch (datos.accion) {
+      // Lo primero que se intenta: si esto ya se resolvió antes, se contesta
+      // aquí mismo y no hay nada que clasificar ni ticket que levantar.
+      case 'solucion':
+        agregar('asistente', datos.respuesta);
+        if (datos.fuentes?.length) {
+          agregar('asistente', t('chat.segun_fuente', {
+            titulo: datos.fuentes[0].titulo
+          }));
+        }
+        agregar('asistente', t('chat.sirvio_pregunta'));
+        break;
+
       case 'flujo_categoria':
         agregar('asistente', t('chat.clasificado', { categoria: t(`new_ticket.category_${datos.categoria}`) }));
         setTimeout(() => irAlFormulario(datos.categoria, datos.descripcion_sugerida), 900);
