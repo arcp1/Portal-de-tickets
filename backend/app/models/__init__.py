@@ -233,6 +233,10 @@ class Ticket(Base):
         Index("ux_tickets_usuario_clave_envio", "usuario_id", "clave_envio", unique=True,
               postgresql_where=text("clave_envio IS NOT NULL"),
               sqlite_where=text("clave_envio IS NOT NULL")),
+        # Ya existía en la base (migración 0026) y faltaba aquí: un
+        # `--autogenerate` la habría propuesto como "sobrante" y borrado.
+        CheckConstraint("satisfaccion IS NULL OR satisfaccion BETWEEN 1 AND 5",
+                        name="ck_tickets_satisfaccion_1_a_5"),
     )
 
     sitio = relationship("Sitio", back_populates="tickets")

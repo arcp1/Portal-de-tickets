@@ -1,10 +1,12 @@
-# Quién puede qué. Los nombres de usuario salen del .env (MQTT_USUARIO y
-# MQTT_DISPOSITIVO_USUARIO); si se cambian allí, hay que cambiarlos aquí.
+# Quién puede qué. Es una plantilla: `entrada.sh` cambia {{RECEPTOR}} y
+# {{SENSORES}} por MQTT_USUARIO y MQTT_DISPOSITIVO_USUARIO del .env al
+# arrancar. Escritos a mano, cambiar un nombre en el .env dejaba al receptor
+# conectado pero sin permiso de lectura: sin datos y sin un solo error.
 
 # El receptor del portal: lee toda la telemetría.
-user portal
+user {{RECEPTOR}}
 topic read portal/+/sensores/+/telemetria
 
 # Los ESP32: solo publican telemetría, en cualquier planta y con su clave.
-user sensor
+user {{SENSORES}}
 topic write portal/+/sensores/+/telemetria

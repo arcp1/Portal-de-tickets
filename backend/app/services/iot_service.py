@@ -55,6 +55,18 @@ MAGNITUDES: Dict[str, Tuple[Tuple[str, ...], float, float]] = {
 EXTRA_MAXIMO = 8
 
 
+_ultimo_aviso_de_tope: Optional[datetime] = None
+
+
+def _avisar_tope(clave: str, ahora: datetime) -> None:
+    global _ultimo_aviso_de_tope
+    if _ultimo_aviso_de_tope and (ahora - _ultimo_aviso_de_tope).total_seconds() < 60:
+        return
+    _ultimo_aviso_de_tope = ahora
+    logger.warning("Sensor nuevo descartado: se llegó al tope de equipos",
+                   extra={"clave": clave, "tope": settings.IOT_MAX_DISPOSITIVOS})
+
+
 def umbrales_de(dispositivo: DispositivoIoT) -> Dict[str, float]:
     propios = dispositivo.umbrales or {}
     return {
@@ -146,6 +158,12 @@ class IoTService:
                                             Sitio.activo.is_(True)).first()
             if planta is None:
                 return {"resultado": "descartado", "motivo": "planta desconocida"}
+            # Con tope: la contraseña de los sensores es compartida, y sin él
+            # cada clave inventada en el tema sería un equipo más en la base y
+            # en la pantalla. El aviso sale una vez por minuto, no por mensaje.
+            if db.query(func.count(DispositivoIoT.id)).scalar() >= settings.IOT_MAX_DISPOSITIVOS:
+                _avisar_tope(clave_equipo, ahora)
+                return {"resultado": "descartado", "motivo": "límite de equipos"}
             # Se registra solo. TI le pone nombre y ubicación después, o lo
             # desactiva si no es de la casa.
             dispositivo = DispositivoIoT(clave=clave_equipo, nombre=clave_equipo,

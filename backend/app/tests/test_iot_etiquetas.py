@@ -226,3 +226,32 @@ def test_las_pruebas_no_alcanzan_la_base_ni_la_redis_reales():
     assert settings.REDIS_URL == ""
     assert "127.0.0.1:9" in settings.DATABASE_URL
     assert settings.MIGRAR_AL_ARRANCAR == "sql"
+
+
+def test_hay_tope_de_equipos_que_se_registran_solos(db_session, monkeypatch):
+    """La contraseña de los sensores es compartida: sin tope, cada clave
+    inventada en el tema sería un equipo nuevo en la base."""
+    monkeypatch.setattr(settings, "IOT_MAX_DISPOSITIVOS", 2)
+    ahora = datetime.utcnow()
+    for i in range(3):
+        r = IoTService.procesar(db_session, f"portal/QRO/sensores/inventado-{i}/telemetria",
+                                _carga(t=20), ahora)
+        assert r["resultado"] == ("guardado" if i < 2 else "descartado")
+    assert r["motivo"] == "límite de equipos"
+    assert db_session.query(DispositivoIoT).count() == 2
+    # Los que ya están siguen reportando.
+    r = IoTService.procesar(db_session, "portal/QRO/sensores/inventado-0/telemetria",
+                            _carga(t=21), ahora + timedelta(minutes=1))
+    assert r["resultado"] == "guardado"
+
+
+def test_la_base_rechaza_una_calificacion_fuera_de_rango(db_session):
+    """La restricción vive en la base y ahora también en el modelo."""
+    from sqlalchemy.exc import IntegrityError
+    from app.models import Ticket
+    db_session.add(Ticket(sitio_id=1, usuario_id=2, folio="TICK-QRO-2026-0999", categoria="otro",
+                          descripcion_original="x", prioridad="media", estado="resuelto",
+                          satisfaccion=6))
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()

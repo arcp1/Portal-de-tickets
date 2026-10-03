@@ -598,6 +598,11 @@ class Settings(BaseSettings):
     IOT_RETENCION_DIAS: int = int(os.getenv("IOT_RETENCION_DIAS", "90"))
     # Sin reportar en este tiempo, el equipo se da por caído y se avisa.
     IOT_SIN_SENAL_MINUTOS: int = int(os.getenv("IOT_SIN_SENAL_MINUTOS", "10"))
+    # Tope de equipos que se registran solos. La contraseña de los sensores es
+    # una para todos: sin tope, quien la tenga crea un equipo por cada clave
+    # que se invente en el tema. Pasado el tope, uno nuevo se descarta hasta
+    # que TI borre los que sobran o suba el número.
+    IOT_MAX_DISPOSITIVOS: int = int(os.getenv("IOT_MAX_DISPOSITIVOS", "200"))
     # Umbrales por defecto (cada equipo puede tener los suyos).
     IOT_TEMPERATURA_MAX: float = float(os.getenv("IOT_TEMPERATURA_MAX", "35"))
     IOT_HUMEDAD_MAX: float = float(os.getenv("IOT_HUMEDAD_MAX", "70"))

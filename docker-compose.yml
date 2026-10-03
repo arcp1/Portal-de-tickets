@@ -285,6 +285,15 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       MIGRAR_AL_ARRANCAR: "no"
     command: ["arq", "app.worker.WorkerSettings"]
+    # El worker escribe un latido en Redis cada minuto (health_check_interval
+    # en app/worker.py); si se cuelga, deja de escribirlo y `docker ps` lo
+    # marca unhealthy en vez de seguir diciendo "Up".
+    healthcheck:
+      test: ["CMD", "arq", "--check", "app.worker.WorkerSettings"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 40s
     depends_on:
       db:
         condition: service_healthy

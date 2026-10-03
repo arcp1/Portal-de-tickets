@@ -159,6 +159,9 @@ class WorkerSettings:
     # Ollama atiende de uno en uno (OLLAMA_NUM_PARALLEL=1): más trabajos a la
     # vez solo harían cola allí.
     max_jobs = 4
+    # El latido que lee `arq --check` (el healthcheck del contenedor). Con el
+    # valor por defecto, una hora, un worker colgado seguía "sano" 60 minutos.
+    health_check_interval = 60
     job_timeout = 300
     keep_result = 60
     # Un correo que falla no se reintenta en bucle: queda en el registro.
