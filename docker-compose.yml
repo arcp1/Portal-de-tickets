@@ -3,15 +3,35 @@ services:
     image: pgvector/pgvector:pg16
     container_name: portal_tickets_db
     restart: always
+    read_only: true
+    # Postgres arranca como root y baja a su propio usuario con gosu: sin
+    # SETUID/SETGID el contenedor no llega ni a initdb. CHOWN/FOWNER/DAC_OVERRIDE
+    # son para ajustar los permisos de PGDATA en el primer arranque.
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /var/run/postgresql
+      - /tmp
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-cgr_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cgr_secure_password}
+      # Sin valor de reserva: si falta en el .env, compose se queja y no se
+      # levanta una base con una contrasena que esta en el repositorio.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en el .env}
       POSTGRES_DB: ${POSTGRES_DB:-portal_tickets}
-    # Solo accesible desde la propia máquina y en un puerto alterno: el 5432
-    # suele estar ocupado por un Postgres local. El backend la alcanza por la
-    # red interna de compose, no por este puerto.
-    ports:
-      - "127.0.0.1:5433:5432"
+    # **Sin puerto publicado.** El backend la alcanza por el nombre `db` en la
+    # red interna de compose; nada mas necesita hablarle. Publicarla, aunque
+    # fuera en loopback, la deja al alcance de cualquier proceso del host y de
+    # cualquiera con un tunel SSH abierto.
+    #
+    # Para entrar a mano cuando haga falta:  docker compose exec db psql -U cgr_user -d portal_tickets
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -26,12 +46,95 @@ services:
   #   docker compose exec ollama ollama pull nomic-embed-text
   #   docker compose exec ollama ollama pull qwen2.5:3b
   ollama:
-    image: ollama/ollama:latest
+    # Fijado a una version concreta, no `latest`. Con `latest`, cada `pull`
+    # puede traer codigo distinto sin que nadie lo decida ni lo revise: es la
+    # via de entrada clasica de un ataque a la cadena de suministro.
+    image: ollama/ollama:0.12.3
     container_name: portal_tickets_ollama
     restart: always
-    # Solo local: nada fuera del servidor necesita hablarle a Ollama.
-    ports:
-      - "127.0.0.1:11434:11434"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+      - /root/.cache
+    # --- Ajuste para CPU, que es el unico procesador que hay aqui ---
+    #
+    # Estos cuatro valores importan mas que cualquier cosa del backend: son los
+    # que deciden como se comporta la maquina cuando entran cinco peticiones a
+    # la vez. El aforo del portal (app/services/cola_ia.py) es la segunda linea;
+    # esta es la primera.
+    environment:
+      # **Una sola ranura, y se probo con tres.**
+      #
+      # En CPU no interesa atender en paralelo: lo que se satura es el ancho de
+      # banda a la RAM, asi que dos generaciones a la vez van mas lentas que
+      # las dos en fila. De impedirlo ya se encarga el aforo del portal
+      # (app/services/cola_ia.py, aforo 1).
+      #
+      # Se probo subirlo con la idea de que cada instruccion conservara su
+      # propia cache del prompt ya leido. **Medido dos veces, no cambia nada.**
+      # Alternando normalizar y clasificar, que es el caso malo:
+      #
+      #     1 ranura    leer 10,25 s (mediana de 4)
+      #     2 ranuras   leer 10,31 s (mediana de 5)
+      #
+      # Las ranuras sirven para peticiones concurrentes, no para que una serie
+      # de peticiones en fila conserve cada una su prefijo. Se queda en uno:
+      # menos RAM y una cosa menos que explicar.
+      #
+      # **Lo que si manda, y no se arregla aqui.** La cache del prompt solo
+      # acierta cuando dos llamadas seguidas comparten prefijo, o sea cuando
+      # llevan la misma instruccion. Con la misma se leen en 2,14 s; alternando,
+      # en 10,25 s. Cinco veces. Tampoco ayuda ponerles un preambulo comun
+      # —probado: 11,03 s, algo peor, porque esos tokens de mas tampoco se
+      # reutilizan—.
+      #
+      # En la practica la produccion casi no alterna: crear un ticket solo
+      # normaliza, el chat solo clasifica, y los embeddings van a otro modelo
+      # con su propia ranura. La alternancia aparece cuando se cruzan dos flujos
+      # distintos a la vez, no en cada ticket.
+      #
+      # Las cifras de leer estan en DESPLIEGUE.md, y ojo con como se miden: ver
+      # ahi la nota sobre repetir el mismo prompt.
+      OLLAMA_NUM_PARALLEL: "1"
+      # **Los dos modelos residentes a la vez, y esto no es opcional.**
+      #
+      # El portal usa dos: nomic-embed-text para buscar y qwen2.5:3b para
+      # redactar. Si solo cabe uno cargado, cada busqueda descarga el de texto
+      # y la siguiente redaccion paga la recarga completa — los ~9 segundos que
+      # OLLAMA_KEEP_ALIVE existe para evitar. Como el portal alterna entre los
+      # dos todo el rato, con el limite en 1 se pagaria esa recarga en casi
+      # cada consulta.
+      #
+      # Caben de sobra: ~2 GB el de texto y ~300 MB el de embeddings, contra
+      # 32 GB de RAM.
+      OLLAMA_MAX_LOADED_MODELS: "2"
+      # Cuantas peticiones acepta en espera antes de contestar 503. El portal ya
+      # no deberia llegar aqui —su propia cola rechaza mucho antes— pero esto es
+      # la red por si algo llama a Ollama sin pasar por ella. Por defecto son
+      # 512, que en CPU es lo mismo que no tener limite.
+      OLLAMA_MAX_QUEUE: "16"
+      # Mantiene los modelos en RAM entre consultas. El backend ya lo manda en
+      # cada llamada; aqui va tambien para que valga si alguien entra por otro
+      # camino (un `ollama run` a mano para probar, por ejemplo).
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
+    # Peso relativo de CPU, **no** un tope.
+    #
+    # El valor por defecto de todo contenedor es 1024, asi que poner 512 aqui
+    # —y en ningun otro servicio— deja a Ollama con la mitad de peso que a
+    # Postgres, al backend y a NGINX. **Solo entra en juego cuando hay pelea**:
+    # mientras Ollama redacta, el portal sigue contestando en milisegundos lo
+    # que no es IA —tableros, tickets, inicios de sesion—; cuando Ollama esta
+    # solo, se lleva la maquina entera igual que antes.
+    #
+    # Un tope duro (`cpus:`) haria lo contrario: dejaria nucleos parados cuando
+    # nadie mas los quiere. Aqui el problema no es que Ollama use la CPU, es que
+    # no se la quite a nadie.
+    cpu_shares: 512
+    # Sin puerto publicado: solo el backend le habla, por la red de compose.
     volumes:
       - ollama_models:/root/.ollama
     healthcheck:
@@ -45,8 +148,17 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    # Con nombre: el worker y el receptor de sensores usan esta misma imagen.
+    image: portal_tickets_backend:local
     container_name: portal_tickets_backend
     restart: always
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=100m
     env_file:
       - .env
     environment:
@@ -54,24 +166,165 @@ services:
       # `host.docker.internal` solo aplica cuando Ollama corre nativo en el
       # host (Windows/macOS), no aquí.
       OLLAMA_HOST: ${OLLAMA_HOST_INTERNO:-http://ollama:11434}
-    # Solo local, para depurar y ver /docs. El trafico real entra por NGINX,
-    # que es el unico punto de entrada del sistema.
-    ports:
-      - "127.0.0.1:8000:8000"
+      # Redis con su contraseña, armado aquí para no repetir la contraseña en
+      # dos variables del .env.
+      REDIS_URL: redis://:${REDIS_PASSWORD:?falta REDIS_PASSWORD en el .env}@redis:6379/0
+    # **Sin puerto publicado.** Antes se exponia el 8000 en loopback "para
+    # depurar", y eso era un camino que se saltaba NGINX entero: sin cabeceras
+    # de seguridad, sin la separacion de rutas y, sobre todo, sin el tratamiento
+    # de la IP del cliente, asi que desde el host se podian falsificar IPs y
+    # burlar los limitadores. El unico punto de entrada es NGINX.
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     # En Linux `host.docker.internal` no existe. Esto lo hace resolver al host
     # por si se prefiere un Ollama nativo en lugar del contenedor.
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./backend:/app
+      # Solo lectura: el backend nunca escribe en su propio codigo. Sin `:ro`,
+      # un fallo de ejecucion remota podia reescribir los fuentes en el host y
+      # quedarse dentro para siempre. Los dos sitios donde si escribe son
+      # volumenes aparte, montados encima.
+      - ./backend:/app:ro
       - adjuntos:/app/adjuntos
       # Solo lectura y solo el .crt: para vigilar cuando vence. La llave
       # privada no se monta; el backend no tiene nada que hacer con ella.
       - ./nginx/certs/portal.crt:/certs/portal.crt:ro
       - documentos:/app/documentos
+
+  # Redis: limitadores compartidos, sesiones revocables, el puente de avisos en
+  # vivo entre procesos y la cola del worker. Si se cae, el portal sigue en
+  # memoria (ver backend/app/core/redis_cliente.py).
+  redis:
+    image: redis:7.4-alpine
+    container_name: portal_tickets_redis
+    restart: always
+    read_only: true
+    user: "999:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?falta REDIS_PASSWORD en el .env}
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
+    # La contraseña se expande dentro del contenedor (`$$`): en `docker
+    # inspect` queda el nombre de la variable, no su valor.
+    #
+    # AOF: si Redis se reinicia, las sesiones cerradas siguen cerradas y la
+    # cola no pierde trabajos. Sin desalojo (noeviction): una cola que tira
+    # trabajos para hacer sitio es peor que una que avisa que está llena.
+    command: >
+      sh -c 'exec redis-server --requirepass "$$REDIS_PASSWORD"
+      --appendonly yes --appendfsync everysec --save ""
+      --maxmemory 128mb --maxmemory-policy noeviction'
+    # Sin puerto publicado: solo lo alcanzan los servicios de compose.
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # El broker MQTT de los sensores ESP32. Es el único servicio, aparte de
+  # NGINX, con un puerto hacia fuera: los ESP32 están en la red de la planta,
+  # no en el tailnet. MQTT_PUBLICAR decide en qué interfaz (por defecto solo
+  # en el propio servidor). Sin usuario y contraseña no entra nadie, y cada
+  # cuenta solo puede lo suyo (mosquitto/acl).
+  mosquitto:
+    image: eclipse-mosquitto:2.0.20
+    container_name: portal_tickets_mosquitto
+    restart: always
+    read_only: true
+    user: "1883:1883"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /mosquitto/run:mode=0700,uid=1883,gid=1883
+      # mosquitto_passwd escribe un temporal en /tmp al añadir cada usuario.
+      - /tmp:size=1m
+    environment:
+      MQTT_USUARIO: ${MQTT_USUARIO:-portal}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:?falta MQTT_PASSWORD en el .env}
+      MQTT_DISPOSITIVO_USUARIO: ${MQTT_DISPOSITIVO_USUARIO:-sensor}
+      MQTT_DISPOSITIVO_PASSWORD: ${MQTT_DISPOSITIVO_PASSWORD:?falta MQTT_DISPOSITIVO_PASSWORD en el .env}
+    entrypoint: ["/bin/sh", "/entrada.sh"]
+    ports:
+      - "${MQTT_PUBLICAR:-127.0.0.1:1883}:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/acl:/mosquitto/config/acl:ro
+      - ./mosquitto/entrada.sh:/entrada.sh:ro
+      - mosquitto_data:/mosquitto/data
+
+  # Lo que el portal hace sin que nadie espere: indexar al cerrar, mandar
+  # correos, y los vigilantes del SLA y de los sensores (backend/app/worker.py).
+  # Misma imagen y mismo código que el backend; no migra.
+  worker:
+    image: portal_tickets_backend:local
+    pull_policy: never
+    container_name: portal_tickets_worker
+    restart: always
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=50m
+    env_file:
+      - .env
+    environment:
+      OLLAMA_HOST: ${OLLAMA_HOST_INTERNO:-http://ollama:11434}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      MIGRAR_AL_ARRANCAR: "no"
+    command: ["arq", "app.worker.WorkerSettings"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    volumes:
+      - ./backend:/app:ro
+
+  # El receptor de telemetría: suscrito a Mosquitto, guarda las lecturas y
+  # abre alertas (backend/app/iot/ingestor.py). Misma imagen que el backend.
+  ingestor:
+    image: portal_tickets_backend:local
+    pull_policy: never
+    container_name: portal_tickets_ingestor
+    restart: always
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=20m
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      MQTT_HOST: mosquitto
+      MIGRAR_AL_ARRANCAR: "no"
+    command: ["python", "-m", "app.iot.ingestor"]
+    depends_on:
+      db:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+      backend:
+        condition: service_started
+    volumes:
+      - ./backend:/app:ro
 
   frontend:
     build:
@@ -79,17 +332,56 @@ services:
       dockerfile: Dockerfile
     container_name: portal_tickets_frontend
     restart: always
-    # Solo local. En produccion se sirve a traves de NGINX.
-    ports:
-      - "127.0.0.1:3000:80"
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    # Sin puerto publicado: NGINX lo alcanza por la red interna de compose.
 
   nginx:
     image: nginx:alpine
     container_name: portal_tickets_nginx
     restart: always
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+      - /etc/nginx/conf.d
+    # Dos caminos de entrada, y NGINX los trata distinto a proposito.
+    #
+    #   :80   Acceso directo desde el tailnet. Cualquiera que llegue aqui puede
+    #         mandar su propia cabecera X-Forwarded-For, asi que en este puerto
+    #         NO se le cree: la IP del cliente es la de la conexion y punto.
+    #
+    #   :8081 Reservado a Tailscale Funnel, publicado solo en loopback. Ahi solo
+    #         alcanza el tailscaled del propio host, asi que la cabecera que el
+    #         pone si es de fiar y de ella sale la IP real del visitante.
+    #
+    # La separacion importa: sin ella habria que elegir entre creerle a todo el
+    # mundo o no creerle a nadie. Ver nginx/comun/*.conf.
     ports:
-      - "80:80"
-      - "443:443"
+      - "100.101.51.95:80:80"
+      - "127.0.0.1:8080:8081"
     volumes:
       # Las dos variantes; el punto de entrada elige segun haya certificado.
       - ./nginx/plantillas:/etc/nginx/plantillas:ro
@@ -112,3 +404,5 @@ volumes:
   adjuntos:
   documentos:
   ollama_models:
+  redis_data:
+  mosquitto_data:

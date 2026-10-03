@@ -13,7 +13,6 @@ Dos reglas, iguales a las del resto del sistema:
 
 import smtplib
 from email.message import EmailMessage
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -44,7 +43,21 @@ class NotificacionesService:
 
     @staticmethod
     def _enviar(destino: str, asunto: str, cuerpo: str) -> bool:
-        """Devuelve True si salió. Nunca levanta."""
+        """Lo manda al worker si hay cola; si no, lo envía aquí. Nunca levanta.
+
+        Encolado cuenta como enviado: el correo sale en segundos y la petición
+        no espera los hasta 10 del servidor SMTP.
+        """
+        if not NotificacionesService.activo() or not destino:
+            return False
+        from app.core import tareas
+        if tareas.encolar("enviar_correo", destino, asunto, cuerpo):
+            return True
+        return NotificacionesService.enviar_ahora(destino, asunto, cuerpo)
+
+    @staticmethod
+    def enviar_ahora(destino: str, asunto: str, cuerpo: str) -> bool:
+        """Devuelve True si salió. Nunca levanta. Lo usa también el worker."""
         if not NotificacionesService.activo():
             return False
         if not destino:
@@ -110,6 +123,34 @@ class NotificacionesService:
         )
 
     @staticmethod
+    def ticket_a_proveedor(db: Session, ticket: Ticket, destinatario: str) -> bool:
+        """Aviso al proveedor externo al que una regla de negocio derivó el ticket.
+
+        Existe porque la pantalla de reglas promete «Enrutar a Proveedor
+        Externo» y pide un correo: sin esto el correo se guardaba y el
+        proveedor nunca se enteraba de nada. El ticket quedaba en
+        `espera_proveedor` esperando a alguien que no sabía que lo esperaban.
+        """
+        if not destinatario:
+            return False
+
+        usuario = db.query(Usuario).filter(Usuario.id == ticket.usuario_id).first()
+        contacto = usuario.nombre if usuario else "—"
+
+        return NotificacionesService._enviar(
+            destinatario,
+            f"[{ticket.folio}] Solicitud de servicio · CGR de México",
+            _plantilla(
+                "Solicitud de servicio",
+                f"Se le deriva una incidencia de {ticket.categoria}.\n\n"
+                f"Descripción: {ticket.descripcion_original[:500]}\n"
+                f"Prioridad: {ticket.prioridad}\n"
+                f"Reportado por: {contacto}",
+                ticket.folio,
+            ),
+        )
+
+    @staticmethod
     def ticket_asignado(db: Session, ticket: Ticket) -> bool:
         """Aviso al técnico que recibe el ticket."""
         tecnico = db.query(Usuario).filter(Usuario.id == ticket.asignado_a).first()
@@ -142,6 +183,8 @@ class NotificacionesService:
                 "Reporte resuelto",
                 f"Su reporte de {ticket.categoria} quedó resuelto.\n\n"
                 f"Qué se hizo:\n{ticket.solucion or 'Sin detalle.'}\n\n"
+                f"¿Cómo lo atendimos? Califíquenos en un clic: "
+                f"{settings.PORTAL_URL.rstrip('/')}/tickets/{ticket.id}\n\n"
                 f"Si el problema vuelve, puede levantar un reporte nuevo.",
                 ticket.folio,
             ),

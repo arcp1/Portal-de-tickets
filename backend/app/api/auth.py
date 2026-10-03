@@ -5,62 +5,76 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.core.db import get_db
-from app.core.security import verify_password, create_access_token
+from app.core.security import HASH_SENUELO, create_access_token, verify_password
 from app.models import Usuario
 from app.schemas.auth import LoginRequest, TokenResponse, UserResponse
-from app.api.deps import get_current_user, get_current_admin
-from app.core.limitador import limitador_login
+from app.api.deps import get_current_user, get_current_admin, oauth2_scheme
+from app.core import sesiones
+from app.core.config import settings
+import jwt
+from app.core.limitador import clave_de_cuenta, frenar, limitador_login, limitador_login_ip
 from app.core.logging import logger
 from app.services.auditoria_service import ip_de
 from app.services.cuentas_service import CuentasService
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
+#: Ver `HASH_SENUELO` en core/security.py: vive alli porque la activacion
+#: necesita el mismo.
+_HASH_SENUELO = HASH_SENUELO
+
 @router.post("/login", response_model=TokenResponse)
 def login(request: LoginRequest, peticion: Request, db: Session = Depends(get_db)):
-    # Se limita por IP y por correo a la vez: por IP frena a quien prueba muchos
-    # usuarios desde un equipo, y por correo frena a quien ataca una cuenta
-    # concreta desde varios.
-    origen = ip_de(peticion) or "desconocida"
-    for clave in (f"ip:{origen}", f"correo:{request.email.lower()}"):
-        if not limitador_login.permitido(clave):
-            espera = limitador_login.segundos_restantes(clave)
-            logger.warning("Demasiados intentos de inicio de sesión",
-                           extra={"clave": clave, "espera_s": espera})
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Demasiados intentos. Espere {espera} segundos.",
-                headers={"Retry-After": str(espera)},
-            )
-
     # Acepta número de empleado o correo: la gente teclea lo que recuerda.
     user = CuentasService.buscar_por_identificador(db, request.email)
-    if not user or not verify_password(request.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password"
-        )
-    if not user.activo:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="La cuenta está desactivada. Contacte al área de TI."
-        )
-    if user.estado_cuenta != "activa":
-        # Todavía no define su contraseña: se le dice qué hacer en vez de
-        # dejarlo intentando con una que no existe.
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Su cuenta aún no está activada. Use «Activar mi cuenta» con el código que le dio TI."
-        )
+
+    # Dos frenos: por IP, contra quien barre muchas cuentas, y por cuenta,
+    # contra quien ataca a una persona desde varios sitios. El de cuenta se
+    # aplica a la cuenta encontrada y no al texto tecleado; ver
+    # `clave_de_cuenta`. Va antes de bcrypt, que es lo caro.
+    origen = ip_de(peticion) or "desconocida"
+    cuenta = clave_de_cuenta(user, request.email)
+    frenar((limitador_login_ip, f"ip:{origen}"), (limitador_login, cuenta))
+
+    # Una sola respuesta para todos los fracasos.
+    #
+    # Antes se distinguia: 401 si no existia o la contrasena estaba mal, 400 si
+    # la cuenta estaba desactivada y 409 si faltaba activarla. Los dos ultimos
+    # **confirmaban que la cuenta existe** y en que estado esta, asi que la
+    # pantalla de entrada servia para averiguar quien trabaja aqui. Con numeros
+    # de empleado consecutivos eso es recorrer un rango y quedarse con el padron.
+    #
+    # El texto sigue siendo util para quien si es de la casa: le dice que hacer
+    # en su primera entrada sin revelarle nada a quien va de pesca.
+    generico = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=("No pudimos iniciar sesión. Revise sus datos. Si es su primera "
+                "vez, use «Activar mi cuenta»; si su cuenta fue dada de baja, "
+                "contacte al área de TI."),
+    )
+
+    # La comparacion se hace SIEMPRE, exista la cuenta o no.
+    #
+    # `verify_password` devuelve False de inmediato cuando no hay hash —una
+    # cuenta sin activar no tiene—, mientras que una cuenta real gasta los
+    # ~250 ms de bcrypt. Esa diferencia se mide desde fuera y delata que
+    # cuentas existen. Comparando siempre contra algo, todos los caminos
+    # cuestan lo mismo.
+    hash_a_comparar = (user.password_hash if user else None) or _HASH_SENUELO
+    coincide = verify_password(request.password, hash_a_comparar)
+
+    if not user or not coincide or not user.activo or user.estado_cuenta != "activa":
+        raise generico
 
     user.ultimo_acceso = datetime.utcnow()
     db.commit()
 
-    # Quien entró bien no arrastra el conteo de intentos previos.
-    limitador_login.limpiar(f"ip:{origen}")
-    limitador_login.limpiar(f"correo:{request.email.lower()}")
+    # Quien entró bien no arrastra sus intentos previos. De la IP solo se
+    # descuenta este acierto: los fallos de otros siguen contando.
+    limitador_login.limpiar(cuenta)
+    limitador_login_ip.descontar(f"ip:{origen}")
 
-    access_token = create_access_token(subject=user.id)
+    access_token = create_access_token(subject=user.id, version_token=user.version_token)
     return TokenResponse(
         access_token=access_token,
         token_type="bearer",
@@ -68,24 +82,47 @@ def login(request: LoginRequest, peticion: Request, db: Session = Depends(get_db
     )
 
 @router.post("/login/form", response_model=TokenResponse)
-def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(Usuario).filter(Usuario.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password"
-        )
-    
-    access_token = create_access_token(subject=user.id)
-    return TokenResponse(
-        access_token=access_token,
-        token_type="bearer",
-        user=user
+def login_form(
+    peticion: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
+    """Mismo inicio de sesion que `/login`, en el formato que pide Swagger.
+
+    Existe solo para el boton «Authorize» de /docs. **Delega en `login`**: antes
+    era una puerta paralela que se saltaba el limite de intentos, la
+    comprobacion de cuenta activa y la de cuenta ya activada, asi que servia
+    para probar contrasenas sin freno. Una sola implementacion, una sola regla.
+    """
+    return login(
+        LoginRequest(email=form_data.username, password=form_data.password),
+        peticion,
+        db,
     )
 
 @router.get("/me", response_model=UserResponse)
 def read_current_user(current_user: Usuario = Depends(get_current_user)):
     return current_user
+
+
+@router.post("/logout")
+def cerrar_sesion(
+    current_user: Usuario = Depends(get_current_user),
+    token: str = Depends(oauth2_scheme),
+):
+    """Revoca esta sesión —y sus renovaciones— hasta que venza sola.
+
+    `revocada` dice si quedó anotada en Redis. Si no hay Redis es False y el
+    frontend solo olvida el token, que es lo que hacía siempre.
+    """
+    try:
+        sid = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM],
+                         options={"verify_exp": False}).get("sid")
+    except jwt.PyJWTError:
+        sid = None
+    revocada = sesiones.revocar(sid)
+    logger.info("Sesión cerrada", extra={"usuario_id": current_user.id, "revocada": revocada})
+    return {"ok": True, "revocada": revocada}
 
 @router.get("/usuarios", response_model=List[UserResponse])
 def listar_usuarios(
@@ -93,13 +130,16 @@ def listar_usuarios(
     db: Session = Depends(get_db),
     admin: Usuario = Depends(get_current_admin),
 ):
-    """Personas del sitio del admin.
+    """Personas de todas las plantas (TI es global).
 
     Lo consume el formulario de emisión de resguardos y el expediente. Solo
     admin: la lista de empleados no es información que un usuario cualquiera
     necesite para usar el portal.
     """
-    consulta = db.query(Usuario).filter(Usuario.sitio_id == admin.sitio_id)
+    # Los eliminados no salen ni pidiendo `solo_activos=false`: no se le puede
+    # asignar un ticket ni emitir un resguardo a alguien que ya no está.
+    # TI es global: las personas de todas las plantas.
+    consulta = db.query(Usuario).filter(Usuario.eliminado_en.is_(None))
     if solo_activos:
         consulta = consulta.filter(Usuario.activo.is_(True))
     return consulta.order_by(Usuario.nombre).all()

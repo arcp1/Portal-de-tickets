@@ -4,7 +4,6 @@ Dos garantías: sin SMTP configurado no hace nada, y un fallo de correo nunca
 tumba la operación que lo originó.
 """
 
-import pytest
 
 from app.core.config import settings
 from app.services.notificaciones_service import NotificacionesService

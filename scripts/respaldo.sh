@@ -118,7 +118,7 @@ Para restaurar la base:
     zcat portal-bd-FECHA.sql.gz | docker compose exec -T db psql -U cgr_user -d portal_tickets
 
 Para restaurar los archivos:
-    docker run --rm -v portaldetickets_documentos:/destino -v "$PWD":/respaldo \
+    docker run --rm -v portal-de-tickets_documentos:/destino -v "$PWD":/respaldo \
         alpine sh -c "cd /destino && tar xzf /respaldo/portal-documentos-FECHA.tar.gz"
 
 Un respaldo que nunca se ha restaurado no se sabe si sirve.

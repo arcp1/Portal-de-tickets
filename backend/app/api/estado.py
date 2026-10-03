@@ -23,6 +23,7 @@ from app.api.deps import get_current_admin, get_current_user
 from app.core.config import settings
 from app.core.db import get_db
 from app.models import Ticket, Usuario
+from app.services import cola_ia
 from app.services.gemini_client import gemini
 from app.services.horario_service import HorarioService
 from app.services.ollama_client import ollama
@@ -50,7 +51,11 @@ def _estado_certificado() -> dict:
     ruta = Path(settings.RUTA_CERTIFICADO)
     base = {"nombre": "Certificado TLS", "clave": "certificado", "critico": False}
 
-    if not ruta.exists():
+    # `is_file` y no `exists`: cuando el .crt no existe en el host, Docker crea
+    # un **directorio** en su lugar al montarlo. Con `exists()` eso pasaba el
+    # filtro, fallaba al leerlo y la pantalla de Estado marcaba el certificado
+    # como "Caído" —rojo, alarmante— cuando en realidad solo no hay TLS puesto.
+    if not ruta.is_file():
         return {**base, "estado": "apagado",
                 "detalle": "El portal responde por HTTP",
                 "degradacion": ("Sin TLS, las contraseñas y los códigos de activación "
@@ -110,17 +115,51 @@ def sistema(db: Session = Depends(get_db), admin: Usuario = Depends(get_current_
 
     # --- Ollama: si se cae, el portal pierde ayudas, no funciones ---
     latencias = ollama.latencias()
+    faltan = ollama.faltan_modelos() if settings.IA_HABILITADA else []
     ollama_arriba = ollama.disponible() if settings.IA_HABILITADA else False
+
+    # Un Ollama sin modelos contesta perfectamente y no sirve para nada: no
+    # genera embeddings, la busqueda no encuentra nada y el asistente responde
+    # "sin fundamento". Merece su propio estado, no un verde que engaña.
+    if not settings.IA_HABILITADA:
+        estado_ollama = "apagado"
+        detalle = "Desactivado por configuración"
+    elif faltan:
+        estado_ollama = "en_espera"
+        detalle = "Faltan modelos: " + ", ".join(faltan)
+    elif ollama_arriba:
+        estado_ollama = "arriba"
+        detalle = f"{settings.OLLAMA_MODELO_TEXTO} · {settings.OLLAMA_MODELO_EMBEDDING}"
+    else:
+        estado_ollama = "abajo"
+        detalle = "No responde"
+
     servicios.append({
         "nombre": "Ollama (asistente local)",
         "clave": "ollama",
-        "estado": ("arriba" if ollama_arriba
-                   else "apagado" if not settings.IA_HABILITADA else "abajo"),
+        "estado": estado_ollama,
         "critico": False,
-        "detalle": (f"{settings.OLLAMA_MODELO_TEXTO} · {settings.OLLAMA_MODELO_EMBEDDING}"),
+        "detalle": detalle,
         "latencias_ms": latencias,
-        "degradacion": ("Sin Ollama los tickets se crean igual, con la descripción "
-                        "original y sin sugerencias."),
+        # Cuánta cola hay para la CPU. Es lo que separa dos quejas que desde
+        # fuera suenan igual: "el asistente tarda" porque el modelo piensa
+        # despacio —latencias altas, cola en cero— o porque hay tres personas
+        # delante —latencias normales, cola llena—. La primera se arregla con
+        # un modelo más chico; la segunda, subiendo el aforo o aceptando que
+        # esta máquina da lo que da. Sin este dato las dos se diagnostican
+        # igual de mal.
+        #
+        # `rechazados_sala` es el número a vigilar: si sube seguido, hay gente
+        # quedándose sin ayuda de IA de forma rutinaria y toca revisar
+        # IA_SALA_GENERACION o el tamaño del modelo.
+        "cola": cola_ia.metricas(),
+        "degradacion": (
+            "Descárguelos con:  docker compose exec ollama ollama pull "
+            + " && ollama pull ".join(faltan)
+            if faltan else
+            "Sin Ollama los tickets se crean igual, con la descripción "
+            "original y sin sugerencias."
+        ),
     })
 
     # --- Gemini: opcional y ajeno. Se informa sin filtrar la llave ---

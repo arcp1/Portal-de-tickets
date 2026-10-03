@@ -7,7 +7,15 @@ pgvector>=0.2.4
 pydantic>=2.6.0
 pydantic-settings>=2.1.0
 email-validator>=2.0.0
-python-jose[cryptography]>=3.3.0
+# PyJWT en lugar de python-jose: este solo se usaba para HS256 y aun asi
+# arrastraba `ecdsa` (PYSEC-2026-1325). PyJWT es el que se mantiene al dia y no
+# trae dependencias de curva eliptica.
+PyJWT>=2.8.0
+# Declarada aparte a proposito. La usa app/api/estado.py para leer cuando vence
+# el certificado TLS, pero hasta ahora entraba de rebote como extra de
+# python-jose: al cambiar de libreria de tokens el portal dejo de arrancar.
+# Una dependencia que se usa directo se pide directo.
+cryptography>=42.0.0
 passlib[bcrypt]>=1.7.4
 python-multipart>=0.0.6
 bcrypt>=4.0.1
@@ -15,3 +23,14 @@ httpx>=0.26.0
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
 reportlab>=4.0.0
+# --- Redis, cola de tareas, sensores y etiquetas (2026-10-02) ---
+# Redis: limitadores compartidos, sesiones revocables y puente de avisos en
+# vivo. Opcional en tiempo de ejecución (sin REDIS_URL todo va en memoria).
+redis>=5.0.0
+# La cola de tareas y los vigilantes programados (contenedor `worker`).
+arq>=0.26.0
+# El receptor de telemetría de los ESP32 (contenedor `ingestor`). API v2.
+paho-mqtt>=2.0.0
+# La etiqueta QR de cada equipo.
+qrcode>=7.4
+Pillow>=10.1.0
