@@ -191,3 +191,78 @@ def test_la_purga_no_borra_intentos_vigentes():
     limitador.permitido("reciente")
     limitador.purgar()
     assert "reciente" in limitador._intentos
+
+
+# ----------------------------------------------------------------------
+# El freno por cuenta y el freno por IP (2026-10-02)
+# ----------------------------------------------------------------------
+
+@pytest.fixture
+def frenos(monkeypatch):
+    """Cupos chicos para no hacer cien peticiones; se devuelven al terminar."""
+    from app.core import limitador as modulo
+
+    def poner(cuenta=None, ip=None):
+        if cuenta is not None:
+            monkeypatch.setattr(modulo.limitador_login, "maximo", cuenta)
+        if ip is not None:
+            monkeypatch.setattr(modulo.limitador_login_ip, "maximo", ip)
+    return poner
+
+
+def _entrar(client, identificador, password="mala"):
+    return client.post("/api/auth/login", json={"email": identificador, "password": password})
+
+
+def test_variar_espacios_o_usar_el_correo_no_da_intentos_extra(client, frenos):
+    """La clave era el texto tecleado: " 1001", "1001 " y el correo eran
+    contadores distintos contra la misma cuenta."""
+    frenos(cuenta=3, ip=100)
+    for variante in ("1001", " 1001 ", "ADMIN@test.com"):
+        assert _entrar(client, variante).status_code == 401
+
+    r = _entrar(client, "admin@test.com", "Secret123!")
+    assert r.status_code == 429
+    assert "Retry-After" in r.headers
+
+
+def test_los_aciertos_no_gastan_el_cupo_de_la_ip(client, frenos):
+    """Por el acceso directo toda la planta llega con la misma IP: si contaran
+    los aciertos, un cambio de turno dejaría fuera al que entra después."""
+    frenos(cuenta=100, ip=3)
+    for _ in range(6):
+        assert _entrar(client, "admin@test.com", "Secret123!").status_code == 200
+        assert _entrar(client, "user@test.com", "Secret123!").status_code == 200
+
+
+def test_los_fallos_contra_muchas_cuentas_si_frenan_por_ip(client, frenos):
+    frenos(cuenta=100, ip=3)
+    for numero in ("9001", "9002", "9003"):
+        assert _entrar(client, numero).status_code == 401
+    assert _entrar(client, "9004").status_code == 429
+
+
+def test_un_freno_que_rechaza_no_gasta_el_cupo_del_otro():
+    from app.core.limitador import frenar
+    from fastapi import HTTPException
+
+    abierto = Limitador(maximo=5, ventana_segundos=60)
+    lleno = Limitador(maximo=1, ventana_segundos=60)
+    lleno.permitido("x")
+
+    with pytest.raises(HTTPException) as error:
+        frenar((abierto, "a"), (lleno, "x"))
+    assert error.value.status_code == 429
+    assert len(abierto._intentos["a"]) == 0
+
+
+def test_la_activacion_tambien_frena_por_cuenta_y_no_por_texto(client, monkeypatch):
+    from app.core import limitador as modulo
+    monkeypatch.setattr(modulo.limitador_activacion, "maximo", 2)
+    monkeypatch.setattr(modulo.limitador_activacion_ip, "maximo", 100)
+
+    datos = {"password": "OtraClaveLarga9!", "codigo": "AAAA-BBBB"}
+    for variante in ("1002", " 1002"):
+        assert client.post("/api/auth/activar", json={**datos, "identificador": variante}).status_code != 429
+    r = client.post("/api/auth/activar", json={**datos, "identificador": "user@test.com"})
+    assert r.status_code == 429

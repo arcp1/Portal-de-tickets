@@ -143,6 +143,23 @@ conviene hacerlo antes de dar de alta a la gente, no después.
 docker compose up -d --build
 ```
 
+> **Al cambiar el `.env`, `restart` no vale.** Un contenedor se queda con las
+> variables que tenía cuando se creó; `docker compose restart` lo para y lo
+> vuelve a arrancar con las mismas. Hay que recrearlo:
+>
+> ```bash
+> docker compose up -d backend
+> ```
+>
+> Comprobado en esta máquina: con el `.env` ya editado, después de `restart` el
+> contenedor seguía con el valor viejo, y solo tras `up -d` tomó el nuevo. Es
+> una trampa fea porque el cambio **parece** aplicado —el servicio se reinició,
+> no hubo error— y no lo está. Para salir de dudas:
+>
+> ```bash
+> docker compose exec -T backend printenv OLLAMA_TIMEOUT_CLASIFICACION
+> ```
+
 Descargar los modelos de Ollama, una sola vez (quedan en un volumen):
 
 ```bash
@@ -150,11 +167,18 @@ docker compose exec ollama ollama pull nomic-embed-text
 docker compose exec ollama ollama pull qwen2.5:3b
 ```
 
-Sembrar los datos iniciales:
+Crear la planta y su primer administrador, con los valores de la sección
+«Siembra» del `.env` (`SEED_SITIO_*`, `SEED_ADMIN_*`):
 
 ```bash
 docker compose exec backend python seed.py
 ```
+
+Es **todo** lo que crea: ni equipos, ni personas, ni reglas de ejemplo. El
+inventario arranca en cero y así lo enseña el portal; los equipos, las personas
+y las reglas se dan de alta desde el propio portal. Si `SEED_ADMIN_PASSWORD`
+está vacía, la contraseña del administrador se genera al azar y se imprime una
+sola vez en la consola: anótela en ese momento.
 
 Y el contenido de arranque: los pasos de diagnóstico y la base de conocimiento
 inicial, sin los cuales la búsqueda por similitud no tiene nada que sugerir
@@ -164,28 +188,43 @@ durante las primeras semanas:
 docker compose exec backend python seed_temas.py
 ```
 
-**Cambia las contraseñas de los usuarios sembrados antes de dar acceso a nadie.**
-`seed.py` crea `admin@cgr.mx` y `operador@cgr.mx` con contraseñas conocidas y
-públicas en el repositorio.
+Correr cualquiera de los dos otra vez no duplica nada ni toca la contraseña de
+una cuenta que ya exista.
 
 ### 2.7 Arranque automático
 
 Para que el portal vuelva solo tras un corte de luz o un reinicio:
+
+> **Lo que pasó el 2026-10-02 sin esta unidad.** El servidor se reinició por
+> una actualización de kernel y **el portal se quedó caído hora y media**:
+> Docker levanta los contenedores (`restart: always`) en cuanto arranca, y eso
+> es antes de que Tailscale tenga su IP. nginx se publica en `100.101.51.95:80`,
+> no la pudo tomar ("cannot assign requested address") y quedó `Exited`.
+> `restart: always` **no reintenta** un fallo de publicación de puerto. Lo mismo
+> le puede pasar a Mosquitto con la IP de la LAN.
+>
+> La unidad de abajo lo resuelve: espera a Tailscale y a que las dos IP
+> existan, y entonces corre `docker compose up -d`, que vuelve a crear lo que
+> no arrancó. Ajuste `WorkingDirectory` y las IP a las del servidor.
 
 ```bash
 sudo tee /etc/systemd/system/portal-tickets.service > /dev/null <<'EOF'
 [Unit]
 Description=Portal de Tickets TI - CGR
 Requires=docker.service
-After=docker.service network-online.target
+Wants=tailscaled.service network-online.target
+After=docker.service network-online.target tailscaled.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-WorkingDirectory=/opt/portal-tickets
+WorkingDirectory=/home/arc/Portal-de-tickets
+# nginx escucha en la IP del tailnet y Mosquitto en la de la LAN: sin ellas
+# la publicación del puerto falla y el contenedor no vuelve solo.
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 90); do ip -4 addr | grep -q "100.101.51.95/" && ip -4 addr | grep -q "192.168.1.168/" && exit 0; sleep 2; done; exit 1'
 ExecStart=/usr/bin/docker compose up -d
 ExecStop=/usr/bin/docker compose down
-TimeoutStartSec=0
+TimeoutStartSec=300
 
 [Install]
 WantedBy=multi-user.target
@@ -352,20 +391,36 @@ docker compose start ollama
 
 ## 4. Puertos
 
-Solo el 80 (y el 443 en producción) quedan expuestos. Todo lo demás está
-publicado únicamente en `127.0.0.1`, de modo que NGINX sea el único punto de
-entrada, como pide la spec §3.
+NGINX es el único punto de entrada al portal (spec §3). Desde el 2026-10-02 hay
+un segundo puerto hacia fuera, el de Mosquitto, porque los ESP32 viven en la red
+de la planta y no en el tailnet. Todo lo demás no se publica: se alcanza solo
+por la red interna de compose.
 
 | Servicio | Publicado en | Alcanzable desde |
 |---|---|---|
-| nginx | `0.0.0.0:80` | La red de la planta |
-| backend | `127.0.0.1:8000` | Solo el servidor (depuración y `/docs`) |
-| frontend | `127.0.0.1:3000` | Solo el servidor |
-| postgres | `127.0.0.1:5433` | Solo el servidor |
-| ollama | `127.0.0.1:11434` | Solo el servidor |
+| nginx | `100.101.51.95:80` | El tailnet |
+| nginx (Funnel) | `127.0.0.1:8080` | Solo el servidor; lo publica `tailscale funnel` si se activa |
+| mosquitto | `${MQTT_PUBLICAR}` (hoy `192.168.1.168:1883`) | La red de la planta (ESP32), con usuario y ACL |
+| backend, frontend | — | Solo la red de compose |
+| postgres, redis | — | Solo la red de compose |
+| ollama | — | Solo la red de compose |
+| worker, ingestor | — | No escuchan; hablan con Redis, Postgres y Mosquitto |
 
-Postgres usa el **5433** en el host a propósito: el 5432 suele estar ocupado por
-un Postgres local. Dentro de la red de compose sigue siendo el 5432.
+`MQTT_PUBLICAR` usa la IP de la LAN, que hoy da el DHCP: **resérvela en el
+router** o los ESP32 perderán el broker el día que cambie (pasó de `.169` a
+`.168` en el reinicio del 2026-10-02).
+
+### 4.1 Servicios de segundo plano (2026-10-02)
+
+| Servicio | Qué hace | Si se cae |
+|---|---|---|
+| `redis` | Limitadores compartidos, sesiones revocadas, avisos en vivo entre procesos, cola del worker | El portal sigue en memoria (`core/redis_cliente.py`) |
+| `worker` | Indexa al cerrar tickets, manda correos, vigila el SLA cada minuto y los sensores cada 5 | Lo encolado espera; sin Redis, todo se hace en la petición |
+| `mosquitto` | Broker MQTT de los ESP32 (`mosquitto/`) | Los sensores no publican; el portal no se entera hasta la alerta «sin señal» |
+| `ingestor` | Lee la telemetría y la guarda; abre y cierra alertas | Mosquitto le guarda los mensajes (sesión persistente, QoS 1) |
+
+Las versiones de Python van fijadas en `backend/constraints.txt`: reconstruir
+la imagen sin él subió SQLAlchemy a 2.1 y el backend no arrancaba.
 
 ---
 
@@ -378,3 +433,175 @@ un Postgres local. Dentro de la red de compose sigue siendo el 5432.
 | CPU | 4 núcleos | Ollama es lo que más consume. |
 
 Sin GPU es suficiente: los modelos son pequeños y corren en CPU.
+
+## Rendimiento de la IA local: el gobernador de energía del host
+
+> **Esta sección se ha corregido dos veces. Merece la pena leer por qué.**
+>
+> La primera versión decía que leer el prompt iba a 11-13 tokens/s y que ahí se
+> iba el tiempo. La segunda «corrigió» eso a 2610 tokens/s, «despreciable». La
+> segunda estaba mal y la primera tenía razón; abajo están los números buenos.
+>
+> El error de la segunda fue medir con **el mismo prompt cinco veces**. Ollama
+> cachea el prompt, así que solo la primera llamada hace el trabajo: medido
+> aquí, 600 tokens tardan 30 s la primera vez y **0,04 s** las siguientes. Mil
+> veces menos. Descartar la primera muestra —que es lo correcto para no pagar la
+> carga del modelo— dejaba justo las cuatro que dan en la caché.
+>
+> En producción el texto es **siempre nuevo**: es lo que acaba de escribir una
+> persona. La caché no acierta ahí. `scripts/medir-ia.py` ya varía la
+> descripción en cada repetición para no volver a caer.
+
+**Medido en esta máquina, con el gobernador en `powersave` (~2579 MHz), con una
+descripción distinta en cada repetición y mediana de cinco:**
+
+    trabajo        total          leer                 generar
+    normalizar     3.37 s    2.24 s   95 tok  42 t/s   1.08 s   32 tok  30 t/s
+    clasificar     2.91 s    2.30 s  113 tok  49 t/s   0.56 s   17 tok  30 t/s
+    redactar       9.31 s    2.30 s   54 tok  24 t/s   6.98 s  200 tok  29 t/s
+
+**No hay un solo cuello de botella: depende del trabajo.**
+
+- **Normalizar y clasificar** —los dos que corren en *cada ticket*— se van en
+  **leer el prompt**: 2,2 s de 3,4 y 2,3 s de 2,9. Leer está limitado por
+  cómputo puro.
+- **Redactar** se va en **generar**: 7,0 s de 9,3. Generar está limitado por el
+  ancho de banda a la RAM, no por la frecuencia.
+
+Dicho en la unidad que se puede usar para decidir: **un token del prompt cuesta
+unos 60 ms y un token generado unos 34 ms**. Un token que entra cuesta casi el
+doble que uno que sale. Por eso hay una prueba que impide que los prompts
+crezcan (`test_normalizacion_y_prompts.py`): cada palabra de más se paga en
+cada consulta, y solo la parte **fija** del prompt —la instrucción, que va
+delante— se libra gracias a la caché. De ahí también que poner el campo
+`system` fuera tan caro: rompía ese prefijo fijo.
+
+**El gobernador se probó, y no cambia nada. Medido.**
+
+Se puso `performance` en los dieciséis hilos. La frecuencia media en reposo
+subió de ~2600 a **3958 MHz**, y durante la inferencia el procesador corre a
+3500-4500 MHz a 61 °C, o sea que no hay estrangulamiento térmico: el reloj
+está de verdad más alto. Con la máquina ociosa, dos pasadas del banco:
+
+    trabajo        powersave     performance
+    normalizar       3.37 s      3.40 / 3.48 s
+    clasificar       2.85 s      2.91 / 2.91 s
+    redactar         9.25 s      9.31 / 9.28 s
+
+**+52 % de reloj, 0 % de mejora.** Eso descarta el cómputo como cuello de
+botella —también para leer el prompt, al contrario de lo que decía aquí
+antes— y apunta al ancho de banda a memoria, que no sube con la frecuencia del
+núcleo. Dejarlo en `performance` o volver a `powersave` es indiferente para el
+portal; lo segundo gasta menos.
+
+> **Cuidado al medir esto.** La primera pasada dio `performance` *peor* que
+> `powersave`. No era el gobernador: había dos baterías de pruebas corriendo a
+> la vez, al 100 % de CPU cada una. Antes de comparar, `uptime` — con la carga
+> por encima de 1 el número no vale.
+
+**Lo que sí cambió las cosas: cuántos hilos usa el modelo.**
+
+Ollama reparte por defecto entre los ocho núcleos físicos, y en esta máquina eso
+hunde la lectura del prompt. Medido con texto nuevo en cada muestra, mediana de
+tres:
+
+    hilos     leer tok/s     generar tok/s
+      3          53.6            25.9
+      4          62.9            27.7
+      6          45.6            28.6
+      8          10.0            28.7      <- el reparto por defecto
+     16           9.8            25.6
+
+Leer va **seis veces más lento con ocho hilos que con cuatro**. Generar apenas
+se mueve. Como leer es la mitad o más de cada llamada, el efecto de punta a
+punta es el mayor de toda la puesta a punto:
+
+    normalizar   3.38 s -> 1.50 s
+    clasificar   2.78 s -> 0.95 s
+    redactar     9.27 s -> 7.55 s
+
+Se aplica con `OLLAMA_HILOS_TEXTO` (por defecto 4) y solo al modelo de texto:
+en los embeddings el reparto por defecto gana. **Si se cambia de máquina o de
+modelo hay que volver a medirlo** — el número bueno depende de las dos cosas.
+
+El procesador, en todo caso, no está dando lo que puede:
+
+```bash
+cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor    # powersave
+grep MHz /proc/cpuinfo | awk '{s+=$4; n++} END {print s/n}'  # ~2600 MHz
+```
+
+El Ryzen 7 PRO 8700GE sube a más de 5 GHz y está trabajando a menos de 2,9 GHz
+de media. Es un procesador de 35 W, así que parte de eso es su límite térmico
+real, pero el gobernador en `powersave` deja rendimiento sobre la mesa.
+
+**Esto no se cambia desde el proyecto**: es una configuración del sistema
+operativo del host y afecta a todo lo que corra en él, no solo al portal. La
+decisión es de quien administre la máquina. Para probarlo sin que quede
+permanente:
+
+```bash
+sudo cpupower frequency-set -g performance
+```
+
+Y para dejarlo como estaba:
+
+```bash
+sudo cpupower frequency-set -g powersave
+```
+
+Si se prueba, conviene volver a medir antes y después con el desglose real,
+que es lo único que dice si sirvió:
+
+```bash
+docker compose exec -T backend python - < scripts/medir-ia.py
+```
+
+Ese guion descarta la primera llamada y toma la mediana de cinco, que es justo
+lo que le faltaba a la medición equivocada de arriba. Va por la entrada
+estándar porque `scripts/` no se monta en el contenedor y el sistema de
+archivos del backend es de solo lectura.
+
+**Qué cambia si mejora.** La clasificación del chat es la que más lo nota: hoy
+tarda ~9 s en leer su prompt y se pasa de su timeout de 10 s, así que el chat
+cae al camino de los desplegables. Con el prefill al doble, entraría holgada.
+
+**Qué NO depende de esto.** La normalización de descripciones ya no bloquea a
+nadie —corre después de entregar el folio— y el asistente que redacta respuestas
+funciona bien, porque ahí el costo está en generar y no en leer.
+
+
+## Ver una pantalla sin sesión y sin datos reales
+
+    python3 scripts/vista-previa.py            # una planta a medio documentar
+    python3 scripts/vista-previa.py vacio      # el primer día, todo en cero
+    python3 scripts/vista-previa.py roto       # todos los avisos disparados
+
+Abre http://localhost:8099/conciencia con el frontend ya construido y una API
+simulada. La sesión se inyecta sola: no hay que iniciarla ni tener una cuenta.
+También sirve `/catalogo-visual`, y el reconocimiento por foto se dispara
+escribiendo «sale borroso» en el chat o en la descripción de `/new-ticket`.
+
+**Qué frontend sirve, que importa.** Si existe `frontend/dist` usa ése y lo dice
+al arrancar; si no, saca el que está dentro de la imagen del contenedor. La
+diferencia se nota cuando se acaba de tocar una pantalla: hay que compilar
+primero, o se estará mirando la versión anterior. Compilar no necesita npm en el
+servidor:
+
+    docker run --rm -v "$PWD/frontend":/app -w /app \
+      -u "$(id -u):$(id -g)" node:20-alpine npx vite build
+
+**Para qué sirve.** Estas pantallas cambian de forma según los datos —el mapa
+pinta distinto un hueco que un vacío, la tubería marca atascos, los avisos
+aparecen y desaparecen— y producir esos estados en la base real es lento y a
+veces imposible sin ensuciarla.
+
+No es teórico: el estado `roto` encontró un fallo la primera vez que se usó. El
+panel de realimentación pintaba de verde cualquier tasa de utilidad con tal de
+que hubiera votos, así que «4 de 30 sirvieron (13 %)» salía con el estilo de
+buena noticia.
+
+**Lo que no hace.** No prueba el backend ni la autenticación; las respuestas son
+constantes escritas en el propio script. Y si la forma que devuelve
+`ConcienciaService` cambia y nadie actualiza esas constantes, la vista previa
+enseñará una pantalla que ya no existe. Ante la duda, contraste con la real.

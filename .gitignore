@@ -3,6 +3,9 @@
 .env.*.local
 # Los respaldos del .env traen el JWT_SECRET y la contraseña de la base.
 .env.respaldo-*
+# Lo que deja scripts/respaldo.sh por omisión: el volcado de la base trae los
+# hashes de contraseña y los datos personales del padrón.
+/respaldos/
 nginx/certs/*.key
 nginx/certs/*.crt
 *.pem
@@ -21,3 +24,6 @@ build/
 .venv/
 venv/
 ENV/
+
+# Copias de trabajo temporales de las herramientas de desarrollo.
+.claude/worktrees/

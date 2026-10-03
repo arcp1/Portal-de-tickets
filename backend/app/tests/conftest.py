@@ -1,6 +1,22 @@
+import os
+
+# **Nunca la Redis de producción.** Las pruebas corren dentro del contenedor
+# del backend, que trae REDIS_URL del .env: sin esto, los frenos de login de
+# las pruebas —cuentas 1 y 2— se anotarían en los de las cuentas reales.
+os.environ["REDIS_URL"] = ""
+# **Ni la base de producción.** Por lo mismo: el `DATABASE_URL` del contenedor
+# es el real. Las pruebas usan SQLite (`get_db` sustituido); lo que se salte
+# esa puerta —el arranque que migra, un `SessionLocal()` suelto en una tarea de
+# fondo— tiene que fallar contra una dirección que no existe, no escribir en
+# producción. Y el arranque migra en modo "sql": recorre las migraciones —y el
+# `fileConfig` de env.py, que es lo que vigila test_arranque— sin conectarse.
+os.environ["DATABASE_URL"] = "postgresql://pruebas:pruebas@127.0.0.1:9/sin_base"
+os.environ["MIGRAR_AL_ARRANCAR"] = "sql"
+
+import httpx
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -14,13 +30,94 @@ SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
 
 @pytest.fixture(autouse=True)
-def ia_desactivada_por_defecto(monkeypatch):
-    """La suite no toca la red.
+def limitadores_limpios():
+    """Cada prueba arranca con los contadores de intentos en cero.
 
-    Las pruebas que necesitan ejercitar la degradación de Ollama la vuelven a
-    activar apuntando a un host muerto (ver test_ia_nunca_bloquea.py).
+    Los limitadores son objetos de modulo: viven mientras viva el proceso, asi
+    que sin esto los intentos de una prueba se le cargan a la siguiente y el
+    resultado depende del orden en que corran los archivos. Se noto al juntar
+    test_seguridad.py con test_cuentas.py: por separado pasaban los dos, juntos
+    caian 28. Una suite de seguridad que cambia de veredicto segun el orden no
+    sirve para lo que existe.
+    """
+    from app.core.limitador import (
+        limitador_activacion, limitador_activacion_ip, limitador_ia, limitador_login,
+        limitador_login_ip,
+    )
+
+    for limitador in (limitador_login, limitador_login_ip,
+                      limitador_activacion, limitador_activacion_ip, limitador_ia):
+        with limitador._candado:
+            limitador._intentos.clear()
+    yield
+
+
+@pytest.fixture(autouse=True)
+def sin_vectores_heredados():
+    """Cada prueba arranca sin vectores recordados de la anterior.
+
+    Mismo motivo que los limitadores de arriba: el cliente de Ollama es un
+    objeto de módulo y su caché vive mientras viva el proceso. Sin esto, una
+    prueba que vectorice "la impresora saca una raya negra" le deja el
+    resultado servido a la siguiente, y la que comprueba que **no** se
+    vectoriza —porque la compuerta está cerrada, o porque Ollama está
+    caído— pasaría o fallaría según el orden en que corran los archivos.
+    """
+    from app.services.ollama_client import ollama
+
+    ollama.olvidar_vectores()
+    yield
+    ollama.olvidar_vectores()
+
+
+@pytest.fixture(autouse=True)
+def archivos_en_carpeta_temporal(monkeypatch, tmp_path):
+    """Lo que las pruebas suben se queda en una carpeta suya.
+
+    La suite corre dentro del contenedor del backend, y ahí `/app/adjuntos`
+    es el volumen de producción. Cada prueba que subía un archivo tenía que
+    acordarse de cambiar la ruta; una que no se acordó dejó tres PNG de prueba
+    entre las fotos reales, sin fila en la base que los explicara. Las que
+    cambian la ruta por su cuenta siguen funcionando: su `monkeypatch` va
+    después de éste.
+    """
+    monkeypatch.setattr(settings, "ADJUNTOS_RUTA", str(tmp_path / "adjuntos"))
+    monkeypatch.setattr(settings, "VISUAL_RUTA", str(tmp_path / "adjuntos" / "visual"))
+    monkeypatch.setattr(settings, "DOCUMENTOS_RUTA", str(tmp_path / "documentos"))
+
+
+@pytest.fixture(autouse=True)
+def ia_desactivada_por_defecto(monkeypatch):
+    """La suite no toca la red, y ahora de verdad.
+
+    Antes esto solo apagaba `IA_HABILITADA`, y el comentario afirmaba algo que
+    no era cierto: **Gemini se manda por otra bandera**, `GEMINI_HABILITADO`,
+    así que seguía vivo. El resultado fue una prueba que salía a internet de
+    verdad —a la API de pago, y dejando la llave en claro en su log capturado—
+    sin que nadie lo notara hasta que empezó a fallar.
+
+    La garantía no se pone apagando banderas —se intentó, y deja fuera de
+    juego a las ocho pruebas que sí ejercitan Gemini con dobles—, sino
+    **cortando el transporte real de httpx**. Ese corte es lo que convierte el
+    problema en visible: una prueba que se escape ya no cuelga, ni gasta
+    cuota, ni filtra nada; revienta en el sitio y dice qué URL intentó abrir.
+    Se bloquea `HTTPTransport`, que es el que abre sockets, y no
+    `httpx.Client`: el `TestClient` de FastAPI también es httpx, pero va por
+    un transporte ASGI en memoria y tiene que seguir funcionando.
+
+    Las pruebas que necesitan ejercitar la degradación de Ollama vuelven a
+    activarla apuntando a un host muerto (ver test_ia_nunca_bloquea.py), y esas
+    llegan aquí igual: el fallo del transporte es la caída que quieren probar.
     """
     monkeypatch.setattr(settings, "IA_HABILITADA", False)
+
+    def sin_red(self, peticion, *args, **kwargs):
+        raise httpx.ConnectError(
+            "La suite no sale a la red. Alguien intentó abrir %s: "
+            "sustituya esa llamada en la prueba." % peticion.url
+        )
+
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", sin_red)
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
@@ -28,6 +125,20 @@ engine = create_engine(
     poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+@event.listens_for(engine, "connect")
+def _llaves_foraneas(conexion, _registro):
+    """SQLite ignora las llaves foráneas si no se le pide lo contrario.
+
+    Sin esto la suite no veía lo que Postgres sí rechaza: borrar una entrada de
+    la base de conocimiento que ya se le había sugerido a alguien pasaba en
+    verde aquí y en producción respondía 409 —"choca con datos ya
+    registrados"— sin que nadie entendiera por qué.
+    """
+    cursor = conexion.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 @pytest.fixture(scope="function")
 def db_session():
@@ -40,9 +151,9 @@ def db_session():
     db.commit()
     db.refresh(site)
 
-    # Create admin
+    # TI es global: sin planta, como lo deja la migración 0025.
     admin = Usuario(
-        sitio_id=site.id,
+        sitio_id=None,
         nombre="Admin Test",
         email="admin@test.com",
         numero_empleado="1001",
@@ -62,6 +173,7 @@ def db_session():
         activo=True,
         estado_cuenta="activa"
     )
+    user.plantas = [site]
     db.add_all([admin, user])
     db.commit()
 
@@ -82,3 +194,18 @@ def client(db_session):
     app.dependency_overrides[get_db] = override_get_db
     yield TestClient(app)
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def otra_planta(db_session):
+    """Una segunda planta de verdad, para las pruebas de "no cruza de sitio".
+
+    Antes se usaba `sitio_id=999`, que no existe: con las llaves foráneas
+    apagadas pasaba, y la prueba demostraba el aislamiento con datos que la
+    base real nunca aceptaría.
+    """
+    sitio = Sitio(clave="MTY", nombre="Planta Monterrey", pais="México", activo=True)
+    db_session.add(sitio)
+    db_session.commit()
+    db_session.refresh(sitio)
+    return sitio
