@@ -1,7 +1,7 @@
 from datetime import datetime
 from sqlalchemy import (
-    Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Float, JSON, Index, Table,
-    UniqueConstraint, text,
+    CheckConstraint, Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Float, JSON,
+    Index, Table, UniqueConstraint, text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
@@ -241,6 +241,12 @@ class Ticket(Base):
     equipo = relationship("Equipo", back_populates="tickets")
     comentarios = relationship("TicketComentario", back_populates="ticket", cascade="all, delete-orphan")
     adjuntos = relationship("TicketAdjunto", back_populates="ticket", cascade="all, delete-orphan")
+    # Las capturas con que TI explica cómo lo resolvió. No son `adjuntos`: esos
+    # los sube quien reporta para contar el problema; éstas cuentan el arreglo.
+    # Ver `ImagenConocimiento`.
+    imagenes_solucion = relationship(
+        "ImagenConocimiento", order_by="ImagenConocimiento.orden",
+        cascade="all, delete-orphan", passive_deletes=True)
 
 #: Estados en los que un ticket ya no está en la cola de nadie. Cuentan para
 #: "tickets abiertos" de una persona, la carta de no adeudo y el historial
@@ -416,6 +422,23 @@ class BaseConocimiento(Base):
     ultima_sugerencia = Column(DateTime, nullable=True)
     creado_en = Column(DateTime, default=datetime.utcnow)
 
+    imagenes = relationship(
+        "ImagenConocimiento", order_by="ImagenConocimiento.orden",
+        cascade="all, delete-orphan", passive_deletes=True)
+    ticket_origen = relationship("Ticket", foreign_keys=[ticket_origen_id])
+
+    @property
+    def imagenes_de_ticket(self):
+        """Las capturas de la solución del ticket del que salió esta entrada.
+
+        **Enlazadas, no copiadas.** La entrada se crea en el worker, que no
+        monta el volumen de archivos, y las capturas del cierre se suben
+        justo después de guardar la solución: una copia dependería de quién
+        llega primero. Enlazadas no hay carrera ni duplicados, y si TI corrige
+        una captura en el ticket, se corrige también aquí.
+        """
+        return list(self.ticket_origen.imagenes_solucion) if self.ticket_origen else []
+
 class SugerenciaKB(Base):
     """Una fila por sugerencia mostrada al usuario. fue_util queda en NULL
     hasta que responde el botón de '¿te sirvió?'."""
@@ -453,6 +476,10 @@ class Checklist(Base):
     # qué pasos sirven y cuáles solo estorban.
     veces_resolvio = Column(Integer, default=0, nullable=False)
     creado_en = Column(DateTime, default=datetime.utcnow)
+
+    imagenes = relationship(
+        "ImagenConocimiento", order_by="ImagenConocimiento.orden",
+        cascade="all, delete-orphan", passive_deletes=True)
 
 class TemaSugerido(Base):
     """Un problema recurrente que el portal todavía no tiene contemplado.
@@ -541,6 +568,10 @@ class SolucionGeneral(Base):
     veces_util = Column(Integer, default=0, nullable=False)
     creado_en = Column(DateTime, default=datetime.utcnow)
     publicado_en = Column(DateTime, nullable=True)
+
+    imagenes = relationship(
+        "ImagenConocimiento", order_by="ImagenConocimiento.orden",
+        cascade="all, delete-orphan", passive_deletes=True)
 
 
 class DocumentoTI(Base):
@@ -698,6 +729,69 @@ class ImagenFicha(Base):
     creado_en = Column(DateTime, default=datetime.utcnow)
 
     ficha = relationship("FichaVisual", back_populates="imagenes")
+    autor = relationship("Usuario")
+
+
+class ImagenConocimiento(Base):
+    """Una captura o foto que acompaña a un texto del conocimiento.
+
+    **Para qué.** Los pasos de diagnóstico, las entradas de la base de
+    conocimiento y la solución de un ticket eran texto puro. "Pulse el botón de
+    reinicio de la parte trasera" obliga a buscar un botón; con la foto de dónde
+    está, se pulsa a la primera. Y la solución de un ticket es lo que la
+    persona abre para ver cómo le arreglaron su problema: una captura de la
+    configuración que se cambió dice más que el párrafo que la describe.
+
+    **Por qué una tabla y no cuatro.** Pasos, entradas, soluciones de ticket
+    y procedimientos de Soluciones generales guardan lo mismo —un archivo, su
+    pie de foto y su orden— y se suben, se validan y se sirven igual. Lo
+    único que cambia es a quién pertenecen, y eso lo dicen columnas con llave
+    foránea de verdad en vez de un par "tipo + id" que la base no podría
+    comprobar. La restricción de abajo exige que haya exactamente una.
+
+    **Por qué no son `ImagenFicha`.** Una ficha visual pregunta con la foto
+    ("¿se ve así?") y su imagen tiene dos papeles; aquí la imagen solo ilustra
+    un texto que ya contesta. Mezclarlas obligaría a cada consulta de fichas a
+    saltarse las que no son suyas.
+
+    El binario va a disco, en ``ADJUNTOS_RUTA/conocimiento``; la fila solo
+    guarda dónde está y qué es. Al borrar el dueño la base borra las filas
+    (``ON DELETE CASCADE``); los archivos los retira quien borra, después del
+    commit, como en el resto del portal.
+    """
+    __tablename__ = "imagenes_conocimiento"
+
+    id = Column(Integer, primary_key=True)
+    paso_id = Column(Integer, ForeignKey("checklists.id", ondelete="CASCADE"),
+                     nullable=True, index=True)
+    kb_id = Column(Integer, ForeignKey("base_conocimiento.id", ondelete="CASCADE"),
+                   nullable=True, index=True)
+    ticket_id = Column(Integer, ForeignKey("tickets.id", ondelete="CASCADE"),
+                       nullable=True, index=True)
+    # Un procedimiento de Soluciones generales (migración 0029).
+    solucion_id = Column(Integer, ForeignKey("soluciones_generales.id", ondelete="CASCADE"),
+                         nullable=True, index=True)
+    orden = Column(Integer, default=1, nullable=False)
+    # Qué se ve en la foto: "el botón está bajo la tapa, a la izquierda".
+    pie = Column(String(300), nullable=True)
+
+    nombre_original = Column(String(255), nullable=False)
+    nombre_guardado = Column(String(255), nullable=False, unique=True)
+    tipo_mime = Column(String(100), nullable=False)
+    tamano_bytes = Column(Integer, nullable=False)
+    subido_por = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    creado_en = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        CheckConstraint(
+            "(CASE WHEN paso_id IS NULL THEN 0 ELSE 1 END)"
+            " + (CASE WHEN kb_id IS NULL THEN 0 ELSE 1 END)"
+            " + (CASE WHEN ticket_id IS NULL THEN 0 ELSE 1 END)"
+            " + (CASE WHEN solucion_id IS NULL THEN 0 ELSE 1 END) = 1",
+            name="ck_imagenes_conocimiento_un_dueno",
+        ),
+    )
+
     autor = relationship("Usuario")
 
 

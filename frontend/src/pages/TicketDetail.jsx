@@ -18,6 +18,7 @@ import forma from '../lib/forma';
 import { avisar, mensajeDeError } from '../lib/avisos';
 import EncuestaSatisfaccion from '../components/EncuestaSatisfaccion';
 import { EtiquetaPlanta } from '../lib/plantas';
+import { EditorImagenes, GaleriaImagenes } from '../components/ImagenesConocimiento';
 
 const PRIORIDADES = ['baja', 'media', 'alta', 'critica'];
 
@@ -66,6 +67,11 @@ const TicketDetail = () => {
   const [descartado, setDescartado] = useState('');
   const [errorCierre, setErrorCierre] = useState('');
   const [guardandoCierre, setGuardandoCierre] = useState(false);
+  // Las capturas de la solución mientras se escribe: se suben cuando el
+  // cierre se guarda, no antes. Cancelar no deja nada colgado del ticket.
+  const imagenesCierre = useRef(null);
+  // TI añade o quita capturas de una solución ya escrita.
+  const [editandoImagenes, setEditandoImagenes] = useState(false);
   const [creandoFicha, setCreandoFicha] = useState(false);
   // Aparte de `errorCierre`: ése sólo se pinta dentro del diálogo de cierre, y
   // este botón vive fuera. Un error ahí no se vería.
@@ -234,6 +240,16 @@ const TicketDetail = () => {
         descartado: descartado.trim()
       });
       setTicket(res.data);
+      const habia = imagenesCierre.current?.hayPendientes();
+      if (habia) {
+        const fallidas = await imagenesCierre.current.subirPendientes(res.data.id);
+        if (fallidas) {
+          avisar(t('imagenes.algunas_no_subieron', { count: fallidas }), { tono: 'atencion' });
+        }
+        // El PATCH respondió antes de que existieran: se pide el ticket de
+        // nuevo para que la solución aparezca con sus capturas.
+        try { setTicket((await api.get(`/tickets/${id}`)).data); } catch { /* queda lo de arriba */ }
+      }
       setEstadoPendiente(null);
       setSolucion('');
     } catch (err) {
@@ -577,6 +593,41 @@ const TicketDetail = () => {
             }}>
               {ticket.solucion}
             </div>
+
+            {/* **Las capturas de cómo se resolvió.** Es lo que la persona
+                abre para ver qué le hicieron, y una imagen de la
+                configuración que se cambió se entiende sin leer el párrafo.
+                A TI se le ofrece además añadir o quitar: la solución se
+                escribe con prisa y la captura a veces llega después. */}
+            {user.rol === 'admin' && editandoImagenes ? (
+              <div style={{ marginTop: '14px' }}>
+                <EditorImagenes
+                  tipo="ticket"
+                  id={ticket.id}
+                  imagenes={ticket.imagenes_solucion}
+                  etiqueta={t('imagenes.solucion')}
+                  onCambio={(nuevas) => setTicket((t0) => ({ ...t0, imagenes_solucion: nuevas }))}
+                />
+                {ticket.indexado_kb && (
+                  <div className="editor-imagenes-nota" style={{ marginTop: '-10px', marginBottom: '8px' }}>
+                    {t('imagenes.tambien_en_kb')}
+                  </div>
+                )}
+                <button type="button" className="boton-texto" onClick={() => setEditandoImagenes(false)}>
+                  <X size={13} /> {t('imagenes.cerrar')}
+                </button>
+              </div>
+            ) : (
+              <>
+                <GaleriaImagenes imagenes={ticket.imagenes_solucion} />
+                {user.rol === 'admin' && (
+                  <button type="button" className="boton-texto" style={{ marginTop: '8px' }}
+                    onClick={() => setEditandoImagenes(true)}>
+                    <Camera size={13} /> {t('imagenes.agregar')}
+                  </button>
+                )}
+              </>
+            )}
             {user.rol === 'admin' && !ticket.indexado_kb && ESTADOS_DE_CIERRE.includes(ticket.estado) && (
               <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '10px' }}>
                 {t('ticket.pendiente_indexar')}
@@ -621,6 +672,9 @@ const TicketDetail = () => {
           <Formulario
             onClick={(e) => e.stopPropagation()}
             onSubmit={confirmarCierre}
+            // Win+Shift+S y Ctrl+V sobre la solución: la captura se queda como
+            // imagen; el texto se pega como siempre.
+            onPaste={(e) => imagenesCierre.current?.pegar(e)}
             className="apple-card animate-fade-in"
             style={{ padding: '32px', maxWidth: '620px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}
           >
@@ -682,6 +736,8 @@ const TicketDetail = () => {
                 {t('ticket.descartado_ayuda')}
               </div>
             </div>
+
+            <EditorImagenes ref={imagenesCierre} tipo="ticket" etiqueta={t('imagenes.solucion')} />
 
             {errorCierre && (
               <div style={{

@@ -123,6 +123,7 @@ def _con_todo(consulta):
         selectinload(Ticket.comentarios)
         .joinedload(TicketComentario.autor).joinedload(Usuario.sitio),
         selectinload(Ticket.adjuntos),
+        selectinload(Ticket.imagenes_solucion),
     )
 
 

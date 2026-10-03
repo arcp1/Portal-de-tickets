@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import api from '../api/client';
 import { avisar, mensajeDeError } from '../lib/avisos';
 import { Lightbulb, ThumbsUp, ThumbsDown, Check } from 'lucide-react';
+import { GaleriaImagenes } from './ImagenesConocimiento';
 
 /**
  * Incidencias parecidas ya resueltas, con el botón de "¿te sirvió?".
@@ -132,6 +133,7 @@ const SugerenciasKB = ({ texto, categoria, sitioId, ticketId = null, onResuelto 
               <div style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', lineHeight: '1.5', whiteSpace: 'pre-line' }}>
                 {s.contenido}
               </div>
+              <GaleriaImagenes imagenes={s.imagenes} />
 
               <div
                 style={{

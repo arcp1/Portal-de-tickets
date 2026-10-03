@@ -5007,6 +5007,119 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: not-allowed; }
 /* La etiqueta que se imprime: oculta en pantalla (ver EtiquetaQR.jsx). */
 .impresion-etiqueta { display: none; }
 
+/* ============================================================
+   Imágenes del conocimiento (ver ImagenesConocimiento.jsx)
+   ============================================================
+   Miniaturas debajo del texto de un paso, de una entrada de la base de
+   conocimiento o de la solución de un ticket.
+
+   **`minmax(0, 1fr)` y no `1fr`.** Una columna `1fr` tiene de mínimo el ancho
+   de su contenido, y una captura de pantalla mide 1600 px: la rejilla se
+   salía de la tarjeta en un teléfono. Con el mínimo a cero la imagen se
+   ajusta a la columna, que es lo que se quiere. Es la misma familia de fallo
+   que la memoria «revisar el portal en el celular» encontró cuatro veces. */
+.galeria-imagenes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
+  gap: 10px;
+  margin-top: 12px;
+  max-width: 100%;
+}
+.galeria-imagenes--compacta { grid-template-columns: repeat(auto-fill, minmax(min(96px, 100%), 1fr)); gap: 8px; }
+.galeria-imagenes--edicion { grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr)); margin: 10px 0; }
+.galeria-imagen {
+  position: relative;
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.galeria-imagen-boton {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-tertiary);
+  cursor: zoom-in;
+}
+.galeria-imagen-boton:hover { border-color: var(--border-focus); }
+.galeria-imagen-boton:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.galeria-imagen-boton img { max-width: 100%; }
+.galeria-pie {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.galeria-pie-campo { width: 100%; padding: 6px 9px !important; font-size: 0.8rem !important; }
+.galeria-quitar {
+  position: absolute;
+  top: 6px; right: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(8, 11, 18, 0.82);
+  color: var(--peligro);
+  cursor: pointer;
+}
+.galeria-quitar:hover { background: var(--peligro-bg); }
+.galeria-quitar:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+
+.editor-imagenes { margin: 4px 0 18px; }
+.editor-imagenes-rotulo {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 0.86rem; font-weight: 600; color: var(--text-secondary);
+}
+.editor-imagenes-cuenta {
+  font-size: 0.72rem; padding: 1px 7px; border-radius: 999px;
+  background: var(--bg-tertiary); color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.zona-imagenes {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.zona-imagenes--activa { border-color: var(--accent-primary); background: rgba(80, 140, 255, 0.07); }
+.zona-imagenes-texto { font-size: 0.8rem; color: var(--text-muted); line-height: 1.45; flex: 1 1 200px; min-width: 0; }
+.editor-imagenes-nota { font-size: 0.76rem; color: var(--text-muted); margin-top: 6px; line-height: 1.45; }
+.editor-imagenes-error {
+  margin-top: 8px; padding: 9px 12px; border-radius: var(--radius-sm);
+  background: var(--peligro-bg); color: var(--peligro); font-size: 0.84rem; line-height: 1.45;
+}
+
+/* La imagen entera. Cabe en la pantalla en cualquier sentido: una captura
+   apaisada se ajusta al ancho y una foto vertical de teléfono, al alto. */
+.visor-imagen {
+  position: relative;
+  margin: 0;
+  width: min(1100px, 100%);
+  max-width: 100%;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.visor-imagen img { max-width: 100%; border-radius: var(--radius-md); }
+.visor-imagen-local { width: 100%; max-height: 76vh; object-fit: contain; background: rgba(0, 0, 0, 0.35); }
+.visor-imagen-cerrar {
+  position: absolute; top: 8px; right: 8px; z-index: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(8, 11, 18, 0.8); color: #fff; cursor: pointer;
+}
+.visor-imagen-pie {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  color: #e9edf5; font-size: 0.9rem; line-height: 1.45; text-align: center;
+  overflow-wrap: anywhere;
+}
+.visor-imagen-cuenta { margin-left: 8px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
 /* El selector de plantas de una persona, como botón: el chip de la planta
    es donde se busca para cambiarla. */
 .plantas-boton {

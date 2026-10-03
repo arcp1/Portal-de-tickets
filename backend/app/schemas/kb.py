@@ -2,6 +2,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+from app.schemas.imagenes import ImagenBreve
+
 
 #: El mismo tope que la descripción de un ticket, que es de donde sale este
 #: texto. Sin él, cualquier sesión mandaba 60 000 caracteres directo al modelo,
@@ -36,6 +38,7 @@ class SugerenciaResponse(BaseModel):
     categoria: str
     similitud: float
     ticket_origen_id: Optional[int] = None
+    imagenes: List[ImagenBreve] = []
 
 
 class SimilaresResponse(BaseModel):

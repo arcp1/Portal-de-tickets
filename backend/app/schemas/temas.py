@@ -2,6 +2,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.imagenes import ImagenBreve
+
 
 # --- Pasos de checklist ---
 
@@ -43,6 +45,7 @@ class PasoResponse(BaseModel):
     resuelve: bool
     activo: bool
     veces_resolvio: int
+    imagenes: List[ImagenBreve] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -107,5 +110,9 @@ class EntradaKBResponse(BaseModel):
     # None mientras no se haya mostrado nunca.
     tasa_utilidad: Optional[float] = None
     tiene_embedding: bool = False
+    imagenes: List[ImagenBreve] = []
+    # Las de la solución del ticket de origen, enlazadas: se ven con la
+    # entrada pero se cambian desde el ticket.
+    imagenes_ticket: List[ImagenBreve] = []
 
     model_config = ConfigDict(from_attributes=True)

@@ -97,7 +97,8 @@ def _personas_de_muestra():
             "debe_cambiar_password": False, "ultimo_acceso": "2026-09-29T15:00:00Z",
             "creado_en": "2026-09-01T15:00:00Z", "codigo_expira": None,
             "numero_epp": "421", "datos_verificacion": ["numero_epp", "fecha_nacimiento"],
-            "equipos_a_cargo": 0, "resguardos_pendientes": 0, "tickets_abiertos": 1}
+            "equipos_a_cargo": 0, "resguardos_pendientes": 0, "tickets_abiertos": 1,
+            "sitio_id": 1, "plantas": [{"id": 1, "clave": "QRO", "nombre": "Planta de vista previa"}]}
     return [
         dict(base, id=21, nombre="Rosa Elena Campos", numero_empleado="30001",
              email=None, area="Producción", puede_usar_prioridad_alta=True),
@@ -372,6 +373,77 @@ IMAGENES_VISUALES = {
     (1, 13): _png(460, 240, _captura_senalada),
     (2, 21): _png(500, 230, _hoja_con_raya),
 }
+
+# --- Imágenes del conocimiento: pasos, base de conocimiento y soluciones ---
+#
+# Tres formas a propósito, porque son las tres que rompen un diseño de
+# formas distintas: una captura de pantalla ancha (1280 px, mucho más que un
+# teléfono), una foto vertical de teléfono y una pequeña. Si la galería o el
+# visor se salen de la tarjeta en `/movil`, se ve con la primera.
+def _captura_ancha(x, y):
+    """Una ventana de configuración apaisada, con la casilla en rojo."""
+    if y < 60:
+        return (37, 99, 235)
+    if 300 < y < 360 and 120 < x < 700:
+        return (220, 38, 38)
+    if (y // 40) % 2 == 0 and 80 < x < 1200:
+        return (226, 230, 236)
+    return (248, 249, 251)
+
+
+def _foto_vertical(x, y):
+    """La parte de atrás de un equipo, con el botón de reinicio marcado."""
+    if 600 < y < 680 and 200 < x < 340:
+        return (220, 38, 38)
+    gris = 70 + ((x // 30 + y // 30) % 2) * 25
+    return (gris, gris, gris + 8)
+
+
+IMAGENES_CONOCIMIENTO = {
+    501: _png(1280, 720, _captura_ancha),
+    502: _png(540, 960, _foto_vertical),
+    503: _png(460, 240, _captura_senalada),
+}
+
+
+def _breve(ident, pie=None):
+    """La forma de `ImagenBreve` (app/schemas/imagenes.py)."""
+    return {"id": ident, "orden": 1, "pie": pie, "nombre_original": f"captura-{ident}.png",
+            "tipo_mime": "image/png", "tamano_bytes": len(IMAGENES_CONOCIMIENTO[ident]),
+            "creado_en": "2026-10-02T15:00:00Z"}
+
+
+_PASOS = [
+    {"id": 31, "categoria": "impresora", "orden": 1, "pregunta_key": "custom.impresora.1",
+     "pregunta_texto": "¿Tiene encendida la luz verde de la parte trasera?",
+     "accion_si_no": "Si está apagada, mantenga pulsado el botón de reinicio cinco segundos.",
+     "resuelve": True, "activo": True, "veces_resolvio": 3,
+     "imagenes": [_breve(502, "El botón de reinicio, junto al conector de corriente")]},
+    {"id": 32, "categoria": "impresora", "orden": 2, "pregunta_key": "custom.impresora.2",
+     "pregunta_texto": "¿El controlador tiene desactivado el ahorro de tóner?",
+     "accion_si_no": "Abra Preferencias de impresión y destilde «Ahorro de tóner».",
+     "resuelve": True, "activo": True, "veces_resolvio": 0,
+     "imagenes": [_breve(501, "Preferencias de impresión: la casilla está a la izquierda"),
+                  _breve(503)]},
+]
+
+_KB = [
+    {"id": 41, "titulo": "La Zebra imprime etiquetas en blanco",
+     "contenido": "Recalibrar el sensor: con la impresora encendida, mantener pulsado PAUSE "
+                  "y FEED hasta que parpadee dos veces.",
+     "categoria": "impresora", "tags": None, "veces_sugerida": 4, "veces_util": 3,
+     "ticket_origen_id": None, "tasa_utilidad": 75.0, "tiene_embedding": True,
+     "imagenes": [_breve(501, "Panel frontal: PAUSE y FEED"), _breve(502)]},
+]
+
+# Un procedimiento de Soluciones generales con capturas, y la entrada de la
+# base con las que hereda de su ticket de origen (enlazadas, de solo lectura).
+_SOLUCIONES_MEDIAS[0]["imagenes"] = [_breve(501, "La tapa del cabezal, abierta"), _breve(503)]
+_KB[0]["imagenes_ticket"] = [_breve(503, "Del ticket: así quedó el ajuste")]
+
+_SOLUCION_TICKET = ("Se cambió el controlador por el de la marca y se desactivó el ahorro de "
+                    "tóner en las preferencias de impresión. Se imprimió una prueba sin raya.")
+
 
 _SOLUCION_BORROSA = ("1. Abra la bandeja 2 y saque el cartucho.\n"
                      "2. Agitelo en horizontal cinco veces.\n"
@@ -666,6 +738,24 @@ def main() -> int:
         # hay manera de mirar el reconocimiento visual, que vive dentro.
         "/api/chat/estado": {"disponible": True, "max_intercambios": 3},
         "/api/admin/visual": datos["fichas"],
+        # Imágenes del conocimiento. Los pasos que ve quien levanta un ticket
+        # son los mismos que administra TI, sin los dados de baja.
+        "/api/admin/pasos": _PASOS,
+        "/api/checklists": _PASOS,
+        "/api/admin/kb": _KB,
+        # Un ticket ya resuelto, con las capturas de la solución, del que la
+        # vista previa es dueña: así se ve lo que lee quien lo reportó.
+        "/api/tickets/102": dict(_tickets_de_muestra()["items"][0], id=102,
+                                 folio="TICK-QRO-2026-0102", usuario_id=USUARIO["id"],
+                                 estado="resuelto", solucion=_SOLUCION_TICKET,
+                                 resuelto_en="2026-09-30T12:00:00Z", vence_en=None,
+                                 imagenes_solucion=[
+                                     _breve(501, "Preferencias de impresión, ya corregidas"),
+                                     _breve(502, "El controlador nuevo instalado")]),
+        # Una sola planta: el caso de hoy, en el que Personas tiene que decir
+        # cómo se reparten varias.
+        "/api/sitios": [{"id": 1, "clave": "QRO", "nombre": "Planta de vista previa",
+                         "pais": "México", "activo": True}],
     }
     # Rutas que se pidieron y este guion no conoce. Se anotan para decirlo al
     # final: ver mas abajo por que.
@@ -745,6 +835,8 @@ def main() -> int:
                 return self._json(datos["consultas"])
             if ruta.startswith("/api/visual/fichas/"):
                 return self._imagen_visual(ruta)
+            if ruta.startswith("/api/imagenes/"):
+                return self._imagen_conocimiento(ruta)
             if ruta.startswith("/api/"):
                 # Cualquier otra llamada: lista vacía, para que la pantalla no
                 # se quede cargando.
@@ -767,6 +859,25 @@ def main() -> int:
             if "." not in os.path.basename(ruta):
                 return self._index()
             return super().do_GET()
+
+        def _imagen_conocimiento(self, ruta):
+            """`/api/imagenes/{id}` es el archivo; `/api/imagenes/{tipo}/{id}`,
+            la lista de un dueño (la pide el asistente para sus fuentes)."""
+            partes = ruta.strip("/").split("/")
+            if len(partes) == 4:
+                return self._json([_breve(503)] if partes[2] == "kb" else [])
+            try:
+                imagen = IMAGENES_CONOCIMIENTO.get(int(partes[2]))
+            except (IndexError, ValueError):
+                imagen = None
+            if imagen is None:
+                self.send_error(404)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(imagen)))
+            self.end_headers()
+            self.wfile.write(imagen)
 
         def _imagen_visual(self, ruta):
             """La foto de una ficha, dibujada al vuelo.
@@ -875,6 +986,9 @@ def main() -> int:
     print(f"\n  En el celular, sin encoger la ventana:")
     print(f"          http://localhost:{PUERTO}/movil?r=/conciencia   (412 y 360 px)")
     print(f"          http://localhost:{PUERTO}/movil?r=/catalogo-visual")
+    print(f"          http://localhost:{PUERTO}/movil?r=/tickets/102   (solución con capturas)")
+    print(f"          http://localhost:{PUERTO}/movil?r=/temas         (pasos y base de conocimiento)")
+    print(f"          http://localhost:{PUERTO}/movil?r=/soluciones    (procedimientos con capturas)")
     print("\n  La sesión se inyecta sola; no hace falta iniciarla.")
     print("  Ctrl+C para parar.\n")
     try:

@@ -9,11 +9,13 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
-from sqlalchemy.orm import Session, defer
+from sqlalchemy.orm import Session, defer, selectinload
 
 from app.api.deps import get_current_admin
 from app.core.db import get_db
 from app.core.logging import logger
+from app.api.imagenes import borrar_archivos
+from app.schemas.imagenes import breves
 from app.models import BaseConocimiento, Checklist, SugerenciaKB, TemaSugerido, Ticket, Usuario
 from app.schemas.temas import (
     EntradaKBCreate,
@@ -50,7 +52,7 @@ def listar_pasos(
     db: Session = Depends(get_db),
     admin: Usuario = Depends(get_current_admin),
 ):
-    consulta = db.query(Checklist)
+    consulta = db.query(Checklist).options(selectinload(Checklist.imagenes))
     if categoria:
         # Exacta: `%` como categoría no puede desactivar el filtro.
         consulta = consulta.filter(
@@ -159,6 +161,8 @@ def _con_tasa(entrada: BaseConocimiento, tiene_embedding: Optional[bool] = None)
         "ticket_origen_id": entrada.ticket_origen_id,
         "tasa_utilidad": round(100.0 * (entrada.veces_util or 0) / sugerida, 1) if sugerida else None,
         "tiene_embedding": tiene_embedding,
+        "imagenes": breves(entrada.imagenes),
+        "imagenes_ticket": breves(entrada.imagenes_de_ticket),
     }
 
 
@@ -171,7 +175,10 @@ def listar_kb(
     # Sin traer los vectores: la lista solo dice si la entrada tiene uno, y
     # cada vector son 768 números que viajaban por cada fila sin usarse.
     consulta = (db.query(BaseConocimiento, BaseConocimiento.embedding.isnot(None))
-                .options(defer(BaseConocimiento.embedding)))
+                .options(defer(BaseConocimiento.embedding),
+                         selectinload(BaseConocimiento.imagenes),
+                         selectinload(BaseConocimiento.ticket_origen)
+                         .selectinload(Ticket.imagenes_solucion)))
     if categoria:
         consulta = consulta.filter(
             BaseConocimiento.categoria == (normalizar_categoria(categoria) or ""))
@@ -277,8 +284,14 @@ def borrar_entrada_kb(
         db.query(Ticket).filter(Ticket.id == entrada.ticket_origen_id).update(
             {Ticket.indexado_kb: False}, synchronize_session=False)
 
+    # Sus imágenes se van con ella: las filas las borra la base en cascada y
+    # los archivos se retiran después del commit, para no dejar en pantalla
+    # una imagen que ya no abre si el commit fallara.
+    archivos = [i.nombre_guardado for i in entrada.imagenes]
+
     db.delete(entrada)
     db.commit()
+    borrar_archivos(archivos)
     return None
 
 

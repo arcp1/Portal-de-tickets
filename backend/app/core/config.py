@@ -363,6 +363,17 @@ class Settings(BaseSettings):
     IA_PETICIONES_POR_MINUTO: int = int(os.getenv("IA_PETICIONES_POR_MINUTO", "60"))
     ADJUNTOS_MAX_POR_TICKET: int = int(os.getenv("ADJUNTOS_MAX_POR_TICKET", "5"))
 
+    # --- Imagenes del conocimiento: pasos, base de conocimiento y soluciones ---
+    #
+    # Un paso que dice "pulse el boton de reinicio de la parte trasera" se
+    # sigue a la primera con una foto de donde esta ese boton. Las imagenes
+    # viven en una carpeta propia **dentro de ADJUNTOS_RUTA** (ver
+    # api/imagenes.py): asi caen en el mismo volumen que ya se respalda, y las
+    # pruebas, que aislan ADJUNTOS_RUTA en un temporal, no escriben nunca en el
+    # disco de produccion.
+    IMAGENES_MAX_MB: int = int(os.getenv("IMAGENES_MAX_MB", "10"))
+    IMAGENES_MAX_POR_ELEMENTO: int = int(os.getenv("IMAGENES_MAX_POR_ELEMENTO", "8"))
+
     # --- Catalogo visual: los problemas que se reconocen mirandolos ---
     #
     # "Mi copia sale borrosa" no se resuelve igual que "no manda a imprimir", y

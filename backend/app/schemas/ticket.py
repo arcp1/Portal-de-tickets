@@ -2,6 +2,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Optional, List
 from app.schemas.auth import UserResponse
 from app.schemas.comunes import FechaUTC, PlantaBreve
+from app.schemas.imagenes import ImagenBreve
 from app.services.ollama_client import CATEGORIAS_VALIDAS
 
 #: Tope de los textos largos que escribe una persona: descripción, comentario,
@@ -120,6 +121,9 @@ class TicketResponse(BaseModel):
     satisfaccion_en: Optional[FechaUTC] = None
     comentarios: List[CommentResponse] = []
     adjuntos: List[AdjuntoResponse] = []
+    # Las capturas con que TI explica cómo lo resolvió. Las ve quien lo
+    # reportó junto al texto de la solución.
+    imagenes_solucion: List[ImagenBreve] = []
 
     model_config = ConfigDict(from_attributes=True)
 

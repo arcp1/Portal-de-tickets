@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../api/client';
 import { EsqueletoLista } from '../components/Cargando';
@@ -11,6 +11,7 @@ import {
   Check, X, EyeOff, Eye, AlertTriangle, TrendingUp
 } from 'lucide-react';
 import lista from '../lib/lista';
+import { EditorImagenes, GaleriaImagenes } from '../components/ImagenesConocimiento';
 
 const CATEGORIAS = ['impresora', 'red', 'equipo', 'software', 'accesos', 'otro'];
 
@@ -98,18 +99,32 @@ const Pasos = () => {
 
   useEffect(() => { cargar(); }, []);
 
+  // Guardar devuelve lo guardado y no cierra nada: el formulario todavía
+  // tiene que subir las imágenes que esperaban el id del paso nuevo.
   const guardar = async (datos, id) => {
     try {
-      if (id) await api.patch(`/admin/pasos/${id}`, datos);
-      else await api.post('/admin/pasos', datos);
-      setEditando(null);
-      setCreando(false);
+      const res = id
+        ? await api.patch(`/admin/pasos/${id}`, datos)
+        : await api.post('/admin/pasos', datos);
       setAviso('');
-      cargar();
+      return res.data;
     } catch (err) {
       setAviso(err.response?.data?.detail || t('temas.error_guardar'));
+      return null;
     }
   };
+
+  const terminar = (fallidas = 0) => {
+    setEditando(null);
+    setCreando(false);
+    if (fallidas) setAviso(t('imagenes.algunas_no_subieron', { count: fallidas }));
+    cargar();
+  };
+
+  // Al editar, las imágenes se guardan en cuanto se suben: la tarjeta tiene
+  // que enterarse aunque luego se cancele el texto.
+  const imagenesDe = (id) => (nuevas) =>
+    setPasos((ps) => ps.map((x) => (x.id === id ? { ...x, imagenes: nuevas } : x)));
 
   const alternarActivo = async (paso) => {
     try {
@@ -167,6 +182,7 @@ const Pasos = () => {
         <FormularioPaso
           categoriaInicial={filtro || 'equipo'}
           onGuardar={(d) => guardar(d)}
+          onTerminado={terminar}
           onCancelar={() => setCreando(false)}
         />
       )}
@@ -181,6 +197,8 @@ const Pasos = () => {
               paso={paso}
               categoriaInicial={paso.categoria}
               onGuardar={(d) => guardar(d, paso.id)}
+              onTerminado={terminar}
+              onImagenes={imagenesDe(paso.id)}
               onCancelar={() => setEditando(null)}
             />
           ) : (
@@ -207,6 +225,7 @@ const Pasos = () => {
                       {paso.accion_si_no}
                     </div>
                   )}
+                  <GaleriaImagenes imagenes={paso.imagenes} compacta />
                   {paso.veces_resolvio > 0 && (
                     <div style={{ fontSize: '0.8rem', color: 'var(--status-resuelto-text)', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <TrendingUp size={14} />
@@ -255,12 +274,22 @@ const AvisoFaltante = ({ children }) => (
   </div>
 );
 
-const FormularioPaso = ({ paso, categoriaInicial, onGuardar, onCancelar }) => {
+const FormularioPaso = ({ paso, categoriaInicial, onGuardar, onTerminado, onImagenes, onCancelar }) => {
   const { t } = useTranslation();
   const [categoria, setCategoria] = useState(paso?.categoria || categoriaInicial);
-  const [pregunta, setPregunta] = useState(paso?.pregunta_texto || '');
+  // **Los pasos de fábrica guardan una llave de traducción, no el texto.** Al
+  // editarlos el campo salía vacío y "Guardar" bloqueado: para ponerle una
+  // foto o marcar "resuelve" había que volver a escribir la pregunta. Se
+  // propone la traducción, y si no se toca no se manda —el paso sigue
+  // saliendo en el idioma de cada quien en vez de quedarse en éste—.
+  const preguntaSembrada = paso && !paso.pregunta_texto
+    ? t(paso.pregunta_key, { defaultValue: '' })
+    : '';
+  const [pregunta, setPregunta] = useState(paso?.pregunta_texto || preguntaSembrada);
   const [accion, setAccion] = useState(paso?.accion_si_no || '');
   const [resuelve, setResuelve] = useState(paso?.resuelve || false);
+  const [guardando, setGuardando] = useState(false);
+  const imagenes = useRef(null);
 
   const valido = pregunta.trim().length >= 5;
   // "Guardar" se apaga sin decir por qué: se dice cuánto falta en cuanto hay
@@ -271,15 +300,23 @@ const FormularioPaso = ({ paso, categoriaInicial, onGuardar, onCancelar }) => {
     <Formulario
       className="apple-card animate-scale-in"
       style={{ padding: '22px', marginBottom: '14px', border: '1px solid var(--accent-primary)' }}
-      onSubmit={(e) => {
+      // Una captura pegada en cualquier campo del formulario se queda como
+      // imagen del paso; el texto se pega como siempre.
+      onPaste={(e) => imagenes.current?.pegar(e)}
+      onSubmit={async (e) => {
         e.preventDefault();
-        if (!valido) return;
-        onGuardar({
+        if (!valido || guardando) return;
+        setGuardando(true);
+        const sinTocar = preguntaSembrada && pregunta.trim() === preguntaSembrada.trim();
+        const guardado = await onGuardar({
           categoria,
-          pregunta_texto: pregunta.trim(),
+          ...(sinTocar ? {} : { pregunta_texto: pregunta.trim() }),
           accion_si_no: accion.trim() || null,
           resuelve
         });
+        if (!guardado) { setGuardando(false); return; }
+        const fallidas = await imagenes.current?.subirPendientes(guardado.id) || 0;
+        onTerminado(fallidas);
       }}
     >
       <div className="form-group">
@@ -308,6 +345,9 @@ const FormularioPaso = ({ paso, categoriaInicial, onGuardar, onCancelar }) => {
           onChange={(e) => setAccion(e.target.value)} />
       </div>
 
+      <EditorImagenes ref={imagenes} tipo="paso" id={paso?.id || null}
+        imagenes={paso?.imagenes} onCambio={onImagenes} />
+
       <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: '18px' }}>
         <input type="checkbox" checked={resuelve} onChange={(e) => setResuelve(e.target.checked)}
           style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
@@ -316,12 +356,12 @@ const FormularioPaso = ({ paso, categoriaInicial, onGuardar, onCancelar }) => {
         </span>
       </label>
 
-      <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         <button type="button" onClick={onCancelar} className="btn-secondary" style={{ padding: '10px 18px' }}>
           <X size={15} /> {t('temas.cancelar')}
         </button>
-        <button type="submit" className="btn-acento" disabled={!valido} style={{ padding: '10px 18px' }}>
-          <Check size={15} /> {t('temas.guardar')}
+        <button type="submit" className="btn-acento" disabled={!valido || guardando} style={{ padding: '10px 18px' }}>
+          <Check size={15} /> {guardando ? t('temas.guardando') : t('temas.guardar')}
         </button>
       </div>
     </Formulario>
@@ -353,18 +393,30 @@ const Conocimiento = () => {
 
   useEffect(() => { cargar(); }, []);
 
+  // Igual que en los pasos: guardar devuelve lo guardado y el formulario
+  // decide cuándo cerrar, después de subir sus imágenes.
   const guardar = async (datos, id) => {
     try {
-      if (id) await api.patch(`/admin/kb/${id}`, datos);
-      else await api.post('/admin/kb', datos);
-      setCreando(false);
-      setEditando(null);
+      const res = id
+        ? await api.patch(`/admin/kb/${id}`, datos)
+        : await api.post('/admin/kb', datos);
       setAviso('');
-      cargar();
+      return res.data;
     } catch (err) {
       setAviso(err.response?.data?.detail || t('temas.error_guardar'));
+      return null;
     }
   };
+
+  const terminar = (fallidas = 0) => {
+    setCreando(false);
+    setEditando(null);
+    if (fallidas) setAviso(t('imagenes.algunas_no_subieron', { count: fallidas }));
+    cargar();
+  };
+
+  const imagenesDe = (id) => (nuevas) =>
+    setEntradas((es) => es.map((x) => (x.id === id ? { ...x, imagenes: nuevas } : x)));
 
   const eliminar = async (entrada) => {
     setPorEliminar(null);
@@ -388,14 +440,16 @@ const Conocimiento = () => {
         <Plus size={16} /> {t('temas.nueva_entrada')}
       </button>
 
-      {creando && <FormularioKB onGuardar={(d) => guardar(d)} onCancelar={() => setCreando(false)} />}
+      {creando && <FormularioKB onGuardar={(d) => guardar(d)} onTerminado={terminar}
+        onCancelar={() => setCreando(false)} />}
 
       {entradas.length === 0 && !creando && <Vacio texto={t('temas.sin_kb')} />}
 
       <div className="lista-escalonada" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {entradas.map((e) => (
           editando === e.id ? (
-            <FormularioKB key={e.id} entrada={e} onGuardar={(d) => guardar(d, e.id)} onCancelar={() => setEditando(null)} />
+            <FormularioKB key={e.id} entrada={e} onGuardar={(d) => guardar(d, e.id)}
+              onTerminado={terminar} onImagenes={imagenesDe(e.id)} onCancelar={() => setEditando(null)} />
           ) : (
             <div key={e.id} className="apple-card" style={{ padding: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
@@ -409,6 +463,7 @@ const Conocimiento = () => {
                   <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5, whiteSpace: 'pre-line' }}>
                     {e.contenido}
                   </div>
+                  <GaleriaImagenes imagenes={[...(e.imagenes || []), ...(e.imagenes_ticket || [])]} compacta />
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '10px' }}>
                     {t('temas.mostrada_veces', { count: e.veces_sugerida })}
                     {e.tasa_utilidad !== null && ` · ${t('temas.util_pct', { pct: e.tasa_utilidad })}`}
@@ -442,11 +497,13 @@ const Conocimiento = () => {
   );
 };
 
-const FormularioKB = ({ entrada, onGuardar, onCancelar }) => {
+const FormularioKB = ({ entrada, onGuardar, onTerminado, onImagenes, onCancelar }) => {
   const { t } = useTranslation();
   const [titulo, setTitulo] = useState(entrada?.titulo || '');
   const [contenido, setContenido] = useState(entrada?.contenido || '');
   const [categoria, setCategoria] = useState(entrada?.categoria || 'equipo');
+  const [guardando, setGuardando] = useState(false);
+  const imagenes = useRef(null);
 
   const valido = titulo.trim().length >= 5 && contenido.trim().length >= 20;
   const faltaTitulo = Math.max(0, 5 - titulo.trim().length);
@@ -455,10 +512,15 @@ const FormularioKB = ({ entrada, onGuardar, onCancelar }) => {
   return (
     <Formulario className="apple-card animate-scale-in"
       style={{ padding: '22px', marginBottom: '14px', border: '1px solid var(--accent-primary)' }}
-      onSubmit={(e) => {
+      onPaste={(e) => imagenes.current?.pegar(e)}
+      onSubmit={async (e) => {
         e.preventDefault();
-        if (!valido) return;
-        onGuardar({ titulo: titulo.trim(), contenido: contenido.trim(), categoria });
+        if (!valido || guardando) return;
+        setGuardando(true);
+        const guardada = await onGuardar({ titulo: titulo.trim(), contenido: contenido.trim(), categoria });
+        if (!guardada) { setGuardando(false); return; }
+        const fallidas = await imagenes.current?.subirPendientes(guardada.id) || 0;
+        onTerminado(fallidas);
       }}>
       <div className="form-group">
         <label>{t('ticket.categoria')}</label>
@@ -485,12 +547,22 @@ const FormularioKB = ({ entrada, onGuardar, onCancelar }) => {
           {t('temas.nota_vector')}
         </div>
       </div>
-      <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+      <EditorImagenes ref={imagenes} tipo="kb" id={entrada?.id || null}
+        imagenes={entrada?.imagenes} onCambio={onImagenes} />
+      {/* Las de la solución del ticket de origen vienen enlazadas: se ven
+          aquí y en las sugerencias, pero se cambian desde el ticket. */}
+      {entrada?.imagenes_ticket?.length > 0 && (
+        <div className="editor-imagenes" style={{ marginTop: '-6px' }}>
+          <div className="editor-imagenes-rotulo">{t('imagenes.del_ticket')}</div>
+          <GaleriaImagenes imagenes={entrada.imagenes_ticket} compacta />
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         <button type="button" onClick={onCancelar} className="btn-secondary" style={{ padding: '10px 18px' }}>
           <X size={15} /> {t('temas.cancelar')}
         </button>
-        <button type="submit" className="btn-acento" disabled={!valido} style={{ padding: '10px 18px' }}>
-          <Check size={15} /> {t('temas.guardar')}
+        <button type="submit" className="btn-acento" disabled={!valido || guardando} style={{ padding: '10px 18px' }}>
+          <Check size={15} /> {guardando ? t('temas.guardando') : t('temas.guardar')}
         </button>
       </div>
     </Formulario>

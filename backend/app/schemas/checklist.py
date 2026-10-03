@@ -1,7 +1,9 @@
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.networks import validate_email
 from pydantic_core import PydanticCustomError
-from typing import Literal, Optional
+from typing import List, Literal, Optional
+
+from app.schemas.imagenes import ImagenBreve
 
 class ChecklistCreate(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
@@ -22,6 +24,9 @@ class ChecklistResponse(BaseModel):
     pregunta_texto: Optional[str] = None
     accion_si_no: Optional[str] = None
     resuelve: bool
+    # Dónde está el botón, qué luz tiene que estar encendida: el paso que se
+    # sigue mirando en vez de leyendo.
+    imagenes: List[ImagenBreve] = []
 
     model_config = ConfigDict(from_attributes=True)
 

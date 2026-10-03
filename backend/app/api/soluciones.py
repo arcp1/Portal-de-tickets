@@ -16,12 +16,13 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy.orm import Session, defer
+from sqlalchemy.orm import Session, defer, selectinload
 
 from app.api.deps import get_current_admin
 from app.core.db import get_db
 from app.models import SolucionGeneral, Usuario
 from app.schemas.comunes import FechaUTC
+from app.schemas.imagenes import ImagenBreve
 from app.services.auditoria_service import AuditoriaService
 from app.services.ollama_client import CATEGORIAS_VALIDAS
 from app.services.soluciones_service import (
@@ -48,6 +49,9 @@ class SolucionResponse(BaseModel):
     veces_util: int = 0
     creado_en: Optional[FechaUTC] = None
     publicado_en: Optional[FechaUTC] = None
+    # Las capturas del procedimiento: dónde está el botón, cómo se ve el
+    # menú. Se suben por /api/imagenes/solucion/{id}.
+    imagenes: List[ImagenBreve] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -100,7 +104,8 @@ def listar(
     admin: Usuario = Depends(get_current_admin),
 ):
     # El listado no enseña el vector: no se trae (768 números por fila).
-    consulta = (db.query(SolucionGeneral).options(defer(SolucionGeneral.embedding)))
+    consulta = (db.query(SolucionGeneral).options(defer(SolucionGeneral.embedding),
+                                                  selectinload(SolucionGeneral.imagenes)))
     if estado:
         consulta = consulta.filter(SolucionGeneral.estado == estado)
     return consulta.order_by(SolucionGeneral.tickets_origen.desc(),

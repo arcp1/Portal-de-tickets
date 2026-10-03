@@ -4,6 +4,7 @@ import api from '../api/client';
 import useConciencia from '../hooks/useConciencia';
 import GrafoConciencia from './GrafoConciencia';
 import { Sparkles, FileText, Ticket, XCircle, Ban, Cpu, Cloud } from 'lucide-react';
+import { GaleriaImagenes } from './ImagenesConocimiento';
 
 /**
  * La respuesta del asistente, siempre con su procedencia a la vista.
@@ -211,6 +212,12 @@ const Fuente = ({ fuente, numero, t }) => {
         <div style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
           {fuente.texto?.length > 240 ? fuente.texto.slice(0, 240) + '…' : fuente.texto}
         </div>
+
+        {/* Una entrada de la base de conocimiento puede traer capturas: van
+            en miniatura, que aquí la fuente es un apoyo y no la respuesta. */}
+        {(esTicket || fuente.fuente === 'solucion_general') && (
+          <GaleriaImagenes tipo={esTicket ? 'kb' : 'solucion'} id={fuente.referencia_id} compacta />
+        )}
 
         {/* Lo que ya se probó y no era: le ahorra al técnico repetirlo. */}
         {fuente.descartado && (

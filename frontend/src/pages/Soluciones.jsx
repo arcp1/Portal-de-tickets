@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../api/client';
 import { EsqueletoLista } from '../components/Cargando';
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import Selector from '../components/Selector';
 import lista from '../lib/lista';
+import { EditorImagenes, GaleriaImagenes } from '../components/ImagenesConocimiento';
 
 /**
  * Soluciones generales: un procedimiento por problema recurrente.
@@ -94,15 +95,29 @@ const Soluciones = () => {
     }
   };
 
+  // Guardar devuelve lo guardado y no cierra nada: el editor todavía tiene
+  // que subir las imágenes que esperaban el id del procedimiento nuevo.
   const guardar = async (solucion, cambios) => {
     try {
-      await api.patch(`/admin/soluciones/${solucion.id}`, cambios);
-      setEditando(null);
-      cargar();
+      const res = await api.patch(`/admin/soluciones/${solucion.id}`, cambios);
+      setAviso('');
+      return res.data;
     } catch (err) {
       setAviso(err.response?.data?.detail || t('soluciones.error_accion'));
+      return null;
     }
   };
+
+  const terminar = (fallidas = 0) => {
+    setCreando(false);
+    setEditando(null);
+    if (fallidas) setAviso(t('imagenes.algunas_no_subieron', { count: fallidas }));
+    cargar();
+  };
+
+  // Al editar, las imágenes se guardan en cuanto se suben.
+  const imagenesDe = (id) => (nuevas) =>
+    setSoluciones((ss) => ss.map((x) => (x.id === id ? { ...x, imagenes: nuevas } : x)));
 
   /* **Escribirla a mano, sin esperar a que el problema se repita.** El backend
      lo permitía desde el principio (`POST /admin/soluciones`), pero la pantalla
@@ -112,16 +127,16 @@ const Soluciones = () => {
      sigue siendo un paso aparte. */
   const crear = async (datos) => {
     try {
-      await api.post('/admin/soluciones', {
+      const res = await api.post('/admin/soluciones', {
         ...datos,
         categoria: datos.categoria || null,
         descartado: datos.descartado || null
       });
-      setCreando(false);
       setAviso('');
-      cargar();
+      return res.data;
     } catch (err) {
       setAviso(err.response?.data?.detail || t('soluciones.error_accion'));
+      return null;
     }
   };
 
@@ -159,6 +174,7 @@ const Soluciones = () => {
             solucion={{ titulo: '', contenido: '', descartado: '', categoria: '' }}
             esNueva
             onGuardar={(_, datos) => crear(datos)}
+            onTerminado={terminar}
             onCancelar={() => setCreando(false)}
             t={t}
           />
@@ -233,8 +249,8 @@ const Soluciones = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           {soluciones.map((s) => (
             editando === s.id
-              ? <Editor key={s.id} solucion={s} onGuardar={guardar}
-                  onCancelar={() => setEditando(null)} t={t} />
+              ? <Editor key={s.id} solucion={s} onGuardar={guardar} onTerminado={terminar}
+                  onImagenes={imagenesDe(s.id)} onCancelar={() => setEditando(null)} t={t} />
               : <Tarjeta key={s.id} solucion={s} t={t}
                   onEditar={() => setEditando(s.id)}
                   onPublicar={() => accion(`/admin/soluciones/${s.id}/publicar`)}
@@ -280,6 +296,7 @@ const Tarjeta = ({ solucion, onEditar, onPublicar, onArchivar, t }) => {
       }}>
         {solucion.contenido}
       </div>
+      <GaleriaImagenes imagenes={solucion.imagenes} />
 
       {solucion.descartado && (
         <div style={{
@@ -316,17 +333,30 @@ const Tarjeta = ({ solucion, onEditar, onPublicar, onArchivar, t }) => {
   );
 };
 
-const Editor = ({ solucion, esNueva = false, onGuardar, onCancelar, t }) => {
+const Editor = ({ solucion, esNueva = false, onGuardar, onTerminado, onImagenes, onCancelar, t }) => {
   const [titulo, setTitulo] = useState(solucion.titulo);
   const [contenido, setContenido] = useState(solucion.contenido);
   const [descartado, setDescartado] = useState(solucion.descartado || '');
   const [categoria, setCategoria] = useState(solucion.categoria || '');
+  const [guardando, setGuardando] = useState(false);
+  const imagenes = useRef(null);
+
+  const enviar = async () => {
+    if (guardando) return;
+    setGuardando(true);
+    const guardada = await onGuardar(solucion, { titulo, contenido, descartado, categoria });
+    if (!guardada) { setGuardando(false); return; }
+    const fallidas = await imagenes.current?.subirPendientes(guardada.id) || 0;
+    onTerminado(fallidas);
+  };
 
   const completa = titulo.trim().length >= MINIMO_TITULO
     && contenido.trim().length >= MINIMO_CONTENIDO;
 
   return (
-    <div className="apple-card animate-scale-in" style={{
+    // Una captura pegada en cualquier campo se queda como imagen del
+    // procedimiento; el texto se pega como siempre.
+    <div className="apple-card animate-scale-in" onPaste={(e) => imagenes.current?.pegar(e)} style={{
       padding: '20px', border: '1px solid var(--accent-primary)'
     }}>
       {esNueva && (
@@ -360,14 +390,16 @@ const Editor = ({ solucion, esNueva = false, onGuardar, onCancelar, t }) => {
         <textarea className="form-textarea" rows={3} style={{ width: '100%', fontSize: '0.92rem' }}
           value={descartado} onChange={(e) => setDescartado(e.target.value)} />
       </div>
-      <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+      <EditorImagenes ref={imagenes} tipo="solucion" id={esNueva ? null : solucion.id}
+        imagenes={solucion.imagenes} onCambio={onImagenes} />
+      <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         <button onClick={onCancelar} className="btn-secondary" style={{ padding: '9px 16px' }}>
           <X size={15} /> {t('temas.cancelar')}
         </button>
         {/* Decía "Guardando" —salía de recortar los puntos a
             `temas.guardando`— antes de haber pulsado nada. */}
-        <button onClick={() => onGuardar(solucion, { titulo, contenido, descartado, categoria })}
-          disabled={!completa}
+        <button onClick={enviar}
+          disabled={!completa || guardando}
           title={completa ? undefined : t('soluciones.falta_texto', {
             titulo: MINIMO_TITULO, contenido: MINIMO_CONTENIDO })}
           className="btn-acento" style={{ padding: '9px 16px' }}>

@@ -14,6 +14,7 @@ import {
   CheckCircle2, ArrowRight, ArrowLeft, Send, HelpCircle, AlertTriangle, QrCode
 } from 'lucide-react';
 import lista from '../lib/lista';
+import { GaleriaImagenes } from '../components/ImagenesConocimiento';
 import { avisar, mensajeDeError } from '../lib/avisos';
 import useRetrasado from '../hooks/useRetrasado';
 import { usePlantas, SelectorPlanta, EtiquetaPlanta } from '../lib/plantas';
@@ -488,18 +489,29 @@ const NewTicket = () => {
                   </div>
                 )}
 
-                <div style={{ display: 'flex', gap: '16px', marginTop: '24px' }}>
+                {/* Dónde está el botón, qué luz tiene que verse: el paso se
+                    sigue mirando la foto en vez de buscando lo que dice el
+                    texto. `key` para que al pasar al siguiente no se quede
+                    abierto el visor del anterior. */}
+                <GaleriaImagenes key={checklists[checklistIndex].id}
+                  imagenes={checklists[checklistIndex].imagenes} />
+
+                {/* Con `wrap`: a 360 px los dos botones juntos no caben —el
+                    "No" lleva mayúsculas espaciadas— y la fila se salía 26 px
+                    de la pantalla. Así, en un teléfono angosto quedan uno
+                    encima del otro, cada uno a lo ancho. */}
+                <div style={{ display: 'flex', gap: '12px 16px', marginTop: '24px', flexWrap: 'wrap' }}>
                   <button
                     onClick={() => handleChecklistAnswer(true)}
                     className="btn-secondary btn-secondary--exito"
-                    style={{ flex: 1, justifyContent: 'center' }}
+                    style={{ flex: '1 1 150px', justifyContent: 'center' }}
                   >
                     {t('new_ticket.yes_resolved')}
                   </button>
                   <button
                     onClick={() => handleChecklistAnswer(false)}
                     className="btn-primary"
-                    style={{ flex: 1, justifyContent: 'center' }}
+                    style={{ flex: '1 1 150px', justifyContent: 'center' }}
                   >
                     {t('new_ticket.no_continue')}
                   </button>

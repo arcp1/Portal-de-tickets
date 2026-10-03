@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from typing import List, Optional
 
 from app.core.db import get_db
@@ -18,7 +18,8 @@ def list_checklists(
 ):
     # Solo los pasos activos: los que el admin dio de baja siguen en la tabla
     # por su historial, pero no se le muestran a nadie.
-    query = db.query(Checklist).filter(Checklist.activo.is_(True))
+    query = (db.query(Checklist).options(selectinload(Checklist.imagenes))
+             .filter(Checklist.activo.is_(True)))
     # Igualdad exacta y no `ilike`: en `ILIKE`, `%` es un comodín, así que
     # `?categoria=%` devolvía los pasos de **todas** las categorías. Un
     # checklist son los pasos de un problema concreto; enseñar los de otro es

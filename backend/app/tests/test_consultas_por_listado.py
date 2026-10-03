@@ -17,8 +17,8 @@ import pytest
 from sqlalchemy import event
 
 from app.core.security import get_password_hash
-from app.models import (Equipo, Resguardo, Ticket, TicketAdjunto, TicketComentario,
-                        Usuario)
+from app.models import (BaseConocimiento, Checklist, Equipo, ImagenConocimiento, Resguardo,
+                        SolucionGeneral, Ticket, TicketAdjunto, TicketComentario, Usuario)
 
 PASSWORD = "Secret123!"
 
@@ -78,7 +78,55 @@ def _ticket_completo(db_session):
         TicketAdjunto(ticket_id=ticket.id, subido_por=reporta.id, nombre_original="f.png",
                       nombre_guardado=f"{n}.png", tipo_mime="image/png", tamano_bytes=1,
                       creado_en=datetime.utcnow()),
+        # Y una captura de la solución, que el tablero también trae.
+        _imagen(ticket_id=ticket.id, subido_por=tecnico.id),
     ])
+    db_session.commit()
+
+
+def _imagen(subido_por, **dueno):
+    n = next(_serie)
+    return ImagenConocimiento(orden=1, nombre_original="c.png", nombre_guardado=f"c{n}.png",
+                              tipo_mime="image/png", tamano_bytes=1, subido_por=subido_por,
+                              creado_en=datetime.utcnow(), **dueno)
+
+
+def _paso_con_imagen(db_session):
+    n = next(_serie)
+    paso = Checklist(categoria="red", orden=n, pregunta_key=f"custom.red.{n}",
+                     pregunta_texto="¿Está conectado el cable?", activo=True)
+    db_session.add(paso)
+    db_session.flush()
+    db_session.add(_imagen(paso_id=paso.id, subido_por=_persona(db_session).id))
+    db_session.commit()
+
+
+def _entrada_con_imagen(db_session):
+    """Una entrada con imagen propia, que además salió de un ticket con
+    capturas en su solución: las dos cosas que el listado trae."""
+    n = next(_serie)
+    persona = _persona(db_session)
+    ticket = Ticket(sitio_id=1, folio=f"TICK-QRO-2026-{n:04d}", usuario_id=persona.id,
+                    categoria="red", descripcion_original="Sin red", prioridad="media",
+                    estado="resuelto", creado_en=datetime.utcnow())
+    db_session.add(ticket)
+    db_session.flush()
+    entrada = BaseConocimiento(titulo=f"Entrada {n}", contenido="Reiniciar el equipo y probar.",
+                               categoria="red", ticket_origen_id=ticket.id)
+    db_session.add(entrada)
+    db_session.flush()
+    db_session.add_all([_imagen(kb_id=entrada.id, subido_por=persona.id),
+                        _imagen(ticket_id=ticket.id, subido_por=persona.id)])
+    db_session.commit()
+
+
+def _procedimiento_con_imagen(db_session):
+    n = next(_serie)
+    solucion = SolucionGeneral(titulo=f"Procedimiento {n}", contenido="Paso uno. Paso dos.",
+                               estado="publicada", tickets_origen=0)
+    db_session.add(solucion)
+    db_session.flush()
+    db_session.add(_imagen(solucion_id=solucion.id, subido_por=_persona(db_session).id))
     db_session.commit()
 
 
@@ -120,6 +168,10 @@ def _persona_con_cosas(db_session):
     ("/api/equipos", _equipo_asignado),
     ("/api/resguardos", _resguardo),
     ("/api/admin/usuarios", _persona_con_cosas),
+    ("/api/admin/pasos", _paso_con_imagen),
+    ("/api/checklists", _paso_con_imagen),
+    ("/api/admin/kb", _entrada_con_imagen),
+    ("/api/admin/soluciones", _procedimiento_con_imagen),
 ])
 def test_el_listado_no_crece_con_los_registros(client, db_session, cab_admin, ruta, crear):
     crear(db_session)

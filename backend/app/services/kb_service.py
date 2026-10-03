@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.logging import logger
 from app.models import BaseConocimiento, SugerenciaKB, Ticket
+from app.schemas.imagenes import breves
 from app.services.horario_service import HorarioService
 from app.services.ollama_client import normalizar_categoria, ollama
 
@@ -257,6 +258,12 @@ class KBService:
                     "categoria": entrada.categoria,
                     "similitud": round(similitud, 4),
                     "ticket_origen_id": entrada.ticket_origen_id,
+                    # Pocas por búsqueda (KB_MAX_SUGERENCIAS): cargarlas una a
+                    # una cuesta menos que traerlas para todas las candidatas,
+                    # que el umbral descarta casi siempre.
+                    # Las suyas y las de la solución del ticket del que
+                    # salió, que la entrada enlaza.
+                    "imagenes": breves(list(entrada.imagenes) + entrada.imagenes_de_ticket),
                 }
             )
 
