@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../api/client';
+import { avisar, mensajeDeError } from '../lib/avisos';
 import { Lightbulb, ThumbsUp, ThumbsDown, Check } from 'lucide-react';
 
 /**
@@ -30,13 +31,32 @@ const SugerenciasKB = ({ texto, categoria, sitioId, ticketId = null, onResuelto 
       setBuscando(true);
       try {
         const res = await api.post('/ia/similares', {
-          texto,
+          // Mismo tope que el API (5000): más largo, no salía ninguna sugerencia.
+          texto: texto.slice(0, 5000),
           categoria,
           sitio_id: sitioId,
           ticket_id: ticketId
         });
         if (!cancelado) {
-          setSugerencias(res.data.degradado ? [] : res.data.resultados);
+          // **Se obliga a que sea una lista, pase lo que pase.**
+          //
+          // El `catch` de abajo cubre los fallos de red y los códigos de error,
+          // pero no una respuesta **200 con el cuerpo equivocado** — un proxy
+          // que devuelve su propia página, un despliegue a medias donde el
+          // backend todavía no tiene este endpoint, un cambio en su forma.
+          //
+          // Sin esta línea, `resultados` llegaba `undefined`, el estado se
+          // quedaba `undefined` y el `sugerencias.length` de más abajo reventaba
+          // **tumbando el formulario de tickets entero**: la pantalla se
+          // sustituye por "Algo se rompió en esta pantalla" y ya no se puede
+          // levantar el ticket. Es la pantalla más importante del portal y
+          // caía por una sugerencia que sobra.
+          //
+          // Reproducible con `python3 scripts/vista-previa.py`: su API simulada
+          // no implementa este endpoint y devuelve un objeto vacío, que es
+          // exactamente el caso.
+          const lista = res.data?.degradado ? [] : res.data?.resultados;
+          setSugerencias(Array.isArray(lista) ? lista : []);
         }
       } catch (err) {
         // Un fallo aquí no interrumpe nada: el formulario sigue igual.
@@ -57,7 +77,15 @@ const SugerenciasKB = ({ texto, categoria, sitioId, ticketId = null, onResuelto 
     try {
       await api.post('/kb/feedback', { sugerencia_id: sugerencia.sugerencia_id, fue_util: fueUtil });
     } catch (err) {
-      console.error('Error registrando feedback de sugerencia', err);
+      // Antes solo iba a la consola y la tarjeta seguía diciendo "Gracias.
+      // Registrado": un voto perdido que se daba por contado. Se devuelven
+      // los botones para poder repetirlo, y se dice. No se frena nada más:
+      // si le sirvió, su problema sigue resuelto.
+      setRespuestas((previas) => {
+        const { [sugerencia.sugerencia_id]: _descartada, ...resto } = previas;
+        return resto;
+      });
+      avisar(mensajeDeError(err, t('kb.error_feedback')), { tono: 'atencion' });
     }
     // Se pasa la sugerencia completa: su contenido es lo que queda como
     // solución del ticket auto-resuelto, y sin eso la deflección no se mide.
@@ -131,8 +159,8 @@ const SugerenciasKB = ({ texto, categoria, sitioId, ticketId = null, onResuelto 
                       <button
                         type="button"
                         onClick={() => enviarFeedback(s, true)}
-                        className="btn-secondary"
-                        style={{ padding: '8px 16px', fontSize: '0.9rem', color: 'var(--status-resuelto-text)' }}
+                        className="btn-secondary btn-secondary--exito"
+                        style={{ padding: '8px 16px', fontSize: '0.9rem' }}
                       >
                         <ThumbsUp size={16} />
                         {t('kb.si_sirvio')}
@@ -158,4 +186,5 @@ const SugerenciasKB = ({ texto, categoria, sitioId, ticketId = null, onResuelto 
   );
 };
 
-export default SugerenciasKB;
+// `memo`: ver `textoParaAyudas` en pages/NewTicket.jsx.
+export default React.memo(SugerenciasKB);

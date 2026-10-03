@@ -1,7 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import api from '../api/client';
+import api, { ESPERA_SUBIDA } from '../api/client';
 import { Upload, X, Check, AlertTriangle, FileText } from 'lucide-react';
+import CapaModal from './CapaModal';
+import Selector from './Selector';
+import Formulario from './Formulario';
 
 const TIPOS = ['resguardo', 'responsiva', 'politica', 'contrato', 'identificacion', 'otro'];
 
@@ -43,7 +46,8 @@ const SubirDocumento = ({ usuarioId, resguardos = [], onSubido, onCerrar }) => {
       datos.append('archivo', archivo);
 
       await api.post('/documentos', datos, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: ESPERA_SUBIDA
       });
       onSubido?.();
     } catch (err) {
@@ -62,12 +66,8 @@ const SubirDocumento = ({ usuarioId, resguardos = [], onSubido, onCerrar }) => {
   };
 
   return (
-    <div onClick={onCerrar} style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: '20px', zIndex: 1000
-    }}>
-      <form onClick={(e) => e.stopPropagation()} onSubmit={enviar}
+    <CapaModal onCerrar={onCerrar}>
+      <Formulario onClick={(e) => e.stopPropagation()} onSubmit={enviar}
         className="apple-card animate-scale-in"
         style={{ padding: '30px', maxWidth: '580px', width: '100%', maxHeight: '92vh', overflowY: 'auto' }}>
 
@@ -81,30 +81,18 @@ const SubirDocumento = ({ usuarioId, resguardos = [], onSubido, onCerrar }) => {
           </button>
         </div>
 
-        {error && (
-          <div className="animate-scale-in" style={{
-            display: 'flex', alignItems: 'center', gap: '8px',
-            background: 'var(--status-espera-proveedor-bg)',
-            color: 'var(--status-espera-proveedor-text)',
-            padding: '12px 14px', borderRadius: 'var(--radius-md)',
-            fontSize: '0.87rem', marginBottom: '16px'
-          }}>
-            <AlertTriangle size={16} /> {error}
-          </div>
-        )}
-
         <div className="form-group">
           <label>{t('expediente.tipo_documento')}</label>
-          <select className="form-select" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+          <Selector className="form-select" value={tipo} onChange={(e) => setTipo(e.target.value)}>
             {TIPOS.map((x) => <option key={x} value={x}>{t(`expediente.tipo_${x}`)}</option>)}
-          </select>
+          </Selector>
         </div>
 
         {/* Un resguardo escaneado se liga a su registro en el portal. */}
         {tipo === 'resguardo' && resguardos.length > 0 && (
           <div className="form-group">
             <label>{t('expediente.ligar_resguardo')}</label>
-            <select className="form-select" value={resguardoId}
+            <Selector className="form-select" value={resguardoId}
               onChange={(e) => elegirResguardo(e.target.value)}>
               <option value="">{t('expediente.sin_ligar')}</option>
               {resguardos.map((r) => (
@@ -112,7 +100,7 @@ const SubirDocumento = ({ usuarioId, resguardos = [], onSubido, onCerrar }) => {
                   {r.folio} · {r.equipo ? `${r.equipo.marca} ${r.equipo.modelo}` : '—'}
                 </option>
               ))}
-            </select>
+            </Selector>
           </div>
         )}
 
@@ -159,6 +147,21 @@ const SubirDocumento = ({ usuarioId, resguardos = [], onSubido, onCerrar }) => {
           </div>
         </div>
 
+        {/* Junto a los botones: el diálogo tiene scroll y arriba, bajo el
+            título, el error de un archivo rechazado quedaba fuera de la vista
+            de quien acababa de pulsar Subir. */}
+        {error && (
+          <div className="animate-scale-in" style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            background: 'var(--status-espera-proveedor-bg)',
+            color: 'var(--status-espera-proveedor-text)',
+            padding: '12px 14px', borderRadius: 'var(--radius-md)',
+            fontSize: '0.87rem', marginBottom: '16px'
+          }}>
+            <AlertTriangle size={16} /> {error}
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
           <button type="button" onClick={onCerrar} className="btn-secondary" style={{ padding: '11px 20px' }}>
             {t('temas.cancelar')}
@@ -168,8 +171,8 @@ const SubirDocumento = ({ usuarioId, resguardos = [], onSubido, onCerrar }) => {
             <Check size={16} /> {enviando ? t('adjuntos.subiendo') : t('expediente.subir')}
           </button>
         </div>
-      </form>
-    </div>
+      </Formulario>
+    </CapaModal>
   );
 };
 

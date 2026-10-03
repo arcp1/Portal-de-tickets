@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../api/client';
 import { FileSignature, ArrowRight } from 'lucide-react';
+import lista from '../lib/lista';
 
 /**
  * Aviso de resguardos por firmar.
@@ -18,7 +19,7 @@ const AvisoResguardos = () => {
   useEffect(() => {
     let cancelado = false;
     api.get('/resguardos/mis-pendientes')
-      .then((res) => { if (!cancelado) setPendientes(res.data); })
+      .then((res) => { if (!cancelado) setPendientes(lista(res.data, 'los resguardos pendientes')); })
       // Si no se puede consultar, no se muestra nada: es un aviso, no un bloqueo.
       .catch(() => { if (!cancelado) setPendientes([]); });
     return () => { cancelado = true; };
@@ -46,7 +47,7 @@ const AvisoResguardos = () => {
       <FileSignature size={20} style={{ flexShrink: 0 }} />
       <div style={{ flex: 1 }}>
         <strong style={{ fontSize: '0.94rem' }}>
-          {t('expediente.tiene_pendientes', { n: pendientes.length })}
+          {t('expediente.tiene_pendientes', { count: pendientes.length })}
         </strong>
         <div style={{ fontSize: '0.85rem', opacity: 0.9, marginTop: '2px' }}>
           {pendientes.map((r) => r.folio).join(' · ')}

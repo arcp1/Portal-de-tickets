@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../api/client';
+import useConciencia from '../hooks/useConciencia';
+import GrafoConciencia from './GrafoConciencia';
 import { Sparkles, FileText, Ticket, XCircle, Ban, Cpu, Cloud } from 'lucide-react';
 
 /**
@@ -16,11 +18,19 @@ import { Sparkles, FileText, Ticket, XCircle, Ban, Cpu, Cloud } from 'lucide-rea
  *    algo parecido ni se deja el hueco en blanco: se avisa que de eso no hay
  *    nada escrito y que conviene levantar el ticket. Es la respuesta correcta
  *    más seguido de lo que parece.
+ *
+ * 3. **Mientras busca, se enseña por dónde va.** Antes había una línea de
+ *    "Buscando..." durante los segundos que tarda el modelo local, y esos
+ *    segundos son largos: una redacción en CPU son ~4 s, y con alguien delante
+ *    en la cola, más. Una ruedita no distingue "está pensando" de "se colgó",
+ *    así que la gente recargaba la página — y recargar durante una consulta es
+ *    justo lo que la vuelve a encolar. El grafo cuenta lo que está pasando.
  */
-const RespuestaAsistente = ({ texto, categoria, minimo = 20 }) => {
+const RespuestaAsistente = ({ texto, categoria, minimo = 20, mostrarGrafo = true }) => {
   const { t } = useTranslation();
   const [datos, setDatos] = useState(null);
   const [consultando, setConsultando] = useState(false);
+  const { conectado, nodos, aristas, reiniciar } = useConciencia({ activo: mostrarGrafo });
 
   useEffect(() => {
     if (!texto || texto.trim().length < minimo) {
@@ -33,8 +43,20 @@ const RespuestaAsistente = ({ texto, categoria, minimo = 20 }) => {
     // vectorial y, a veces, una llamada al modelo.
     const temporizador = setTimeout(async () => {
       setConsultando(true);
+      // El grafo se apaga **antes** de preguntar. Si no, durante el primer
+      // segundo se vería el camino de la consulta anterior encendido como si
+      // fuera el de ésta — y ésa es la clase de detalle que hace que nadie
+      // vuelva a creerse lo que muestra la pantalla.
+      reiniciar();
       try {
-        const res = await api.post('/asistente/preguntar', { texto, categoria });
+        // `/conciencia/consultar` en vez de `/asistente/preguntar`: misma
+        // respuesta, mismo contenido, pero es `async` en el backend y va
+        // emitiendo la traza mientras trabaja. La ruta vieja sigue ahí y sigue
+        // funcionando para quien la llame sin querer el grafo.
+        // El API admite 2000 caracteres. Con una descripción más larga
+        // contestaba 422 y la ayuda desaparecía sin decir nada; el principio
+        // es lo que describe la falla.
+        const res = await api.post('/conciencia/consultar', { texto: texto.slice(0, 2000), categoria });
         if (!cancelado) setDatos(res.data);
       } catch {
         // Un fallo aquí no interrumpe el formulario. Simplemente no hay ayuda.
@@ -45,24 +67,38 @@ const RespuestaAsistente = ({ texto, categoria, minimo = 20 }) => {
     }, 1200);
 
     return () => { cancelado = true; clearTimeout(temporizador); };
-  }, [texto, categoria, minimo]);
+  }, [texto, categoria, minimo, reiniciar]);
 
-  if (consultando) {
-    return (
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: '9px', padding: '12px 14px',
-        fontSize: '0.86rem', color: 'var(--text-muted)'
+  // El grafo acompaña a la respuesta en vez de desaparecer con ella: los
+  // milisegundos de cada salto son lo que contesta "¿por qué tardó?" cuando
+  // alguien lo pregunta después, que es siempre cuando se pregunta.
+  const grafo = mostrarGrafo && (consultando || datos) ? (
+    <div className="apple-card" style={{ padding: '10px 12px 4px', marginTop: '14px' }}>
+      <div className="rotulo-dato" style={{
+        display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px'
       }}>
-        <Sparkles size={15} /> {t('asistente.buscando')}
+        <Sparkles size={13} />
+        {consultando ? t('asistente.buscando') : t('conciencia.titulo')}
       </div>
-    );
-  }
+      <GrafoConciencia nodos={nodos} aristas={aristas} conectado={conectado} />
+    </div>
+  ) : null;
+
+  if (consultando) return grafo;
 
   if (!datos) return null;
 
   // Nada parecido en el conocimiento de la planta. Se dice tal cual.
+  //
+  // El grafo se queda: es donde se ve *por qué* no hubo respuesta. El nodo del
+  // conocimiento apagado con "0 pasajes" dice que de esto no hay nada escrito;
+  // el nodo de vectorización en rojo dice que Ollama no contestó y que la
+  // pregunta quizá sí tenía respuesta. Son dos cosas distintas que el texto de
+  // abajo, por sí solo, no puede separar.
   if (datos.origen === 'sin_fundamento') {
     return (
+      <>
+      {grafo}
       <div className="animate-scale-in" style={{
         display: 'flex', alignItems: 'flex-start', gap: '10px',
         background: 'var(--bg-tertiary)', padding: '14px 16px',
@@ -75,13 +111,16 @@ const RespuestaAsistente = ({ texto, categoria, minimo = 20 }) => {
           <div style={{ marginTop: '3px' }}>{t('asistente.sin_datos_detalle')}</div>
         </div>
       </div>
+      </>
     );
   }
 
   const hayFuentes = datos.fuentes?.length > 0;
-  if (!datos.respuesta && !hayFuentes) return null;
+  if (!datos.respuesta && !hayFuentes) return grafo;
 
   return (
+    <>
+    {grafo}
     <div className="apple-card animate-scale-in" style={{
       padding: '16px 18px', marginTop: '14px',
       borderLeft: '3px solid var(--accent-primary)'
@@ -106,10 +145,7 @@ const RespuestaAsistente = ({ texto, categoria, minimo = 20 }) => {
 
       {hayFuentes && (
         <div>
-          <div style={{
-            fontSize: '0.74rem', fontWeight: 600, letterSpacing: '0.04em',
-            textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '7px'
-          }}>
+          <div className="rotulo-dato" style={{ marginBottom: '7px' }}>
             {t('asistente.fuentes')}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -118,6 +154,7 @@ const RespuestaAsistente = ({ texto, categoria, minimo = 20 }) => {
         </div>
       )}
     </div>
+    </>
   );
 };
 
@@ -158,7 +195,7 @@ const Fuente = ({ fuente, numero, t }) => {
       fontSize: '0.84rem'
     }}>
       <span style={{
-        fontFamily: 'monospace', fontWeight: 600, color: 'var(--accent-primary)',
+        fontFamily: 'var(--font-codigo)', fontWeight: 600, color: 'var(--accent-primary)',
         flexShrink: 0
       }}>
         [{numero}]
@@ -197,4 +234,5 @@ const Fuente = ({ fuente, numero, t }) => {
   );
 };
 
-export default RespuestaAsistente;
+// `memo`: ver `textoParaAyudas` en pages/NewTicket.jsx.
+export default React.memo(RespuestaAsistente);

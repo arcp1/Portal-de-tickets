@@ -1,6 +1,7 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import { Moon, Clock } from 'lucide-react';
 
 /**
@@ -15,11 +16,32 @@ const ContextoHorario = createContext({ esHorarioLaboral: true, cargado: false }
 export const useHorario = () => useContext(ContextoHorario);
 
 export const ProveedorHorario = ({ children }) => {
+  // **Atado a la sesión, no al montaje.** El proveedor vive por encima del
+  // Router, así que se monta en el login, cuando todavía no hay token. Con la
+  // guarda de abajo y un efecto de montaje único, el `return` se llevaba la
+  // primera consulta y no había otra hasta el refresco de los cinco minutos:
+  // quien entraba por el formulario no veía el aviso de fuera de horario en
+  // toda esa ventana —solo aparecía si recargaba la página—, que es justo
+  // cuando importa decirle que nadie va a atender su ticket hasta mañana.
+  // Dependiendo del `id` del usuario, la sesión recién abierta vuelve a
+  // preguntar de inmediato. Es el mismo arreglo que ya lleva [[ProveedorEventos]].
+  const { user } = useAuth();
+  const usuarioId = user?.id ?? null;
   const [horario, setHorario] = useState({ esHorarioLaboral: true, cargado: false });
 
   useEffect(() => {
     let cancelado = false;
     const consultar = () => {
+      // **Sin sesión no se pregunta.**
+      //
+      // `/estado/horario` exige autenticación, y este proveedor envuelve la
+      // aplicación entera, rutas públicas incluidas. En la pantalla de
+      // activación la petición daba 401, el interceptor de axios mandaba a
+      // /login y la activación quedaba inalcanzable escribiendo la dirección:
+      // justo la pantalla que usa la gente la primera vez, y justo por el
+      // camino por el que llega quien recibe la dirección por escrito.
+      if (!localStorage.getItem('portal_tickets_token')) return;
+
       api.get('/estado/horario')
         .then((res) => {
           if (cancelado) return;
@@ -37,11 +59,18 @@ export const ProveedorHorario = ({ children }) => {
         .catch(() => { if (!cancelado) setHorario({ esHorarioLaboral: true, cargado: true }); });
     };
 
+    // Al cerrar sesión se vuelve al estado neutro: si no, el aviso de la
+    // sesión anterior seguiría pintado sobre la pantalla de entrada.
+    if (!usuarioId) {
+      setHorario({ esHorarioLaboral: true, cargado: false });
+      return undefined;
+    }
+
     consultar();
     // El turno puede terminar con la pestaña abierta.
     const cada = setInterval(consultar, 5 * 60 * 1000);
     return () => { cancelado = true; clearInterval(cada); };
-  }, []);
+  }, [usuarioId]);
 
   return (
     <ContextoHorario.Provider value={horario}>
@@ -116,7 +145,7 @@ export const EtiquetaSLA = ({ venceEn, estado }) => {
   const { t, i18n } = useTranslation();
 
   // Un ticket cerrado ya no tiene compromiso pendiente.
-  if (!venceEn || ['resuelto', 'cerrado'].includes(estado)) return null;
+  if (!venceEn || ['resuelto', 'cerrado', 'cancelado'].includes(estado)) return null;
 
   const vence = new Date(venceEn);
   const ahora = new Date();
@@ -125,7 +154,7 @@ export const EtiquetaSLA = ({ venceEn, estado }) => {
   const apurado = !vencido && minutos < 120;
 
   const [color, fondo] = vencido
-    ? ['#D8000C', '#FFF0F0']
+    ? ['var(--peligro)', 'var(--peligro-bg)']
     : apurado
       ? ['var(--status-espera-proveedor-text)', 'var(--status-espera-proveedor-bg)']
       : ['var(--text-secondary)', 'var(--bg-tertiary)'];
@@ -141,6 +170,7 @@ export const EtiquetaSLA = ({ venceEn, estado }) => {
 
   return (
     <span
+      className="chip-dato"
       title={vence.toLocaleString(i18n.language)}
       style={{
         display: 'inline-flex',

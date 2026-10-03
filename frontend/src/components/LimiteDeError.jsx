@@ -1,4 +1,5 @@
 import React from 'react';
+import { withTranslation } from 'react-i18next';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
 
 /**
@@ -8,7 +9,8 @@ import { AlertTriangle, RotateCcw } from 'lucide-react';
  * usuario se queda con una pantalla en blanco, sin saber si el portal se cayó
  * o si su computadora se trabó. Con esto ve un mensaje y un botón.
  *
- * Tiene que ser una clase: React no expone `componentDidCatch` en hooks.
+ * Tiene que ser una clase: React no expone `componentDidCatch` en hooks. Por
+ * eso el texto entra por `withTranslation` y no por `useTranslation`.
  */
 class LimiteDeError extends React.Component {
   constructor(props) {
@@ -29,6 +31,7 @@ class LimiteDeError extends React.Component {
 
   render() {
     if (!this.state.fallo) return this.props.children;
+    const { t } = this.props;
 
     return (
       <div
@@ -38,16 +41,15 @@ class LimiteDeError extends React.Component {
         <div className="apple-card" style={{ padding: '40px' }}>
           <AlertTriangle size={44} style={{ color: 'var(--status-espera-proveedor-text)', margin: '0 auto 20px' }} />
           <h1 style={{ fontSize: '1.35rem', fontWeight: '700', marginBottom: '10px', color: 'var(--text-primary)' }}>
-            Algo se rompió en esta pantalla
+            {t('error.titulo')}
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.55, marginBottom: '24px' }}>
-            El portal sigue funcionando. Puede recargar y continuar; si vuelve a
-            pasar, avise al equipo de TI mencionando qué estaba haciendo.
+            {t('error.detalle')}
           </p>
 
           {this.state.mensaje && (
             <div style={{
-              fontFamily: 'monospace',
+              fontFamily: 'var(--font-codigo)',
               fontSize: '0.8rem',
               color: 'var(--text-muted)',
               background: 'var(--bg-tertiary)',
@@ -68,14 +70,14 @@ class LimiteDeError extends React.Component {
               style={{ padding: '12px 22px' }}
             >
               <RotateCcw size={17} />
-              Recargar
+              {t('error.recargar')}
             </button>
             <button
               onClick={() => { window.location.href = '/'; }}
               className="btn-secondary"
               style={{ padding: '12px 22px' }}
             >
-              Volver al inicio
+              {t('error.inicio')}
             </button>
           </div>
         </div>
@@ -84,4 +86,4 @@ class LimiteDeError extends React.Component {
   }
 }
 
-export default LimiteDeError;
+export default withTranslation()(LimiteDeError);

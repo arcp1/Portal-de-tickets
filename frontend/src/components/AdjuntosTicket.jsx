@@ -1,61 +1,25 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import api from '../api/client';
+import api, { ESPERA_SUBIDA } from '../api/client';
+import Confirmacion from './Confirmacion';
+import ImagenApi from './ImagenApi';
 import { Paperclip, Upload, Trash2, FileText, AlertTriangle } from 'lucide-react';
 
 /**
  * Miniatura de un adjunto.
  *
- * No se puede usar `<img src="/api/...">` directo: el navegador no manda la
- * cabecera de autorización en las peticiones de imagen y el endpoint responde
- * 401. Se descarga con el cliente autenticado y se muestra desde un blob.
+ * La descarga autenticada vive en `ImagenApi`: el navegador no manda el token
+ * en las peticiones de imagen, así que un `<img src="/api/...">` directo se
+ * queda en un 401.
  */
-const Miniatura = ({ ticketId, adjunto, alto = 84, ancho = 112 }) => {
-  const [url, setUrl] = useState(null);
-  const [fallo, setFallo] = useState(false);
-
-  useEffect(() => {
-    let cancelado = false;
-    let creada = null;
-
-    api.get(`/tickets/${ticketId}/adjuntos/${adjunto.id}`, { responseType: 'blob' })
-      .then((res) => {
-        if (cancelado) return;
-        creada = URL.createObjectURL(res.data);
-        setUrl(creada);
-      })
-      .catch(() => { if (!cancelado) setFallo(true); });
-
-    return () => {
-      cancelado = true;
-      // Sin esto el navegador retiene el blob mientras viva la pestaña.
-      if (creada) URL.revokeObjectURL(creada);
-    };
-  }, [ticketId, adjunto.id]);
-
-  if (fallo) {
-    return (
-      <div style={{
-        width: ancho, height: alto, display: 'flex',
-        alignItems: 'center', justifyContent: 'center', background: 'var(--bg-tertiary)'
-      }}>
-        <AlertTriangle size={22} color="var(--text-muted)" />
-      </div>
-    );
-  }
-
-  if (!url) {
-    return <div className="esqueleto" style={{ width: ancho, height: alto, borderRadius: 0 }} />;
-  }
-
-  return (
-    <img
-      src={url}
-      alt={adjunto.nombre_original}
-      style={{ width: ancho, height: alto, objectFit: 'cover', display: 'block' }}
-    />
-  );
-};
+const Miniatura = ({ ticketId, adjunto, alto = 84, ancho = 112 }) => (
+  <ImagenApi
+    ruta={`/tickets/${ticketId}/adjuntos/${adjunto.id}`}
+    alt={adjunto.nombre_original}
+    ancho={ancho}
+    alto={alto}
+  />
+);
 
 /**
  * Fotos y archivos del ticket.
@@ -68,31 +32,42 @@ const AdjuntosTicket = ({ ticketId, adjuntos = [], onCambio, puedeSubir = true }
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState('');
   const [arrastrando, setArrastrando] = useState(false);
+  // El adjunto que espera el "¿seguro?". null = no hay pregunta abierta.
+  const [porBorrar, setPorBorrar] = useState(null);
   const entrada = useRef(null);
 
   const subir = async (archivos) => {
     if (!archivos || archivos.length === 0) return;
     setSubiendo(true);
     setError('');
+    // Arrastrar varios a la vez se salta el `accept` del selector. Si uno de
+    // en medio era un .exe, los anteriores ya estaban subidos pero no se
+    // pintaban hasta recargar, y el error no decía cuál de todos falló.
+    let subidos = 0;
+    let actual = null;
     try {
       for (const archivo of archivos) {
+        actual = archivo;
         const datos = new FormData();
         datos.append('archivo', archivo);
         await api.post(`/tickets/${ticketId}/adjuntos`, datos, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: ESPERA_SUBIDA
         });
+        subidos += 1;
       }
-      onCambio?.();
     } catch (err) {
-      setError(err.response?.data?.detail || t('adjuntos.error_subir'));
+      const motivo = err.response?.data?.detail || t('adjuntos.error_subir');
+      setError(archivos.length > 1 && actual ? `${actual.name}: ${motivo}` : motivo);
     } finally {
+      if (subidos > 0) onCambio?.();
       setSubiendo(false);
       if (entrada.current) entrada.current.value = '';
     }
   };
 
   const borrar = async (adjunto) => {
-    if (!window.confirm(t('adjuntos.confirmar_borrar'))) return;
+    setPorBorrar(null);
     try {
       await api.delete(`/tickets/${ticketId}/adjuntos/${adjunto.id}`);
       onCambio?.();
@@ -101,10 +76,18 @@ const AdjuntosTicket = ({ ticketId, adjuntos = [], onCambio, puedeSubir = true }
     }
   };
 
+  // Sin archivos y sin poder subir —un ticket cerrado, visto por quien lo
+  // reportó— no queda nada que enseñar: ni el título de una sección vacía.
+  if (!puedeSubir && adjuntos.length === 0) return null;
+
   const esImagen = (tipo) => tipo.startsWith('image/');
-  const kb = (bytes) => bytes < 1024 * 1024
-    ? `${Math.round(bytes / 1024)} KB`
-    : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  // Bajo un kilobyte se dice en bytes: una captura pequeña salía como "0 KB",
+  // que parece un archivo vacío —y los vacíos el backend ya los rechaza—.
+  const kb = (bytes) => bytes < 1024
+    ? `${bytes} B`
+    : bytes < 1024 * 1024
+      ? `${Math.round(bytes / 1024)} KB`
+      : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
   /**
    * Abre el adjunto en una pestaña nueva.
@@ -184,23 +167,32 @@ const AdjuntosTicket = ({ ticketId, adjuntos = [], onCambio, puedeSubir = true }
                     <FileText size={26} color="var(--text-secondary)" />
                   </div>
                 )}
+                {/* El nombre a la vista, no solo en el `title`: un PDF y un
+                    .txt salían como dos mosaicos idénticos —mismo icono, solo
+                    el tamaño— y en el celular no hay ratón que enseñe el
+                    `title`. */}
                 <div style={{
-                  padding: '6px 8px', fontSize: '0.72rem',
-                  color: 'var(--text-secondary)',
-                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                  padding: '6px 8px', fontSize: '0.72rem', lineHeight: 1.35,
+                  color: 'var(--text-secondary)'
                 }}>
+                  <div style={{
+                    color: 'var(--text-primary)',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                  }}>
+                    {a.nombre_original}
+                  </div>
                   {kb(a.tamano_bytes)}
                 </div>
               </button>
               {puedeSubir && (
                 <button
-                  onClick={() => borrar(a)}
+                  onClick={() => setPorBorrar(a)}
                   aria-label={t('adjuntos.borrar')}
                   style={{
                     position: 'absolute', top: '-6px', right: '-6px',
                     width: '24px', height: '24px', borderRadius: '50%',
                     border: 'none', cursor: 'pointer',
-                    background: '#D8000C', color: '#fff',
+                    background: 'var(--peligro)', color: '#fff',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     boxShadow: 'var(--shadow-sm)'
                   }}
@@ -260,6 +252,17 @@ const AdjuntosTicket = ({ ticketId, adjuntos = [], onCambio, puedeSubir = true }
             </>
           )}
         </div>
+      )}
+
+      {porBorrar && (
+        <Confirmacion
+          titulo={t('adjuntos.borrar')}
+          mensaje={t('adjuntos.confirmar_borrar')}
+          textoConfirmar={t('comun.eliminar')}
+          tono="peligro"
+          onConfirmar={() => borrar(porBorrar)}
+          onCancelar={() => setPorBorrar(null)}
+        />
       )}
     </div>
   );

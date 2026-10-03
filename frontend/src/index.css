@@ -1,52 +1,215 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+/* Inter se sirve desde /fuentes/fuentes.css, cargado en index.html. */
 
 :root {
-  /* Authentic Apple Light Theme Colors */
-  --bg-primary: #F5F5F7; /* Apple system light gray */
-  --bg-secondary: #FFFFFF; /* Pure white for cards */
-  --bg-tertiary: rgba(0, 0, 0, 0.03); /* Subtle secondary background for active states / forms */
-  
-  --text-primary: #1D1D1F; /* System dark text */
-  --text-secondary: #86868B; /* System gray text */
-  --text-muted: #A1A1A6;
-  
-  --border-color: rgba(0, 0, 0, 0.06); /* Very subtle borders */
-  --border-focus: #0071E3; /* Apple marketing blue for focus */
-  
-  --accent-primary: #007AFF; /* iOS Blue */
-  --accent-primary-hover: #0066CC;
-  
-  /* Status Colors */
-  --status-abierto-bg: #EAF2FF;
-  --status-abierto-text: #007AFF;
-  
-  --status-en-proceso-bg: #FFF7D6;
-  --status-en-proceso-text: #B27F00;
-  
-  --status-espera-proveedor-bg: #F4E8FF;
-  --status-espera-proveedor-text: #A259FF;
-  
-  --status-resuelto-bg: #E8F8EE;
-  --status-resuelto-text: #34C759; /* iOS Green */
-  
-  --status-cerrado-bg: #F2F2F7;
-  --status-cerrado-text: #86868B;
+  /* ============================================================
+     Identidad CGR de México
+     ============================================================
+     El logotipo es metal pulido: las letras y el swoosh son cromo
+     sobre blanco. No hay un azul ni un rosa que defender —eso era
+     una lectura equivocada de la marca—, hay un material.
 
-  /* Typography */
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --font-heading: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  
-  /* Layout & Geometry */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 18px;
+     Así que la paleta no son colores, son **grados de reflejo**. El
+     cromo va del casi blanco al casi negro, y lo que ordena la
+     jerarquía es dónde cae la luz, no qué tono se usa. Es también
+     lo que hace un taller de conformado: la pieza no lleva color,
+     lleva acabado.
+
+     El color queda reservado para una sola cosa: el estado de un
+     ticket. Cuando lo único con color en la pantalla es el estado,
+     el estado se ve desde la puerta.
+     ============================================================ */
+
+  --cromo-luz:    #f4f8fc;   /* el canto que devuelve la luz directa */
+  --cromo-claro:  #d5dfea;
+  --cromo:        #a9b5c3;
+  --cromo-medio:  #6e7a8a;
+  --cromo-sombra: #39434f;
+  --cromo-fondo:  #1a2029;
+
+  /* ---- La paleta de CGR, tal cual ----
+     Los valores exactos de la guía de marca. No se usan directamente
+     en texto sobre fondo oscuro —el azul sólido a #1b3d79 sobre casi
+     negro no se lee—, pero son el origen del que salen los tonos de
+     estado de más abajo, y los que consume el shader del login.
+
+       Solid blue   #1b3d79   Pantone 288 U   RAL 5010
+       Fancy pink   #b31671   Pantone 233 U   RAL 4003
+       Soft grey    #869199
+       Cool blue    #148ec2
+       Vivid green  #a4ae2d
+       Warm orange  #d67c2f */
+  --cgr-azul:        #1b3d79;
+  --cgr-rosa:        #b31671;
+  --cgr-gris:        #869199;
+  --cgr-azul-claro:  #148ec2;
+  --cgr-verde:       #a4ae2d;
+  --cgr-naranja:     #d67c2f;
+
+  /* ---- Las versiones que sí se leen sobre casi negro ----
+     El azul sólido y el rosa de la guía están pensados para tinta sobre
+     blanco. Sobre `#070b15` hay que subirles la luminosidad o no
+     existen. El tono se conserva; cambia cuánta luz devuelven. */
+  --marca-azul-luz: #4bb0e6;   /* de Cool blue  #148ec2 */
+  --marca-rosa-luz: #e35fac;   /* de Fancy pink #b31671 */
+
+  /* ---- Los dos degradados de control ----
+     Es la misma técnica que tenían los botones cromados —una banda dura en la
+     mitad, donde el reflejo salta del cielo al suelo—, pero en los colores de
+     la marca. Se conserva el acabado y se cambia el color.
+
+     **El color es el color; el volumen es luz por encima.**
+
+     La versión anterior repartía seis tonos por el degradado y dejaba el
+     valor de marca en la parada del 52 %. Pero lo que se ve de un degradado
+     no es su parada central: lo que dominaba era `#3fb3e8` y `#148ec2` —un
+     cian que no es Solid blue— y `#f472bd`/`#d8358f` —un magenta que no es
+     Fancy pink—. El botón acababa siendo de otro color que el del manual.
+
+     Ahora es el hex y nada más: tinta plana, sin luz superpuesta ni relieve.
+     Pantone 288 U y 233 U son colores planos y así se ven aquí. La capa de
+     luz que hubo un momento daba volumen, pero volvía el borde superior
+     bastante más claro que el color de la guía, y eso es exactamente lo que
+     se venía arrastrando desde el principio.
+
+     El volumen lo siguen dando cosas que no tocan el tono: el sellado del
+     filtro de fusión, el estirón al pasar el ratón y el contraste contra el
+     fondo casi negro.
+
+     Una sola definición para todo: el botón principal, el de acento, la gota
+     del login, el enlace activo de la barra, el filtro del tablero, la
+     pastilla del icono y las esferas del fondo. */
+  /* Solid blue  · #1b3d79 · Pantone 288 U · RAL 5010 */
+  --degradado-azul: #1b3d79;
+  /* Fancy pink  · #b31671 · Pantone 233 U · RAL 4003 */
+  --degradado-rosa: #b31671;
+
+
+  /* Los dos de estado, con la misma construcción: color plano y la misma
+     luz encima. Se usan solo para encender botones secundarios cuya acción
+     ya tiene color propio —borrar, dar de baja— donde el azul o el rosa de
+     la alternancia diría lo que no es. */
+  --degradado-peligro: #cf4444;
+  --degradado-verde: #8d9628;
+
+  /* ---- Fondo ----
+     Negro con una gota de azul, no negro puro: el negro absoluto
+     con piezas metálicas encima se ve barato, y deja el cromo sin
+     nada que reflejar. */
+  /* Casi negro, pero con el azul de marca dentro en lugar de un gris
+     neutro. Es el `#1b3d79` llevado a un 6 % de luminosidad: no se
+     identifica como azul, pero le da temperatura a toda la pantalla y
+     hace que el cromo del logotipo y de las piezas se vea frío contra
+     algo, en vez de contra la nada. */
+  --bg-primary: #070b15;
+  --bg-secondary: rgba(255, 255, 255, 0.055);
+  --bg-tertiary: rgba(255, 255, 255, 0.085);
+
+  --text-primary: #e9edf3;
+  /* Estos dos subieron un escalón cuando las esferas del fondo pasaron a
+     opacidad entera. Estaban calibrados contra un fondo casi negro, y sobre
+     un vidrio que deja pasar Fancy pink a plena intensidad el terciario
+     —textos de ayuda, marcas de tiempo, marcadores de posición— se volvía
+     ilegible. Se comprobó en el detalle de un ticket, sobre una esfera rosa:
+     "Imágenes, PDF o texto · hasta 10 MB cada uno" no se leía. */
+  --text-secondary: #b3bcc8;
+  --text-muted: #9aa4b2;
+
+  --border-color: rgba(255, 255, 255, 0.11);
+  --border-focus: var(--marca-azul-luz);
+
+  /* Lo interactivo vuelve a la marca. El cromo se queda donde le
+     corresponde —el logotipo y las piezas del fondo, que son metal de
+     verdad— y todo lo que se pulsa, se enlaza o se enfoca pasa al azul
+     y al rosa de CGR. */
+  --accent-primary: var(--marca-azul-luz);
+  --accent-primary-hover: #7cc9f2;
+  --accent-secondary: var(--marca-rosa-luz);
+  /* La superficie sobre la que se apoya una pastilla en color de acento.
+     Estaba escrita a pelo como `rgba(0,122,255,0.10)` en dos pantallas —el
+     azul de sistema de iOS, que no es ni de la marca ni del tema— y por eso
+     era lo único de la interfaz que no cambiaba con nada. */
+  --acento-bg: rgba(75, 176, 230, 0.12);
+
+  /* ---- Estados ----
+     Lo único con color de la interfaz, y por eso contenidos: sobre un
+     fondo sin más color, un tono medio ya grita.
+
+     **Salen de los hex exactos de la marca, no a ojo.** Antes eran
+     aproximaciones que había elegido yo; ahora cada estado toma su
+     color de la guía y solo se le sube la luminosidad lo justo para
+     que se lea sobre casi negro —un #1b3d79 o un #869199 puestos tal
+     cual sobre #07090d no se distinguen del fondo—. El tono se
+     conserva; lo que cambia es cuánta luz devuelve.
+
+     El reparto sigue significando lo mismo: azul informativo, naranja
+     esperando a alguien, verde terminado, gris archivado. */
+
+  /* Cool blue #148ec2 */
+  --status-abierto-bg: rgba(20, 142, 194, 0.16);
+  --status-abierto-text: #5cbde8;
+
+  /* Solid blue #1b3d79 — el más oscuro de la marca, así que es el que
+     más hay que levantar para que exista sobre negro. */
+  --status-en-proceso-bg: rgba(27, 61, 121, 0.32);
+  --status-en-proceso-text: #7ea5dd;
+
+  /* Warm orange #d67c2f */
+  --status-espera-proveedor-bg: rgba(214, 124, 47, 0.17);
+  --status-espera-proveedor-text: #e8994f;
+
+  /* Vivid green #a4ae2d */
+  --status-resuelto-bg: rgba(164, 174, 45, 0.17);
+  --status-resuelto-text: #c2cd4a;
+
+  /* Soft grey #869199 */
+  --status-cerrado-bg: rgba(134, 145, 153, 0.16);
+  --status-cerrado-text: #a4afb8;
+
+  /* Peligro: fuera de paleta a propósito. Un borrado o un vencimiento
+     tiene que gritar, y ningún acabado de marca debe significar eso. */
+  --peligro: #ff6f6f;
+  --peligro-bg: rgba(255, 111, 111, 0.12);
+  --peligro-borde: rgba(255, 111, 111, 0.36);
+
+  /* ---- Tipografía ---- */
+  --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-heading: 'Outfit', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* La monoespaciada de la plantilla, auto-alojada; ver `fuentes.css`. La
+     pila de reserva es la del sistema por si el archivo no llegara. */
+  --font-mono: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* **La cara de lo que es código, que no es lo mismo que la de rótulo.**
+     Folios, números de empleado, códigos de activación, configuraciones de
+     red: van monoespaciados porque se leen carácter a carácter, no porque
+     sean decoración. Eso estaba escrito como `monospace` a pelo en once
+     sitios, y ahí está el problema: `--font-mono` solo lo usan las reglas del
+     administrador, así que en su panel un folio de una tabla salía en la mono
+     del sistema justo al lado de un chip en Space Mono. Dos monoespaciadas en
+     la misma fila.
+
+     Con un token propio cada vista tiene la suya: aquí la del sistema, que es
+     lo que el trabajador ya veía y no tiene por qué cambiar, y más abajo
+     Space Mono para la consola. */
+  --font-codigo: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
   --radius-full: 9999px;
-  
-  /* Shadows (Authentic Apple Soft Shadows) */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
-  --shadow-float: 0 20px 40px rgba(0, 0, 0, 0.12);
+
+  /* ---- Sombras ----
+     Sobre negro una sombra no separa nada; lo que separa es la luz
+     del canto. Se mantienen, muy negras, solo para dar peso. */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.34), 0 2px 8px rgba(0, 0, 0, 0.26);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.38), 0 10px 28px rgba(0, 0, 0, 0.34);
+  --shadow-lg: 0 4px 10px rgba(0, 0, 0, 0.40), 0 20px 48px rgba(0, 0, 0, 0.42);
+  --shadow-float: 0 8px 18px rgba(0, 0, 0, 0.44), 0 36px 72px rgba(0, 0, 0, 0.52);
+
+  /* Curva de movimiento: sale rápido y frena despacio, como algo con masa. */
+  --curva: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Que los controles nativos —select, scrollbar, autocompletado— se
+     pinten en oscuro. Sin esto salen blancos y rompen la pantalla. */
+  color-scheme: dark;
 }
 
 * {
@@ -55,20 +218,33 @@
   padding: 0;
 }
 
-body {
+html {
   background-color: var(--bg-primary);
+  min-height: 100%;
+  /* **El hueco de la barra de desplazamiento se reserva siempre.**
+
+     Sin esto, una pantalla corta —Soluciones vacía, Reglas con una sola
+     regla— no tiene barra y sus quince píxeles se los reparte el contenido:
+     todo lo centrado se corre a la derecha. Al volver al tablero, que sí
+     desplaza, se corre de vuelta. Es el mismo salto que se acaba de quitar
+     igualando los anchos de página, pero por el otro lado. */
+  scrollbar-gutter: stable;
+}
+
+body {
+  background: transparent;
   color: var(--text-primary);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
   font-weight: 600;
-  letter-spacing: -0.022em; /* Apple-style tight headers */
+  letter-spacing: -0.021em;
   color: var(--text-primary);
 }
 
@@ -78,130 +254,2623 @@ a {
   transition: color 0.2s ease, opacity 0.2s ease;
 }
 
-a:hover {
-  opacity: 0.8;
+a:hover { color: var(--accent-primary-hover); }
+
+/* ============================================================
+   El lienzo
+   ============================================================
+   Las piezas van en `components/Lienzo.jsx`, en SVG; aquí está
+   solo el marco donde viven.
+
+   La regla que manda sigue siendo la misma: **un desenfoque solo se
+   ve si detrás hay canto duro y mucho rango de luz.** Por eso el
+   fondo es casi negro y las piezas son cromo: la diferencia entre el
+   contorno negro de un alambre y su brillo blanco es todo el rango
+   que hay, y es lo que el vidrio deshace de forma visible.
+
+   La retícula fina de puntos es el seguro: garantiza que haya algo
+   que deshacer en cualquier punto de la pantalla, caiga la tarjeta
+   donde caiga, aunque ninguna pieza pase por detrás.
+   ============================================================ */
+.lienzo {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background-color: var(--bg-primary);
+  background-image:
+    radial-gradient(circle 1.2px at 16px 16px, rgba(255, 255, 255, 0.05) 99%, transparent 100%);
+  background-size: 32px 32px;
 }
 
-/* Glassmorphism / Apple Card Utility */
-.glass-card, .apple-card {
-  background-color: rgba(255, 255, 255, 0.72);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border: 1px solid var(--border-color);
+/* `slice` y no `meet`: la composición está pensada para llenar la
+   pantalla. Con `meet` aparecerían bandas vacías a los lados en
+   monitores anchos, y el vidrio se quedaría sin nada detrás justo en
+   los bordes, que es donde más se nota. */
+.lienzo-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ============================================================
+   Gravedad cero
+   ============================================================
+   Las piezas derivan, giran y cambian de tamaño, cada una con sus
+   propios periodos. Tres animaciones por pieza y ninguna múltiplo de
+   otra: la combinación tarda horas en repetirse, y un bucle que se
+   reconoce deja de parecer algo vivo.
+
+   **La curva es suave y no lineal, a propósito.** En gravedad cero de
+   verdad un objeto va en línea recta a velocidad constante y no
+   vuelve nunca; eso no se puede poner de fondo. Lo que sí ocurre
+   dentro de una nave —y es lo que la gente tiene en la cabeza al
+   decir "flotando"— es que las corrientes de aire empujan las cosas
+   despacio hacia un lado y luego hacia otro.
+
+   **Solo en las pantallas de puerta.** No es una decisión estética:
+   cada fotograma de un fondo en movimiento invalida el fondo que
+   todos los `backdrop-filter` de la página tienen que volver a leer.
+   En el login hay una tarjeta y sale gratis; en el tablero hay quince
+   y saldría carísimo, en una máquina que además atiende tickets.
+   ============================================================ */
+.lienzo--animado .pieza {
+  animation:
+    var(--recorrido) var(--periodo-deriva) ease-in-out infinite,
+    flotarGiro var(--periodo-giro) linear infinite,
+    flotarFondo var(--periodo-escala) ease-in-out infinite;
+  animation-delay: var(--desfase-deriva), var(--desfase-giro), var(--desfase-escala);
+}
+
+/* Tres recorridos. Los puntos no están repartidos por igual ni el
+   trazado es simétrico: una elipse limpia se lee como una órbita
+   mecánica, y lo que se busca es una deriva sin rumbo. */
+.pieza--corta { --recorrido: flotarCorta; }
+.pieza--media { --recorrido: flotarMedia; }
+.pieza--cruce { --recorrido: flotarCruce; }
+.pieza--cruce-inverso { --recorrido: flotarCruceInverso; }
+
+@keyframes flotarCorta {
+  0%   { translate: 0 0; }
+  22%  { translate: 5.1vw 4.4vh; }
+  47%  { translate: 1.8vw 8.9vh; }
+  71%  { translate: -4.6vw 5.2vh; }
+  100% { translate: 0 0; }
+}
+
+@keyframes flotarMedia {
+  0%   { translate: 0 0; }
+  17%  { translate: 6.2vw -4.3vh; }
+  33%  { translate: 9.4vw 3.6vh; }
+  52%  { translate: 3.1vw 8.7vh; }
+  68%  { translate: -4.7vw 5.4vh; }
+  85%  { translate: -5.8vw -2.4vh; }
+  100% { translate: 0 0; }
+}
+
+/* Las que cruzan la pantalla entera. Pasan por detrás del cristal —el
+   `z-index: -1` del lienzo garantiza que siempre van detrás— y ahí es
+   donde el vidrio se luce de verdad: la pieza entra nítida por un lado
+   del panel, se deshace mientras lo atraviesa y sale nítida por el
+   otro. Es el único momento en que se ve *qué* hace el desenfoque, y
+   no solo que hay uno. */
+@keyframes flotarCruce {
+  0%   { translate: 0 0; }
+  27%  { translate: 24vw -5.4vh; }
+  50%  { translate: 48vw 2.8vh; }
+  74%  { translate: 25vw 10.6vh; }
+  100% { translate: 0 0; }
+}
+
+@keyframes flotarCruceInverso {
+  0%   { translate: 0 0; }
+  26%  { translate: -23vw 6.1vh; }
+  50%  { translate: -47vw -3.2vh; }
+  73%  { translate: -24vw -9.8vh; }
+  100% { translate: 0 0; }
+}
+
+/* El giro va alrededor de la inclinación con la que se colocó cada
+   pieza —de ahí el `calc` sobre `--giro`— y es **lineal**: un objeto
+   que gira sin nada que lo frene mantiene su velocidad angular. Con
+   una curva suave parecería que alguien lo empuja y lo detiene.
+
+   La amplitud la pone cada pieza. Las grandes giran ±35° y las
+   pequeñas dan la vuelta completa, y no es capricho: la luz está
+   horneada en el render, así que en una pieza grande y brillante un
+   giro de 180° pone los reflejos abajo y el ojo lo caza. A 9vh de alto
+   y media opacidad, no. */
+@keyframes flotarGiro {
+  from { rotate: var(--giro); }
+  to   { rotate: calc(var(--giro) + var(--amplitud)); }
+}
+
+/* Profundidad. Las piezas se acercan y se alejan un poco: sin esto,
+   siete objetos moviéndose en un plano se leen como calcomanías
+   deslizándose, no como cosas flotando en un espacio. */
+@keyframes flotarFondo {
+  0%, 100% { scale: 0.9; }
+  50%      { scale: 1.08; }
+}
+
+/* Quien pidió menos movimiento no lo recibe: aquí no se acorta la
+   duración como en el resto de la interfaz, se apaga. Un fondo que se
+   mueve solo es exactamente lo que molesta a quien activa esa
+   preferencia. */
+@media (prefers-reduced-motion: reduce) {
+  .lienzo--animado .pieza { animation: none !important; }
+}
+
+/* ---- Las piezas ---- */
+.pieza {
+  position: absolute;
+  line-height: 0;
+
+  /* **El ancho se calcula, no se deduce.**
+     Una versión anterior daba `height` a la caja y `width: auto` a la imagen,
+     que parece lo obvio y es una trampa: la caja está posicionada de forma
+     absoluta, así que su ancho depende del contenido, y el del contenido
+     dependía de la caja. Ante la referencia circular el navegador usa el ancho
+     natural del archivo y la pieza sale estirada un 28 %. */
+  height: var(--alto);
+  width: calc(var(--alto) * var(--proporcion));
+
+  /* Los márgenes negativos centran la caja sobre su punto de anclaje. Antes
+     esto lo hacía un `translateX(-50%)`, pero `translate` hace falta para la
+     deriva: si el centrado ocupara esa propiedad, la animación lo pisaría y la
+     pieza saltaría medio ancho en el primer fotograma.
+
+     Por lo mismo, el espejo va en `transform` y no en `scale`: `scale` es de
+     la animación de profundidad. Las cuatro propiedades —`translate`,
+     `rotate`, `scale` y `transform`— se aplican en ese orden y se componen,
+     así que cada una puede llevar una cosa distinta sin estorbarse. */
+  margin-left: calc(var(--alto) * var(--proporcion) / -2);
+  margin-top: calc(var(--alto) / -2);
+
+  rotate: var(--giro);
+
+  /* **La mezcla va aquí y no en la imagen.**
+     `mix-blend-mode` se funde con lo que hay detrás *dentro de su contexto de
+     apilado*, y `.pieza` crea uno. Con la mezcla puesta en la imagen, ésta se
+     fundía contra su propio contenedor —transparente— en vez de contra el
+     fondo del portal, y aparecían los bordes del rectángulo recortados en
+     diagonal, porque el fondo es #07090d y no #000.
+
+     El brillo bajo es el de las pantallas de trabajo: el render tiene mucho
+     más contraste que cualquier cosa dibujada, y lo que en el login luce, en
+     el tablero tapa el texto. Manda quien tiene quince tarjetas llenas de
+     letra pequeña, no quien tiene una. */
+  mix-blend-mode: screen;
+  filter: brightness(0.5);
+}
+
+.pieza--espejo { transform: scaleX(-1); }
+
+/* En la puerta —login y activación— la pieza puede lucirse: hay un formulario
+   de dos campos y mucho aire alrededor. */
+.lienzo--animado .pieza {
+  filter: brightness(1);
+}
+
+.pieza img {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+/* En pantallas estrechas el contenido ocupa el ancho completo y siete piezas
+   solo estorbarían. Se quedan las dos que dan carácter y desaparece el resto:
+   una pieza que cruza por detrás de una tarjeta que ya ocupa toda la pantalla
+   no luce nada, solo cuesta. */
+@media (max-width: 820px) {
+  .pieza { display: none; }
+  .pieza--media:first-of-type { display: block; --alto: 34vh; opacity: 0.5; }
+}
+
+/* Velo y viñeta.
+   El velo plano baja las piezas de protagonistas a fondo: conserva
+   sus cantos —lo único que el vidrio necesita de ellas— y les quita
+   la fuerza para competir con el texto. La viñeta cierra los bordes
+   para que nada se corte en seco. */
+.lienzo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(7, 11, 21, 0.34), rgba(7, 11, 21, 0.34)),
+    radial-gradient(ellipse 136% 120% at 50% 44%,
+      transparent 34%, rgba(7, 11, 21, 0.44) 76%, rgba(7, 11, 21, 0.9) 100%);
+}
+
+/* ============================================================
+   Vidrio
+   ============================================================
+   Sobre oscuro el vidrio no es blanco diluido: es una lámina muy poco
+   teñida que deja pasar casi todo, y lo que la dibuja es el canto.
+
+     1. **`brightness` por debajo de 1.** Es la pieza que faltaba y la
+        que separa el vidrio oscuro del claro. Un vidrio esmerilado
+        puesto delante de una luz la *apaga*; no la enciende. Sin esto,
+        una esfera brillante detrás de una tarjeta atraviesa la lámina
+        entera y deja el texto ilegible —pasó, y no se arregla subiendo
+        el relleno blanco, que solo lo vuelve leche.
+     2. Poco relleno, y por encima del oscurecido: lo justo para el
+        tinte. `blur` alto y `saturate` por encima de 100%, porque el
+        desenfoque lava el color y sin recuperarlo se ve gris y sucia.
+     3. Canto superior claro y canto inferior apagado. En oscuro este
+        es el que hace casi todo el trabajo: la sombra ya no separa
+        nada contra un fondo negro, la luz del borde sí.
+     4. Un reflejo diagonal, por debajo del contenido.
+   ============================================================ */
+.glass-card, .apple-card, .tarjeta-cristal-cuerpo {
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.03)),
+    linear-gradient(155deg, rgba(14, 19, 27, 0.11), rgba(8, 11, 16, 0.22));
+  /* La receta del panel del login, para todas las superficies. Un cuerpo
+     oscuro al 40% convertía el vidrio en una lámina opaca: se veía que había
+     algo detrás, pero no se veía pasar. Al 11-22% las esferas cruzan por
+     debajo y se lee como cristal de verdad.
+
+     **El `brightness` es 0.66 y no el 0.96 que tenía el login, y eso hay que
+     explicarlo.** El login aguanta 0.96 porque encima solo hay cinco líneas
+     de texto blanco y grande. Una pantalla de trabajo tiene cabeceras de
+     tabla y texto secundario en gris, y con una esfera rosa a opacidad
+     entera por detrás esos grises desaparecen. Se probaron 0.96, 0.78, 0.66,
+     0.55 y 0.42 sobre pantallas reales; 0.58 junto con subir un escalón los
+     dos grises de texto es donde se lee todo sin cerrar el vidrio.
+
+     La alternativa era atenuar las esferas, y se descartó: eso las dejaría
+     de dar el color exacto de la guía. Atenuar es trabajo del vidrio, no del
+     fondo — un cristal ahumado no cambia el color de lo que hay detrás, lo
+     apaga. Así las esferas siguen siendo `#1b3d79` y `#b31671` literales. */
+  backdrop-filter: blur(46px) saturate(135%) brightness(0.58);
+  -webkit-backdrop-filter: blur(46px) saturate(135%) brightness(0.58);
+  /* El canto. Arriba e izquierda es donde pega la luz, así que ese borde va
+     casi blanco y el resto se apaga; un borde parejo se lee como un recuadro
+     dibujado, no como el filo de una lámina. */
+  border: 1px solid rgba(255, 255, 255, 0.20);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.3s ease, transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  box-shadow:
+    var(--shadow-float),
+    inset 0 1px 0 rgba(255, 255, 255, 0.52),
+    inset 1px 0 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+  transition: box-shadow 0.35s var(--curva), transform 0.35s var(--curva),
+              background-color 0.35s var(--curva);
+}
+
+/* El cuerpo de `GlassCard` ya no define su propio cristal: entra en la regla
+   de arriba. Antes tenía un cuerpo oscuro al 42% metido en un
+   `inset 0 0 0 100vmax` y un velo blanco más fuerte, así que Métricas y
+   Estado del Sistema se leían de otro material que el resto del portal.
+   Aquí queda solo lo suyo: el alto, el radio y el halo del borde eléctrico. */
+.tarjeta-cristal-cuerpo {
+  height: 100%;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow:
+    var(--shadow-float),
+    0 0 24px var(--halo),
+    inset 0 1px 0 rgba(255, 255, 255, 0.52),
+    inset 1px 0 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* El canto iluminado, que se apaga al bajar. Va en un pseudo-elemento
+   para no gastar el borde real, que la tarjeta ya usa. */
+.glass-card::before, .apple-card::before, .tarjeta-cristal-cuerpo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(152deg,
+    rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.14) 34%, rgba(255, 255, 255, 0) 62%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* El reflejo. `z-index: -1` lo mete por debajo del contenido —con el
+   `isolation: isolate` de arriba no se cae más atrás que eso— así que
+   el texto no se lava. Se corta en el 50% porque un brillo que llega
+   abajo del todo parece un degradado, no un reflejo. */
+.glass-card::after, .apple-card::after, .tarjeta-cristal-cuerpo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(146deg,
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(255, 255, 255, 0.04) 26%,
+    rgba(255, 255, 255, 0) 50%);
 }
 
 .apple-card:hover {
-  box-shadow: var(--shadow-md);
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.045)),
+    linear-gradient(155deg, rgba(16, 21, 29, 0.50), rgba(10, 14, 20, 0.62));
+  box-shadow:
+    var(--shadow-float),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06);
 }
 
-/* Buttons */
-.btn-primary {
-  background-color: var(--accent-primary);
-  color: #FFFFFF;
-  font-family: var(--font-sans);
-  font-weight: 500;
-  font-size: 0.95rem;
-  letter-spacing: -0.01em;
-  padding: 10px 22px;
-  border-radius: var(--radius-full);
-  border: none;
-  cursor: pointer;
-  display: inline-flex;
+/* ============================================================
+   Fondo por shader
+   ============================================================
+   El lienzo de WebGL de las pantallas de puerta. Va detrás de todo,
+   igual que el lienzo de las piezas — y por eso los dos no conviven:
+   en el login se monta este y las piezas se quedan para el resto del
+   portal.
+   ============================================================ */
+.fondo-shader {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: -1;
+  /* Que no se pueda seleccionar ni arrastrar: es decoración, no contenido. */
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ============================================================
+   La puerta
+   ============================================================
+   El login con la estructura del componente Mercury: cabecera a la
+   izquierda, campos sin caja y botón con gota. Ver `pages/Login.jsx`
+   para qué se tomó de la plantilla y qué no.
+   ============================================================ */
+.puerta {
+  min-height: 100vh;
+  /* `100%` y no `100vw`: el ancho de la ventana incluye la barra de
+     desplazamiento, así que `100vw` provoca un scroll horizontal de unos
+     quince píxeles en cuanto aparece la vertical. */
+  width: 100%;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
-  box-shadow: 0 2px 6px rgba(0, 122, 255, 0.2);
+  padding: 20px;
+  position: relative;
 }
 
-.btn-primary:hover {
-  background-color: var(--accent-primary-hover);
-  box-shadow: 0 4px 10px rgba(0, 122, 255, 0.3);
-  transform: translateY(-1px);
+.puerta-idioma {
+  position: absolute;
+  top: 24px;
+  right: 24px;
 }
 
-.btn-primary:active {
-  transform: scale(0.97);
-  box-shadow: 0 1px 2px rgba(0, 122, 255, 0.1);
+.puerta-panel {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 440px;
+  padding: 32px 34px 24px;
+  border-radius: var(--radius-lg);
 }
 
-.btn-secondary {
-  background-color: var(--bg-tertiary);
+/* ---- Cabecera ----
+   Centrada. La plantilla la traía alineada a la izquierda, que es parte de su
+   carácter, pero en una puerta de acceso el eje de simetría ayuda: no hay nada
+   que escanear, solo dos campos, y todo cae sobre la misma línea. */
+.puerta-cabecera {
+  margin-bottom: 26px;
+  text-align: center;
+}
+
+.puerta-rotulo {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* La placa del logotipo. El relleno no es decorativo: un logotipo pegado al
+   borde de su fondo se lee como recortado, y la guía de casi cualquier marca
+   reserva un aire mínimo alrededor. */
+.puerta-marca {
+  display: block;
+  width: 230px;
+  height: auto;
+  margin: 0 auto;
+  padding: 18px 24px;
+  background: #ffffff;
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45),
+              0 2px 8px rgba(0, 0, 0, 0.30);
+}
+
+.puerta-planta {
+  margin-top: 12px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.puerta-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 26px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  color: var(--peligro);
+  background: var(--peligro-bg);
+  border: 1px solid var(--peligro-borde);
+}
+
+/* ---- Campos sin caja ----
+   Solo una línea abajo.
+
+   La plantilla corría el grupo entero a la derecha al recibir el foco. Se
+   quitó al centrar: sobre un eje de simetría, un bloque que se desplaza a un
+   lado se lee como un desajuste y no como una intención. La línea que se
+   enciende ya dice dónde estás, y lo dice mejor. */
+.campo-linea {
+  position: relative;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.campo-linea label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.campo-linea input {
+  width: 100%;
+  padding: 10px 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-weight: 500;
-  font-size: 0.95rem;
-  letter-spacing: -0.01em;
-  padding: 10px 22px;
-  border-radius: var(--radius-full);
+  font-size: 1.05rem;
+  outline: none;
+  transition: border-color 0.4s ease;
+  /* **Lo que se escribe, no.** El campo acepta también el correo de la
+     empresa, y un correo son veinticinco caracteres: centrado, el texto salta
+     de sitio con cada tecla y se vuelve imposible de revisar mientras se
+     teclea. La etiqueta se centra, el contenido empieza donde se empieza a
+     escribir. */
+  text-align: left;
+}
+
+.campo-linea input::placeholder { color: var(--text-muted); }
+
+/* La línea que se enciende. Crece de cero al ancho completo, y el resplandor
+   la separa del borde apagado que hay debajo. */
+.campo-linea-luz {
+  position: absolute;
+  left: 0;
+  width: 0;
+  height: 2px;
+  margin-top: -2px;
+  display: block;
+  background: var(--marca-azul-luz);
+  box-shadow: 0 0 15px var(--marca-azul-luz);
+  transition: width 0.6s cubic-bezier(0.2, 1, 0.3, 1);
+}
+
+.campo-linea input:focus ~ .campo-linea-luz { width: 100%; }
+
+.campo-linea-ayuda {
+  display: block;
+  margin-top: 10px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* ---- El botón de la gota ----
+   El `filter` del contenedor es el mismo truco del fondo: desenfoca y sube el
+   contraste del alfa, así el borde de la gota y el del botón se sellan cuando
+   se tocan. Sin él, la gota se ve como un rectángulo redondeado creciendo por
+   detrás; con él, el botón parece de líquido. */
+.boton-gota {
+  position: relative;
+  margin-top: 32px;
+  filter: url('#fundir-boton');
+}
+
+.boton-gota-liquido {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  border-radius: 50px;
+  /* La misma que los botones del portal. Antes era un degradado propio de dos
+     paradas: el mismo par de colores, pero sin la banda, así que el botón de
+     la puerta y los de dentro no acababan de parecer el mismo control. */
+  background: var(--degradado-azul);
+  transform: translate(-50%, -50%);
+  transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+              filter 0.5s ease;
+}
+
+.boton-gota:hover .boton-gota-liquido {
+  transform: translate(-50%, -50%) scale(1.05, 1.2);
+  filter: brightness(1.25);
+}
+
+.boton-gota-base {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  padding: 16px 40px;
   border: none;
+  background: transparent;
+  color: #ffffff;
+  font-family: var(--font-sans);
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: letter-spacing 0.3s ease;
+}
+
+.boton-gota-base:hover:not(:disabled) { letter-spacing: 0.2em; }
+.boton-gota-base:disabled { cursor: not-allowed; opacity: 0.6; }
+
+@media (prefers-reduced-motion: reduce) {
+  .campo-linea-luz,
+  .boton-gota-liquido,
+  .boton-gota-base { transition: none; }
+}
+
+.puerta-pie {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+}
+
+.puerta-pie a {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--accent-primary);
+  text-decoration: none;
+}
+
+/* ============================================================
+   Fondo de esferas líquidas
+   ============================================================
+   El "gooey" del componente Mercury, en los dos primarios de CGR:
+   Solid blue `#1b3d79` y Fancy pink `#b31671`.
+
+   **Las esferas van alternadas, no mezcladas.** Cada una es de un
+   color, no de un degradado de los dos, y eso es lo que hace que el
+   efecto valga aquí: cuando una azul y una rosa se acercan, el filtro
+   las funde y en el puente aparecen los dos primarios tocándose. Es
+   literalmente lo que hace el logotipo —letras azules, swoosh rosa—,
+   solo que en movimiento. Con las dos dentro de cada esfera no habría
+   nada que fundir: todas serían iguales.
+
+   Dentro de cada esfera sí hay un degradado, del hex de la guía a una
+   versión aclarada, y eso es volumen, no color: sin él la esfera se
+   ve plana.
+   ============================================================ */
+/* El fondo de flujo. Mismo sitio que las esferas: fijo, detrás de todo y sin
+   recibir eventos — el clic tiene que llegar a la página, y el propio
+   componente lo escucha en `window` para lanzar su onda. */
+.fondo-burbujas {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--bg-primary);
+}
+
+.filtros-svg {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.fondo-burbujas-escena {
+  position: absolute;
+  inset: 0;
+  filter: url('#fundir');
+  /* Sin atenuar en la puerta: cualquier opacidad por debajo de 1 mezcla las
+     esferas con el fondo y deja de ser el color de la guía. */
+  opacity: 1;
+}
+
+.burbuja {
+  position: absolute;
+  border-radius: 50%;
+  /* El mismo criterio que los botones: el color plano de marca y la luz
+     encima. Antes iba de `--burbuja-luz` a `--burbuja-base`, y ese aclarado
+     ocupaba media esfera, así que lo que se veía no era Solid blue sino un
+     azul medio inventado. */
+  background: var(--luz-esfera), var(--burbuja-base);
+  animation: flotarBurbuja 20s infinite alternate ease-in-out;
+  /* **Sin `filter: blur()` propia.**
+     El original desenfocaba cada esfera por separado *además* del desenfoque
+     del filtro que las funde. Eso es pagar dos veces: el filtro ya difumina
+     doce píxeles, y es justo ese difuminado el que permite que dos esferas se
+     sellen. Con las esferas nítidas el efecto sale igual —o mejor, porque el
+     salto de contraste es más limpio— y se ahorra un desenfoque a pantalla
+     completa por fotograma. */
+  box-shadow:
+    inset -10px -10px 20px rgba(0, 0, 0, 0.45),
+    10px 10px 30px var(--burbuja-halo);
+}
+
+/* La luz de una esfera no cae como la de un botón: viene de arriba a la
+   izquierda y se curva. Por eso aquí es radial y no lineal — pero sigue
+   siendo luz blanca y negra sobre el color, no otro color. */
+:root {
+  --luz-esfera: radial-gradient(circle at 32% 28%,
+    rgba(255, 255, 255, 0.26) 0%,
+    rgba(255, 255, 255, 0.08) 34%,
+    rgba(0, 0, 0, 0.00) 58%,
+    rgba(0, 0, 0, 0.22) 100%);
+}
+
+/* Solid blue · #1b3d79 · Pantone 288 U · RAL 5010 */
+.burbuja--azul {
+  --burbuja-base: #1b3d79;
+  --burbuja-halo: rgba(27, 61, 121, 0.30);
+}
+
+/* Fancy pink · #b31671 · Pantone 233 U · RAL 4003 */
+.burbuja--rosa {
+  --burbuja-base: #b31671;
+  --burbuja-halo: rgba(179, 22, 113, 0.28);
+}
+
+/* Dentro del portal las esferas se congelan y se apagan.
+   Congelarlas quita el coste por fotograma; apagarlas es por legibilidad: en
+   el login hay dos campos y mucho aire, en el tablero hay quince tarjetas con
+   letra pequeña y el hueco entre ellas deja ver el fondo entero. Es la misma
+   regla que ya rige el brillo del vidrio y el de las piezas. */
+.fondo-burbujas--quieto .burbuja {
+  animation-play-state: paused;
+}
+
+.fondo-burbujas--quieto .fondo-burbujas-escena {
+  /* También a opacidad entera dentro del portal: atenuar es la única forma
+     de calmar el fondo, y es justamente lo que dejaría de dar el color de la
+     guía —una esfera al 30 % ya no es `#1b3d79`, es `#1b3d79` mezclado con el
+     negro—. Lo que calma aquí es que las esferas no se mueven. */
+  opacity: 1;
+}
+
+@keyframes flotarBurbuja {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(10vw, 20vh) scale(1.2); }
+  66%  { transform: translate(-5vw, 10vh) scale(0.8); }
+  100% { transform: translate(5vw, -10vh) scale(1.1); }
+}
+
+/* Quien pidió menos movimiento no lo recibe: las esferas se quedan donde
+   están y el paralaje ni se engancha. El fondo sigue viéndose. */
+@media (prefers-reduced-motion: reduce) {
+  .burbuja { animation: none; }
+}
+
+/* ============================================================
+   Tarjeta de cristal con borde eléctrico
+   ============================================================
+   El aspecto de `glass-cards`, sin su comportamiento. Ver
+   `components/GlassCard.jsx` para qué se quitó y por qué.
+   ============================================================ */
+.tarjeta-cristal {
+  position: relative;
+  border-radius: 24px;
+  /* Aísla el apilado para que el borde, que va en `z-index: -1`, se quede
+     detrás del contenido de la tarjeta pero delante de su fondo. */
+  isolation: isolate;
+}
+
+/* ---- El borde eléctrico ----
+   **Es un anillo recortado, no una placa detrás.** El original ponía el
+   gradiente cónico en un `div` a `inset: -3px` sin recortar, y sobre un
+   cristal translúcido eso no da un borde: la placa entera se ve a través de
+   la tarjeta y le tiñe el centro. Con la máscara —relleno menos contenido—
+   solo sobreviven los tres píxeles del canto, que es lo que "borde" quiere
+   decir. El resplandor exterior se conserva aparte, con una sombra. */
+.tarjeta-cristal-borde {
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: 27px;
+  padding: 3px;
+  background: conic-gradient(
+    from var(--angulo, 0deg),
+    transparent 0deg,
+    var(--borde-fuerte) 60deg,
+    var(--borde-medio) 120deg,
+    transparent 180deg,
+    var(--borde-suave) 240deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ---- Los tonos ----
+   **Salen de la guía de marca, no de aproximaciones.** La plantilla pedía
+   `#0A4D98` y `#00A3E0`; son parecidos pero no son los de CGR. Aquí van el
+   Solid blue `#1b3d79` y el Cool blue `#148ec2` exactos, con el rosa
+   `#b31671` para la variante de acento. */
+.tarjeta-cristal--azul {
+  --borde-fuerte: rgba(20, 142, 194, 0.85);
+  --borde-medio: rgba(27, 61, 121, 0.65);
+  --borde-suave: rgba(255, 255, 255, 0.28);
+  --halo: rgba(20, 142, 194, 0.22);
+}
+.tarjeta-cristal--rosa {
+  --borde-fuerte: rgba(179, 22, 113, 0.85);
+  --borde-medio: rgba(227, 95, 172, 0.55);
+  --borde-suave: rgba(255, 255, 255, 0.26);
+  --halo: rgba(179, 22, 113, 0.22);
+}
+.tarjeta-cristal--neutro {
+  --borde-fuerte: rgba(255, 255, 255, 0.55);
+  --borde-medio: rgba(255, 255, 255, 0.28);
+  --borde-suave: rgba(255, 255, 255, 0.12);
+  --halo: rgba(255, 255, 255, 0.12);
+}
+
+/* El giro del borde. `@property` es lo que permite animar un ángulo: sin
+   declararlo, el navegador trata `--angulo` como texto y salta del principio
+   al final en vez de recorrerlo. */
+@property --angulo {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.tarjeta-cristal--girando .tarjeta-cristal-borde {
+  animation: girarBorde 8s linear infinite;
+}
+
+@keyframes girarBorde {
+  to { --angulo: 360deg; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tarjeta-cristal--girando .tarjeta-cristal-borde { animation: none; }
+}
+
+/* ---- El cuerpo ---- */
+.tarjeta-cristal-cuerpo {
+  position: relative;
+  height: 100%;
+  border-radius: 24px;
+  overflow: hidden;
+  background: linear-gradient(145deg,
+    rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.05));
+  /* Además del velo blanco va un cuerpo oscuro, por lo mismo que las demás
+     tarjetas del portal: sin él, lo que hay detrás llega casi entero y el
+     texto secundario pierde. */
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    0 0 24px var(--halo),
+    inset 0 0 0 100vmax rgba(10, 14, 21, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(46px) saturate(135%) brightness(0.58);
+  -webkit-backdrop-filter: blur(46px) saturate(135%) brightness(0.58);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Los cuatro reflejos de la plantilla original —velo, brillo, canto y
+   esmerilado— se quitaron: eran precisamente lo que hacía que estas tarjetas
+   se leyeran de otro material. El filo y el reflejo salen ahora de los
+   pseudo-elementos que comparten con el resto de tarjetas. */
+
+/* El contenido, por encima de los cuatro adornos. */
+.tarjeta-cristal-contenido {
+  position: relative;
+  z-index: 1;
+  padding: var(--relleno-tarjeta, 24px);
+}
+
+/* ============================================================
+   La ventana
+   ============================================================
+   Un modificador de `.apple-card`, solo para las dos pantallas que
+   son puerta —entrar y activar—. Ahí no hay tablas ni listas: hay
+   cinco líneas de texto y mucho aire, así que el cristal puede
+   abrirse mucho más que en el resto del portal sin costarle nada a
+   la lectura. En el tablero eso mismo dejaría el texto peleando con
+   un anillo cromado, que ya pasó una vez.
+   ============================================================ */
+/* `.ventana-cristal` era el modificador que separaba el panel del login del
+   resto del portal. Ahora que todas las superficies llevan esa misma receta
+   ya no distingue nada, así que se queda vacío en vez de desaparecer: sigue
+   puesto en el marcado del login y es el sitio donde volver a diferenciarlo
+   si algún día hace falta. */
+
+/* ============================================================
+   Botones
+   ============================================================
+   Un solo mecanismo para los tres, el mismo del botón del login:
+
+   **el botón no tiene fondo; la gota es su superficie.** El
+   `background` del elemento es transparente y todo el color vive en
+   un `::before` que ocupa el botón entero, se estira al pasar el
+   ratón y va sellado por `#fundir-boton`, que funde su borde con el
+   del botón para que el estirón parezca líquido y no un rectángulo
+   creciendo por detrás.
+
+   Esa distinción es la que decide si queda limpio. El intento
+   anterior dejaba el fondo en el botón y ponía la gota **detrás**:
+   dos capas de distinto color, y al pasar el ratón asomaba un halo
+   por los cantos. Se veía como algo pegado encima, que es justo lo
+   que no es.
+
+   La gota nunca baja de opacidad entera, y eso tampoco es un
+   detalle: la matriz de `#fundir-boton` multiplica el alfa por 19 y
+   le resta 9, así que cualquier cosa por debajo de 0.47 da forma
+   vacía — y como el filtro compone con `atop`, el contenido se
+   recorta contra esa forma y el botón desaparece entero, icono
+   incluido. Por eso el encendido de color no se hace atenuando la
+   gota sino con una segunda capa (`::after`) por encima de una
+   primera que siempre es opaca.
+   ============================================================ */
+
+.btn-primary,
+.btn-acento,
+.btn-secondary {
+  /* `position: relative` no es decorativo: la gota es un `::before`
+     con `inset: 0`, que se mide contra el ancestro posicionado más
+     cercano. Sin esto se estiraba hasta el contenedor de la tarjeta
+     y pintaba un rectángulo enorme por detrás del contenido.
+     `isolation` deja el apilado resuelto para que el `z-index: -1`
+     de la gota se quede dentro del botón y no detrás de la tarjeta. */
+  position: relative;
+  isolation: isolate;
+  background: transparent;
+  border: none;
+  filter: url('#fundir-boton');
+  color: #ffffff;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.93rem;
+  letter-spacing: -0.005em;
+  padding: 11px 22px;
+  border-radius: var(--radius-full);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: letter-spacing 0.4s var(--curva), color 0.3s ease;
 }
 
-.btn-secondary:hover {
-  background-color: rgba(0, 0, 0, 0.06);
+/* La capa de reposo. Opaca siempre, por lo del filtro. */
+.btn-primary::before,
+.btn-acento::before,
+.btn-secondary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+              filter 0.5s ease;
 }
 
-.btn-secondary:active {
-  transform: scale(0.97);
+.btn-primary::before { background: var(--degradado-azul); }
+.btn-acento::before  { background: var(--degradado-rosa); }
+
+/* Confirmar algo destructivo. Antes esto era un `background` rojo escrito en
+   línea sobre el botón principal, que es justo lo que este sistema no
+   admite: el botón es transparente a propósito, así que ese rojo se pintaba
+   **por detrás** de la gota azul y asomaba por los cantos al estirarse. El
+   color tiene que ir en la gota, no en el botón. */
+.btn-primary--peligro::before { background: var(--degradado-peligro); }
+
+/* El estirón. Distinto en cada eje porque un líquido empujado no crece
+   igual en las dos direcciones; con la misma cifra parecería un zoom.
+
+   Y es grande a propósito: el botón del login usa 1.05 y 1.2, pero mide
+   370 px de ancho, así que ese 5 % son veinte píxeles de bulto. En uno
+   de 170 el mismo porcentaje son cuatro y no se ve. Lo que hay que
+   igualar entre los dos no es el porcentaje, es cuánto se mueve el borde. */
+.btn-primary:hover:not(:disabled)::before,
+.btn-acento:hover:not(:disabled)::before,
+.btn-secondary:hover:not(:disabled)::before,
+.btn-primary:hover:not(:disabled)::after,
+.btn-acento:hover:not(:disabled)::after,
+.btn-secondary:hover:not(:disabled)::after {
+  transform: scale(1.09, 1.34);
+  filter: brightness(1.15);
 }
 
-/* Form Inputs */
+/* La letra se abre. Es la mitad del efecto: el bulto lo hace el líquido,
+   pero lo que de verdad se nota es que la palabra se estira dentro de él. */
+.btn-primary:hover:not(:disabled),
+.btn-acento:hover:not(:disabled),
+.btn-secondary:hover:not(:disabled) {
+  letter-spacing: 0.09em;
+}
+
+/* Al presionar, la gota se hunde en vez de encogerse el botón entero:
+   así el texto no se mueve y el líquido sí. */
+.btn-primary:active:not(:disabled)::before,
+.btn-acento:active:not(:disabled)::before,
+.btn-secondary:active:not(:disabled)::before,
+.btn-secondary:active:not(:disabled)::after {
+  transform: scale(0.97, 0.94);
+}
+
+.btn-primary:disabled,
+.btn-acento:disabled,
+.btn-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ---- Secundario ----
+   En reposo es una pastilla oscura y opaca, no vidrio. El vidrio se
+   descartó por dos razones: `backdrop-filter` en sesenta botones es
+   sesenta lecturas del fondo por fotograma, y sobre todo un relleno
+   translúcido no puede llevar el filtro de fusión — se queda por debajo
+   del umbral de alfa y borra el botón. Opaca sí lo lleva, y por eso el
+   secundario se estira exactamente igual que el principal en vez de
+   quedarse con un canto rectangular asomando.
+
+   Al pasar el ratón se enciende con un degradado de marca: azules y
+   rosas **alternados por posición**, así una fila de acciones queda
+   azul, rosa, azul, rosa. El encendido es una segunda capa que sube de
+   opacidad encima de la primera, no un cambio de `background` — los
+   degradados no se interpolan, así que cambiarlo daría un salto seco. */
+.btn-secondary {
+  color: var(--text-secondary);
+  --encendido: var(--degradado-azul);
+}
+
+/* `:where()` no suma especificidad, así que los modificadores de abajo
+   —peligro, éxito— pueden ganarle a la alternancia sin pelearse a base
+   de selectores cada vez más largos. */
+.btn-secondary:where(:nth-of-type(even)) { --encendido: var(--degradado-rosa); }
+.btn-secondary--peligro { --encendido: var(--degradado-peligro); color: var(--peligro); }
+.btn-secondary--exito   { --encendido: var(--degradado-verde);   color: var(--status-resuelto-text); }
+
+.btn-secondary::before {
+  background: #161f2f;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.btn-secondary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--encendido);
+  opacity: 0;
+  transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+              opacity 0.35s ease,
+              filter 0.5s ease;
+}
+
+.btn-secondary:hover:not(:disabled) { color: #ffffff; }
+.btn-secondary:hover:not(:disabled)::after { opacity: 1; }
+
+/* **El color se queda puesto al pulsar.** Un clic con el ratón deja el foco
+   en el botón, así que `:focus` es exactamente "este es el que acabo de
+   tocar" — y se apaga solo en cuanto se pulsa cualquier otra cosa. Se queda
+   el color, no el estirón: un botón permanentemente hinchado se leería como
+   un fallo. Y como el color vive en `--encendido`, el que se ilumina en rosa
+   se queda rosa y el que se ilumina en azul se queda azul, sin decidir nada
+   aquí. */
+.btn-secondary:focus:not(:disabled) { color: #ffffff; }
+.btn-secondary:focus:not(:disabled)::after { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary::before,
+  .btn-acento::before,
+  .btn-secondary::before,
+  .btn-secondary::after { transition: none; }
+}
+
+/* ---- Chips de filtro del tablero ----
+   Un grupo de seis, uno de ellos siempre encendido. Toda su apariencia
+   estaba escrita en línea, incluido el degradado del activo, lo que los
+   dejaba fuera del sistema: no había forma de darles la gota desde la hoja
+   porque un `style` en línea le gana a cualquier regla. Aquí en clases, con
+   el mismo mecanismo de los botones —pastilla opaca de reposo, gota de
+   marca que se enciende encima— y el activo con esa gota fija. */
+.chip-filtro {
+  position: relative;
+  isolation: isolate;
+  background: transparent;
+  border: none;
+  filter: url('#fundir-boton');
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--text-secondary);
+  --encendido: var(--degradado-azul);
+  transition: color 0.25s ease, letter-spacing 0.4s var(--curva);
+}
+
+.chip-filtro:where(:nth-of-type(even)) { --encendido: var(--degradado-rosa); }
+
+/* Las pestañas son chips con más aire y un icono al lado. */
+.chip-filtro--pestana {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* El seleccionado conserva el color con el que se ilumina, por lo mismo que
+   el enlace activo de la barra: si al pasar el ratón se pone rosa y al
+   pulsarlo se pusiera azul, el clic parecería haber hecho otra cosa. */
+.chip-filtro--activo { color: #ffffff; }
+
+.chip-filtro::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: #161f2f;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.chip-filtro::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--encendido);
+  opacity: 0;
+  transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+              opacity 0.35s ease, filter 0.5s ease;
+}
+
+.chip-filtro--activo::after { opacity: 1; }
+.chip-filtro:hover::after { opacity: 1; }
+
+/* **El foco no enciende aquí, y en los botones sueltos sí.** La diferencia es
+   que este grupo ya dice cuál está elegido: si además se encendiera el que
+   tiene el foco, se verían dos a la vez —que es exactamente lo que pasaba en
+   las pestañas de Temas—. El destello al pulsar existe para responder "este
+   es el que acabo de tocar" cuando no hay nada más que lo diga. */
+.chip-filtro:hover { color: #ffffff; letter-spacing: 0.045em; }
+.chip-filtro:hover::before,
+.chip-filtro:hover::after { transform: scale(1.08, 1.30); filter: brightness(1.15); }
+.chip-filtro:active::before,
+.chip-filtro:active::after { transform: scale(0.97, 0.94); }
+
+/* Igual que en la barra de navegación: `overflow-x: auto` recorta también
+   en vertical, y ahí es donde crece la gota. Se le hace sitio con relleno
+   y se devuelve con margen negativo para no mover la fila. */
+.filtros-estado {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 8px 0;
+  margin: -8px 0;
+}
+.filtros-estado::-webkit-scrollbar { display: none; }
+
+/* ---- Burbuja del asistente ----
+   Redonda y de 56 px, así que el estirón no puede ser el de los botones:
+   1.09 por 1.34 sobre un círculo da un huevo. Crece casi parejo y deja que
+   el filtro haga el resto. */
+.boton-chat {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  isolation: isolate;
+  filter: url('#fundir-boton');
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.boton-chat::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--degradado-azul);
+  box-shadow: var(--shadow-lg);
+  transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+              filter 0.5s ease;
+}
+
+.boton-chat:hover::before { transform: scale(1.14, 1.20); filter: brightness(1.15); }
+.boton-chat:active::before { transform: scale(0.95); }
+
+@media (prefers-reduced-motion: reduce) {
+  .chip-filtro::before,
+  .chip-filtro::after,
+  .boton-chat::before { transition: none; }
+}
+
+/* La pastilla de marca.
+   El mismo acabado del botón principal, en cuadrado: hace de icono de paso
+   en la activación. Estaba escrita a mano en varios sitios y en todos con
+   letra blanca; aquí una vez, y ahora en azul de CGR, así que el contenido
+   vuelve a ir en blanco. */
+.pastilla-marca {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--degradado-azul);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5),
+              0 4px 16px rgba(27, 61, 121, 0.42),
+              inset 0 1px 0 rgba(255, 255, 255, 0.45),
+              inset 0 -1px 0 rgba(0, 0, 0, 0.28);
+}
+
+
+/* ============================================================
+   Formularios
+   ============================================================ */
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   margin-bottom: 20px;
 }
 
+/* Las etiquetas de campo, con las medidas de `.form-group label` del
+   original: once píxeles, versalitas y **sin espaciado extra**. El rótulo de
+   marca lleva los cuatro píxeles porque va solo y cruza la pantalla; la
+   etiqueta de un campo no, y separarla igual la convertía en otro titular
+   compitiendo con el de arriba. */
+[data-fondo="flujo"] .form-group label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-left: 0;
+}
+
 .form-group label {
-  font-size: 0.85rem;
-  font-weight: 500;
+  font-size: 0.82rem;
+  font-weight: 600;
   color: var(--text-secondary);
+  letter-spacing: 0.01em;
   margin-left: 2px;
 }
 
 .form-input, .form-select, .form-textarea {
-  background-color: var(--bg-tertiary);
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  padding: 14px 16px;
-  color: var(--text-primary);
-  font-family: var(--font-sans);
+  /* Los campos van al revés que las tarjetas: **más oscuros** que su
+     alrededor. Sobre vidrio, un campo aún más claro se lee como otra
+     tarjeta encima; uno oscuro se lee como un hueco donde se escribe. */
+  background: rgba(4, 8, 16, 0.52);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
   font-size: 0.95rem;
-  outline: none;
-  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  width: 100%;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
+.form-input::placeholder, .form-textarea::placeholder { color: var(--text-muted); }
+
 .form-input:hover, .form-select:hover, .form-textarea:hover {
-  background-color: rgba(0, 0, 0, 0.05);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .form-input:focus, .form-select:focus, .form-textarea:focus {
-  background-color: #FFFFFF;
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+  outline: none;
+  border-color: var(--marca-azul-luz);
+  background: rgba(4, 8, 16, 0.62);
+  /* Halo en el azul claro de marca. Ancho suficiente para verse a un
+     metro, que es la distancia real en una terminal de planta. */
+  box-shadow: 0 0 0 4px rgba(75, 176, 230, 0.22),
+              inset 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
-/* Badges */
-.badge {
-  padding: 4px 12px;
-  border-radius: var(--radius-full);
-  font-size: 0.75rem;
+.form-textarea { resize: vertical; min-height: 84px; line-height: 1.6; }
+
+/* ---- Barra de aviso ----
+   El mismo bloque estaba escrito a mano en seis páginas. Aquí una vez, y con
+   `role="alert"` en el componente para que un lector de pantalla lo anuncie:
+   sin eso, quien no ve la barra se queda mirando una lista vacía creyendo que
+   no hay nada, cuando lo que pasa es que no se pudo traer. */
+.aviso-barra {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 13px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid;
+  font-size: 0.9rem;
+}
+.aviso-barra svg { flex-shrink: 0; }
+
+.aviso-barra--atencion {
+  color: var(--status-espera-proveedor-text);
+  background: var(--status-espera-proveedor-bg);
+  border-color: rgba(214, 124, 47, 0.34);
+}
+.aviso-barra--peligro {
+  color: var(--peligro);
+  background: var(--peligro-bg);
+  border-color: var(--peligro-borde);
+}
+.aviso-barra--exito {
+  color: var(--status-resuelto-text);
+  background: var(--status-resuelto-bg);
+  border-color: rgba(164, 174, 45, 0.34);
+}
+
+/* Aviso pegado a un campo del formulario: el de la prioridad alta en
+   "Nuevo ticket". Va debajo del campo y no arriba del formulario porque es
+   ahí donde se toma la decisión que advierte. */
+.aviso-campo {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--status-espera-proveedor-text);
+}
+.aviso-campo svg { flex-shrink: 0; margin-top: 2px; }
+
+/* ---- Avisos flotantes (ver components/Avisos.jsx) ----
+   Encima de los desplegables (1000): un aviso de "se perdió la conexión" que
+   quede tapado por un menú abierto no avisa de nada. Fondo opaco debajo del
+   color del tono, por lo mismo que los menús: tiene que leerse encima de lo
+   que haya. */
+/* Abajo y al centro: arriba a la derecha tapaba el botón principal de cada
+   pantalla —"Nuevo ticket", "Registrar equipo"— justo los segundos en que se
+   lee el aviso. */
+.avisos-pila {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(420px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.aviso-flotante {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px 14px 13px 16px;
+  border: 1px solid;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  background-color: #0d111a;
+  animation: aviso-entra 0.22s ease-out;
+}
+/* El color del tono va como velo sobre el fondo opaco: `--*-bg` son
+   translúcidos y, solos, dejarían ver lo que hay detrás. */
+.aviso-flotante.aviso-barra--peligro { background-image: linear-gradient(var(--peligro-bg), var(--peligro-bg)); }
+.aviso-flotante.aviso-barra--atencion { background-image: linear-gradient(var(--status-espera-proveedor-bg), var(--status-espera-proveedor-bg)); }
+.aviso-flotante.aviso-barra--exito { background-image: linear-gradient(var(--status-resuelto-bg), var(--status-resuelto-bg)); }
+.aviso-flotante svg { flex-shrink: 0; margin-top: 1px; }
+.aviso-flotante > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.aviso-flotante-cerrar {
+  flex-shrink: 0;
+  display: inline-flex;
+  padding: 2px;
+  margin: -1px -2px 0 4px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: inherit;
+  opacity: 0.75;
+  cursor: pointer;
+}
+.aviso-flotante-cerrar:hover,
+.aviso-flotante-cerrar:focus-visible { opacity: 1; }
+@keyframes aviso-entra {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aviso-flotante { animation: none; }
+}
+/* En el teléfono la pila ocupa casi todo el ancho y caería encima del botón
+   redondo del asistente, que vive en la esquina de abajo. */
+@media (max-width: 640px) {
+  .avisos-pila { bottom: 88px; }
+}
+
+/* ---- Paginación del tablero ----
+   Los dos botones a los extremos y el estado en medio. En el teléfono el
+   texto baja a su propia línea en vez de apretar los botones. */
+.paginacion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 22px;
+}
+.paginacion .btn-secondary { padding: 9px 14px; font-size: 0.86rem; }
+.paginacion-estado {
+  flex: 1;
+  text-align: center;
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+}
+@media (max-width: 640px) {
+  .paginacion-estado { order: -1; flex-basis: 100%; }
+  .paginacion .btn-secondary { flex: 1; justify-content: center; }
+  /* El botón redondo del asistente vive fijo en la esquina de abajo (24 px +
+     56 de alto): sin este aire, al final del recorrido tapaba "Siguiente". */
+  .paginacion { margin-bottom: 72px; }
+}
+
+/* ---- Lista sin nada ----
+   Borde discontinuo y no relleno: una tarjeta llena dice "aquí hay algo", y
+   el hueco de una lista vacía dice lo contrario. El trazo cortado se lee como
+   un sitio reservado sin ocupar. */
+.estado-vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 44px 24px;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.estado-vacio-icono {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 2px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: var(--text-muted);
+}
+
+.estado-vacio-texto {
+  margin: 0;
+  font-size: 0.98rem;
+  color: var(--text-secondary);
+}
+
+.estado-vacio-detalle {
+  margin: 0;
+  max-width: 52ch;
+  font-size: 0.87rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.estado-vacio-accion { margin-top: 8px; }
+
+/* En la consola el renglón principal también va en versalitas: es un rótulo
+   de estado del sistema, no una frase. */
+[data-fondo="flujo"] .estado-vacio-texto {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+/* ---- Aviso de validación ----
+   Un solo aviso arriba del formulario con todo lo que falta, en lugar del
+   globo del navegador, que lo pinta el sistema, sale en el idioma de Chrome
+   y solo señala un campo cada vez.
+
+   Va en el rojo de peligro y no en el azul de marca a propósito: es lo único
+   del portal que le dice a alguien que ha hecho algo mal, y confundirlo con
+   un mensaje informativo sería peor que no ponerlo. */
+.aviso-validacion {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin-bottom: 20px;
+  padding: 13px 15px;
+  border-radius: var(--radius-md);
+  font-size: 0.89rem;
+  color: var(--peligro);
+  background: var(--peligro-bg);
+  border: 1px solid var(--peligro-borde);
+}
+.aviso-validacion strong { font-weight: 700; }
+.aviso-validacion ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--text-primary);
+  line-height: 1.55;
+}
+.aviso-validacion svg { flex-shrink: 0; margin-top: 1px; }
+
+/* El campo señalado. El borde rojo dura hasta que se toca cualquier cosa del
+   formulario: mantenerlo mientras la persona ya está corrigiendo es ruido. */
+.campo-invalido {
+  border-color: var(--peligro) !important;
+  box-shadow: 0 0 0 3px rgba(255, 111, 111, 0.16) !important;
+}
+
+/* En la puerta los campos son una raya, no una caja, así que el anillo de
+   arriba les dibujaba un rectángulo rojo que no existe en ningún otro estado
+   de esa pantalla. Aquí el error es la misma raya, en rojo y más gruesa. */
+.campo-linea .campo-invalido {
+  border-bottom-color: var(--peligro) !important;
+  box-shadow: 0 1px 0 0 var(--peligro) !important;
+}
+
+/* ============================================================
+   Consola
+   ============================================================
+   El giro de la vista de administrador: de vidrio blando a instrumento.
+
+   El fondo dejó de ser orgánico —esferas de color— y pasó a ser una retícula
+   de líneas y partículas. Sobre eso, una interfaz de esquinas de 22 px, halos
+   difusos y títulos en degradado arcoíris se lee como una aplicación de
+   consumo puesta encima de un diagrama técnico: dos idiomas a la vez.
+
+   Aquí manda el segundo. Todo lo de este bloque va por **tokens y clases
+   compartidas**, no por página: es lo único que puede cambiar doce pantallas
+   sin tocar doce archivos, y buena parte de su maquetación está escrita en
+   línea y fuera del alcance de una hoja.
+
+   Y todo cuelga de `[data-fondo="flujo"]`, así que el trabajador conserva la
+   interfaz que ya tenía. Se puede ser drástico precisamente porque está
+   acotado.
+   ============================================================ */
+
+/* **Las esquinas.** El cambio de un solo valor que más se nota: 22 px es un
+   radio de tarjeta de móvil, 10 es un radio de panel. Al ir en los tokens
+   alcanza también a lo que está escrito en línea, que es casi todo. */
+[data-fondo="flujo"] {
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  /* Las sombras dejan de ser halos y pasan a ser profundidad: caída corta y
+     oscura en lugar de una nube difusa de cuarenta píxeles. */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.55), 0 12px 24px rgba(0, 0, 0, 0.38);
+  --shadow-float: 0 3px 8px rgba(0, 0, 0, 0.55), 0 18px 36px rgba(0, 0, 0, 0.42);
+
+  /* **La tipografía de la plantilla, entera.** Su envoltorio declara
+     `font-family: 'Inter'` para todo y solo usa dos pesos, 300 y 800. No es
+     "Inter en los titulares": es Inter en la pantalla. Al redefinir los dos
+     tokens aquí alcanza también a lo que está escrito en línea, y el
+     trabajador conserva Plus Jakarta porque esto cuelga de `flujo`. */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-heading: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* **Aquí dentro no hay azul ni rosa de CGR.**
+
+     La marca vive en la puerta, en la barra y en la pantalla del trabajador.
+     La consola tiene detrás un fondo de mercurio gris, y sobre eso el azul
+     sólido y el rosa fancy no son marca: son dos colores que no pertenecen a
+     lo que se está mirando. Cristal técnico es lo contrario — el acabado lo
+     da la luz en los cantos, no el pigmento.
+
+     Va por tokens y no por reglas nuevas porque el sistema entero cuelga de
+     estos seis nombres: el botón principal, el de acento, la alternancia de
+     los secundarios, el filtro del tablero, el enlace activo de la barra, la
+     pastilla del icono, la casilla marcada, el anillo de foco y la gota del
+     asistente. Cambiarlos aquí los cambia todos, y ninguno se mueve fuera.
+
+     **Y el color que queda, significa algo.** Sin azules ni rosas decorativos
+     los únicos tonos de la pantalla son los de estado —crítica, SLA vencido,
+     resuelto—, que es justo como debe leerse un instrumento: si algo tiene
+     color, es porque hay que mirarlo. */
+
+  /* Los dos rellenos de la alternancia, en acero. Siguen siendo dos para que
+     una fila de acciones no salga plana, pero se distinguen por valor y no
+     por tinte. Los dos son lo bastante oscuros para blanco encima: 8.6:1 y
+     7.1:1. */
+  --degradado-azul: #333c47;
+  --degradado-rosa: #4d5765;
+
+  /* Lo que se enciende, se enlaza o recibe el foco pasa a plata. Es el mismo
+     cromo que ya estaba definido para las piezas de metal del fondo. */
+  --accent-primary: var(--cromo-claro);
+  --accent-primary-hover: var(--cromo-luz);
+  --accent-secondary: var(--cromo);
+  --marca-azul-luz: var(--cromo-claro);
+  --marca-rosa-luz: var(--cromo);
+  --border-focus: var(--cromo-claro);
+
+  /* En la consola, lo que es código se lee en la misma cara que los rótulos.
+     Es lo que cierra la tipografía de la plantilla: una sans y una mono, no
+     una sans y dos monos. */
+  --font-codigo: var(--font-mono);
+
+  /* La pastilla de acento, también en plata. */
+  --acento-bg: rgba(213, 223, 234, 0.10);
+
+  /* **Los dos estados que no son noticia, en gris.** "Abierto" iba en Cool
+     blue y "En proceso" en Solid blue: los dos de la guía, y los dos puestos
+     en la pastilla que lleva **todo** ticket vivo. Con el resto del panel ya
+     sin marca, eran el único azul de la pantalla y no decían nada que el
+     texto no dijera.
+
+     Los demás conservan su color porque significan algo: crítica y SLA
+     vencido en rojo, alta en naranja, en proveedor en violeta, resuelto en
+     verde. Es la regla entera de esta pantalla — si algo tiene color, es
+     porque hay que mirarlo. */
+  --status-abierto-bg: rgba(213, 223, 234, 0.10);
+  --status-abierto-text: var(--cromo-claro);
+  --status-en-proceso-bg: rgba(169, 181, 195, 0.13);
+  --status-en-proceso-text: var(--cromo);
+}
+
+/* El filo de prioridad de las tarjetas que no son crítica ni alta. El valor
+   entra en línea desde `colorDeTicket`, que no sabe en qué vista está, así
+   que la única forma de alcanzarlo desde la hoja es con `!important`. Media
+   iba en Solid blue; aquí las dos quedan en acero, y cuál es cuál lo dice la
+   pastilla de estado, no un filo de tres píxeles. */
+[data-fondo="flujo"] .tarjeta-prioridad {
+  --color-prioridad: var(--cromo-medio) !important;
+  --fondo-prioridad: rgba(169, 181, 195, 0.16) !important;
+}
+
+/* Los halos de la barra iban con el azul y el rosa de la guía escritos a
+   pelo, así que no los alcanzaba el cambio de token. */
+[data-fondo="flujo"] .navbar-enlace {
+  --halo-barra: rgba(213, 223, 234, 0.20);
+}
+[data-fondo="flujo"] .navbar-enlace:nth-of-type(even) {
+  --halo-barra: rgba(169, 181, 195, 0.18);
+}
+
+/* **El título deja de ser un degradado.** Tres colores cruzando la palabra
+   compiten con un fondo que ya tiene dos; y un degradado sobre texto es lo
+   contrario de un instrumento, que enseña el dato y no el adorno. Queda
+   blanco, y el color pasa a una barra corta delante: sigue estando la marca,
+   pero identificando la sección en vez de decorando la palabra. */
+/* **El titular, como el de la plantilla.** Peso 800, interlínea por debajo
+   de 1 y espaciado en negativo: las letras se tocan y el bloque se lee como
+   una pieza sólida en vez de como una frase. Es lo que le da el carácter al
+   original, más que ningún color.
+
+   Va en Inter 800. Ese peso no venía en el juego auto-alojado —llegaba a
+   700— y por eso primero se hizo con Outfit, que sí lo traía; pero no es la
+   misma letra, y el titular salía con otro carácter. Ahora el 800 de Inter
+   está servido desde el propio dominio, como Space Mono.
+
+   Las medidas son las del original: 800, interlínea 0.9 y -2px de espaciado
+   sobre 3rem, que son -0.042em. */
+[data-fondo="flujo"] .page-title {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 2.45rem;
+  line-height: 0.9;
+  letter-spacing: -0.042em;
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: var(--text-primary);
+  -webkit-text-fill-color: currentColor;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+/* La barra de sección es lo contrario que los rellenos: no es una superficie
+   donde se apoya texto, es un canto encendido. Con el acero de los botones
+   —que es oscuro a propósito— se perdería contra el fondo, así que va en
+   mercurio, con la misma caída de luz que las esferas. */
+[data-fondo="flujo"] .page-title::before {
+  content: '';
+  flex-shrink: 0;
+  width: 4px;
+  align-self: stretch;
+  min-height: 1.1em;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--cromo-luz), var(--cromo-medio));
+}
+
+/* El subtítulo baja a rótulo técnico: versalitas espaciadas, como las
+   etiquetas de un panel. Es lo que separa "aplicación" de "instrumento".
+
+   `.rotulo-seccion` lo lleva a las pantallas de detalle —el ticket, el alta—,
+   que no usan `.page-header` porque su cabecera es otra cosa: llevan un enlace
+   de vuelta y el título es un folio, no el nombre de una sección. Lo que sí
+   comparten es este renglón, y sin la clase eran las dos únicas pantallas del
+   portal con el subtítulo en redonda. */
+[data-fondo="flujo"] .page-header p,
+[data-fondo="flujo"] .rotulo-seccion {
+  font-family: var(--font-mono);
+  /* Las medidas exactas de `.brand-id`: diez píxeles de cuerpo y cuatro de
+     espaciado entre letras, que a ese tamaño son 0.4em. */
+  font-size: 10px;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* **El enlace de vuelta deja de ser un botón.**
+
+   Era una pastilla `.btn-secondary` flotando sobre la tarjeta: en la interfaz
+   anterior encajaba, pero junto a un título con barra de sección y rótulos en
+   versalitas se lee como una pieza de otra aplicación. Volver no es una
+   acción del nivel de "Emitir resguardo" o "Nuevo ticket" —es navegación— y
+   no debería pesar lo mismo.
+
+   Conserva la clase para no perder el foco de teclado ni el estado
+   deshabilitado; lo que se apaga es el relleno. */
+[data-fondo="flujo"] .enlace-volver {
+  padding: 4px 2px;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  filter: none;
+}
+[data-fondo="flujo"] .enlace-volver::before,
+[data-fondo="flujo"] .enlace-volver::after { display: none; }
+[data-fondo="flujo"] .enlace-volver:hover:not(:disabled) {
+  color: var(--text-primary);
+  letter-spacing: 0.08em;
+}
+
+/* Fuera del ámbito de consola el enlace de vuelta y el rótulo conservan el
+   aspecto que tenían. */
+.enlace-volver { padding: 8px 16px; font-size: 0.9rem; }
+.rotulo-seccion { color: var(--text-secondary); font-size: 0.95rem; }
+
+/* La cabecera se alinea igual en todas: acción a la derecha, a la altura del
+   título. Tres páginas la bajaban a una segunda fila por su cuenta. */
+[data-fondo="flujo"] .page-header {
+  align-items: center;
+  gap: 20px;
+  padding-bottom: 18px;
+  margin-bottom: 22px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* El bloque de texto cede y la acción no. Sin esto, un subtítulo largo
+   —Reglas de Negocio tiene el más largo del portal— empuja al botón hasta
+   partirle el rótulo en dos líneas. Un botón que dice "Nueva / Regla" en dos
+   renglones se lee como un fallo, y lo era. */
+[data-fondo="flujo"] .page-header > :first-child { min-width: 0; }
+[data-fondo="flujo"] .page-header > :last-child:not(:first-child) {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Los distintivos, cuadrados. Una pastilla redonda es una etiqueta; un
+   rectángulo con el canto marcado es un estado.
+
+   `.chip-dato` recoge los que estaban escritos en línea —categoría, canal,
+   vencimiento—. Sin él la fila quedaba a medias: el estado en versalitas
+   monoespaciadas y sus tres vecinos en redonda, que es justo lo contrario de
+   parejo. Los colores siguen viniendo de cada sitio porque son semánticos; lo
+   que se unifica aquí es la forma. */
+[data-fondo="flujo"] .badge,
+[data-fondo="flujo"] .chip-dato,
+[data-fondo="flujo"] .chip-critico {
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Las tablas pierden el relleno de tarjeta y ganan retícula. */
+/* **La barra de herramientas, una para todas.**
+
+   Cuatro páginas la tenían como una fila suelta de controles flotando sobre
+   el fondo y el tablero la metía dentro de una tarjeta. Eran dos lecturas
+   distintas de lo mismo: en unas los filtros parecían parte del contenido y
+   en otra una pieza aparte.
+
+   Aquí es siempre lo segundo — una banda con su propio cuerpo, separada de la
+   lista. Un filtro no es un dato: es el mando que decide qué datos se ven, y
+   tiene que leerse como mando. */
+.barra-herramientas {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+  padding: 12px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.028);
+}
+/* **Se queda pegada al desplazar.** Una cola de sesenta tickets se recorre
+   bajando, y al bajar los filtros desaparecían: para cambiar de estado había
+   que subir hasta arriba. Pegada, el mando está siempre donde se le busca.
+
+   Necesita fondo propio y desenfoque porque el contenido pasa por debajo: con
+   el relleno translúcido de antes se leían dos filas de texto superpuestas.
+   Y va por encima de las tarjetas pero por debajo de la barra de navegación,
+   que es la única que manda más que ella. */
+.barra-herramientas {
+  position: sticky;
+  /* Pegada justo debajo de la barra de navegación, que mide 63 px medidos. A
+     76 quedaba un hueco de trece por el que se veía pasar el contenido: una
+     rendija con medio ticket asomando, que es peor que no pegarla. El pseudo
+     de abajo tapa el propio margen. */
+  top: 63px;
+  z-index: 5;
+  background: rgba(10, 14, 21, 0.94);
+  backdrop-filter: blur(18px) saturate(120%);
+  -webkit-backdrop-filter: blur(18px) saturate(120%);
+}
+
+/* El margen inferior de la barra también deja pasar contenido cuando está
+   pegada. Se tapa con una banda del color del fondo, anclada a la barra y
+   dibujada por debajo de ella. */
+.barra-herramientas::after {
+  content: '';
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  top: 100%;
+  height: 22px;
+  background: linear-gradient(var(--bg-primary), rgba(7, 11, 21, 0));
+  pointer-events: none;
+}
+
+.barra-herramientas > .form-input,
+.barra-herramientas > div:has(> .form-input) { flex: 1; min-width: 240px; }
+.barra-herramientas .filtros-estado { margin-left: auto; }
+
+/* La pista del atajo. Solo con teclado y ratón: en una pantalla táctil no hay
+   tecla que pulsar y sería una etiqueta que no lleva a ninguna parte. */
+.pista-atajo {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 1px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.form-input:focus ~ .pista-atajo { opacity: 0; }
+@media (hover: none) { .pista-atajo { display: none; } }
+
+/* Sobre la retícula el filo se afina, pero el cuerpo se queda: al ser
+   pegajosa tiene que tapar lo que pasa por debajo. */
+[data-fondo="flujo"] .barra-herramientas {
+  background: rgba(8, 11, 18, 0.94);
+  border-color: rgba(255, 255, 255, 0.09);
+}
+
+/* Forma común para los tres, en las dos calibraciones. */
+/* El `gap` no es aire decorativo: `inline-flex` convierte cada trozo suelto
+   en un elemento flexible y se come el espacio que los separa en el JSX, así
+   que "3 Impresora" salía como "3Impresora" y el icono de estado quedaba
+   pegado a su palabra. Aquí esa separación se declara. */
+.chip-dato {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+[data-fondo="flujo"] .apple-table th {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.09em;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* **Cifras de ancho fijo.** En una pantalla que se refresca sola, un número
+   que cambia de 9 a 10 mueve todo lo que tiene al lado si los dígitos miden
+   distinto. `tabular-nums` los iguala, así que la columna se queda quieta
+   mientras el valor cambia. Es la diferencia entre un panel y una maqueta. */
+[data-fondo="flujo"] .page-title,
+[data-fondo="flujo"] .apple-table td,
+[data-fondo="flujo"] .chip-dato,
+[data-fondo="flujo"] .badge {
+  font-variant-numeric: tabular-nums;
+}
+
+/* La selección, en el azul de marca. Es de las pocas cosas que quedaban con
+   el azul por defecto del navegador. */
+::selection {
+  background: rgba(27, 61, 121, 0.65);
+  color: #ffffff;
+}
+
+/* El foco de teclado ya era visible; aquí solo se ajusta al radio nuevo para
+   que no dibuje un rectángulo alrededor de un botón redondo. */
+[data-fondo="flujo"] :where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline-offset: 3px;
+  border-radius: inherit;
+}
+
+/* La burbuja del asistente, cuadrada como el resto. Redonda era coherente con
+   las esquinas de 22 px; con las de 10 se quedó como la única pieza redonda
+   de la pantalla. */
+[data-fondo="flujo"] .boton-chat {
+  border-radius: var(--radius-md);
+  width: 50px;
+  height: 50px;
+}
+
+/* **Las esferas, de mercurio.** En la puerta y para el trabajador son azul y
+   rosa de marca; aquí no. El original las hace de metal líquido —`#e0e0e0`
+   hacia `#888`, desenfoque propio y la escena al 60 %— y ese gris es lo que
+   deja que un fondo en movimiento conviva con doce pantallas de datos: el
+   color detrás de una cifra compite con ella, el gris no.
+
+   Se recupera el `blur(20px)` por esfera que se había quitado por coste. Es
+   justo lo que las convierte en metal en vez de en bolas de billar, y este
+   fondo solo lo ve el administrador. */
+[data-fondo="flujo"] .burbuja {
+  background: linear-gradient(135deg, #e0e0e0, #888888);
+  filter: blur(20px);
+  box-shadow:
+    inset -10px -10px 20px rgba(0, 0, 0, 0.5),
+    10px 10px 30px rgba(255, 255, 255, 0.2);
+}
+
+[data-fondo="flujo"] .fondo-burbujas-escena {
+  opacity: 0.6;
+}
+
+/* **El botón principal, con la firma del original.** Versalitas en 800 con
+   dos píxeles de espaciado que se abren a cuatro al pasar por encima: es el
+   gesto que tiene la plantilla y que la gota sola no da. Va en los de acción
+   —`.btn-primary` y `.btn-acento`— y no en los secundarios: en el original
+   hay un botón y es el de enviar, y poner en versalitas los sesenta y cuatro
+   "Editar" y "Eliminar" de las tablas no es tomar su tipografía, es
+   engordarlas. */
+[data-fondo="flujo"] .btn-primary,
+[data-fondo="flujo"] .btn-acento {
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.155em;
+}
+[data-fondo="flujo"] .btn-primary:hover:not(:disabled),
+[data-fondo="flujo"] .btn-acento:hover:not(:disabled) {
+  letter-spacing: 0.31em;
+}
+
+/* ============================================================
+   Casillas de cifra
+   ============================================================
+   Métricas y Estado del sistema enseñaban sus números con el estilo escrito
+   en el atributo `style` de cada `<div>`. Mientras el portal tuvo un solo
+   aspecto eso daba igual; desde que el administrador tiene el suyo, no: un
+   estilo en línea no lo alcanza ninguna regla de `[data-fondo="flujo"]`, así
+   que estas dos pantallas se quedaban con el subtítulo en versalitas
+   espaciadas y, tres centímetros más abajo, las etiquetas de las casillas en
+   redonda. La misma pantalla con dos tipografías.
+
+   Aquí está la forma común. Abajo, en el ámbito de consola, el trato que le
+   corresponde. */
+.rejilla-metricas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 16px;
+}
+
+.casilla-metrica {
+  padding: 20px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.casilla-metrica-etiqueta {
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.casilla-metrica-valor {
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+
+.casilla-metrica-ayuda {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+/* El titular de cada bloque de métricas: icono y nombre. */
+.titulo-bloque {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+}
+
+/* Una fila de reparto: nombre, barra y cifra. */
+.fila-canal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.fila-canal-nombre {
+  width: 110px;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  text-transform: capitalize;
+}
+.fila-canal-pista {
+  flex: 1;
+  height: 10px;
+  background: var(--bg-tertiary);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.fila-canal-relleno {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent-primary);
+}
+.fila-canal-cifra {
+  width: 72px;
+  text-align: right;
+  font-size: 0.88rem;
   font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* La cifra suelta de Estado del sistema: número con icono y pie. */
+.cifra-actividad-valor {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.cifra-actividad-valor > span { color: var(--text-muted); }
+.cifra-actividad-etiqueta {
+  font-size: 0.79rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* **Rótulo y valor de un dato de ficha.** Es el par que usa la ficha del
+   ticket para "Creado por", "Categoría", "Canal": un renglón pequeño en
+   versalitas y debajo el dato. Estaba copiado cinco veces en el mismo archivo
+   con sus seis declaraciones en línea cada vez, y por ir en línea era otra de
+   las cosas que el trato de consola no podía alcanzar. */
+.rotulo-dato {
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+.dato-valor {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Un interruptor dentro de una banda de herramientas: casilla, icono y
+   palabra en una sola línea que no se parte. El `white-space` importa —la
+   banda es flexible y sin él "buscar por significado" se rompía en dos
+   renglones y desalineaba todo lo que tenía al lado—. */
+.interruptor {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.interruptor input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+
+/* **En el teléfono el rótulo se parte; entero no cabe.**
+
+   `white-space: nowrap` y `flex-shrink: 0` están para que en una pantalla
+   ancha el interruptor no se rompa en dos ni ceda espacio al buscador que
+   tiene al lado. En un teléfono esas dos reglas juntas significan que **se
+   sale**: medido a 360 px, el rótulo pedía 342 px dentro de una banda de 288 y
+   la página entera se arrastraba 39 px de lado.
+
+   No es cosa de acortar el texto —«Buscar por significado, no solo por
+   palabras» dice lo que el interruptor hace, y en francés es más largo
+   todavía—. Dejarlo partirse en dos renglones lo resuelve sin quitar nada:
+   pasa a 254 px de ancho y 34 de alto, y la banda ya tenía `flex-wrap`, así
+   que se coloca solo. `align-items: flex-start` mantiene la casilla a la
+   altura del primer renglón, no centrada contra los dos. */
+@media (max-width: 720px) {
+  .barra-herramientas .interruptor {
+    white-space: normal;
+    flex-shrink: 1;
+    min-width: 0;
+    align-items: flex-start;
+  }
+}
+
+/* ---- Las mismas piezas, en la consola del administrador ---- */
+
+/* La casilla pierde el relieve y gana un canto de acento a la izquierda: el
+   mismo recurso que ya marca el título de página, bajado de escala. Con la
+   sombra puesta se leían como seis tarjetas flotando dentro de otra tarjeta. */
+[data-fondo="flujo"] .casilla-metrica {
+  padding: 16px 18px;
+  background: rgba(255, 255, 255, 0.026);
+  border-color: rgba(255, 255, 255, 0.07);
+  border-left: 2px solid rgba(255, 255, 255, 0.13);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  box-shadow: none;
+}
+
+[data-fondo="flujo"] .casilla-metrica-etiqueta {
+  font-family: var(--font-mono);
+  font-size: 0.67rem;
+  /* Menos aire que en el subtítulo de la cabecera: ahí el rótulo va solo y
+     cruza la pantalla, aquí hay seis en fila y a 0.34em "descripción
+     normalizada" se parte en dos renglones. */
+  letter-spacing: 0.16em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+/* La cifra es lo que se viene a leer, así que se lleva la tipografía de
+   titular con su peso entero y los dígitos de ancho fijo. */
+[data-fondo="flujo"] .casilla-metrica-valor {
+  font-family: var(--font-heading);
+  font-size: 2.05rem;
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-fondo="flujo"] .casilla-metrica-ayuda {
+  font-size: 0.76rem;
+  margin-top: 8px;
+}
+
+[data-fondo="flujo"] .titulo-bloque {
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+[data-fondo="flujo"] .fila-canal-nombre {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+[data-fondo="flujo"] .fila-canal-pista {
+  height: 6px;
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.06);
+}
+[data-fondo="flujo"] .fila-canal-cifra {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-fondo="flujo"] .cifra-actividad-valor {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+/* El rótulo de un dato es una etiqueta de campo que no se puede escribir, así
+   que se lee igual que una que sí: misma cara, mismo cuerpo, mismas
+   versalitas. Que uno sea de lectura y otro de escritura es cosa del mando,
+   no de la tipografía. */
+[data-fondo="flujo"] .rotulo-dato {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+[data-fondo="flujo"] .dato-valor {
+  font-variant-numeric: tabular-nums;
+}
+
+[data-fondo="flujo"] .interruptor {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+[data-fondo="flujo"] .cifra-actividad-etiqueta {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-top: 5px;
+}
+
+
+/* ============================================================
+   El portal sobre la retícula
+   ============================================================
+   Recalibración del vidrio para el fondo del administrador. Todo lo de aquí
+   revierte decisiones que se tomaron **contra el fondo anterior**, y que
+   contra este dicen lo contrario de lo que hace falta.
+
+   Las esferas eran color a plena intensidad, así que el vidrio tuvo que
+   cerrarse: cuerpo oscuro al 11-22 % con `brightness(0.58)`, y aun así hubo
+   que subir un escalón los dos grises de texto. La retícula es casi negra y
+   apenas tiene luz propia, así que ese mismo ajuste ya no atenúa nada — solo
+   apaga una tarjeta contra un fondo que ya estaba apagado, y el resultado no
+   se lee como vidrio sino como una lámina gris.
+
+   Aquí el vidrio se abre y **sube**: el cuerpo aclara hasta separarse del
+   negro y el `brightness` pasa de 0.58 a 1.15, con lo que las líneas del
+   fondo se ven cruzar por debajo en lugar de desaparecer. Es el mismo panel
+   del login que se buscaba desde el principio; lo que lo impedía era el
+   fondo, no el diseño.
+   ============================================================ */
+[data-fondo="flujo"] .glass-card,
+[data-fondo="flujo"] .apple-card,
+[data-fondo="flujo"] .tarjeta-cristal-cuerpo,
+[data-fondo="flujo"] .apple-table-container {
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.042)),
+    linear-gradient(155deg, rgba(24, 31, 44, 0.56), rgba(15, 20, 30, 0.70));
+  backdrop-filter: blur(28px) saturate(118%) brightness(1.15);
+  -webkit-backdrop-filter: blur(28px) saturate(118%) brightness(1.15);
+}
+
+/* El desenfoque baja de 46 a 28 px por la misma razón: con un fondo de líneas
+   finas, 46 px las borra del todo y el vidrio no tiene nada que enseñar. A 28
+   se intuye por dónde pasan, que es lo que hace que se lea como cristal. */
+[data-fondo="flujo"] .navbar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035)),
+    linear-gradient(180deg, rgba(18, 24, 35, 0.62), rgba(12, 16, 24, 0.74));
+  backdrop-filter: blur(28px) saturate(118%) brightness(1.12);
+  -webkit-backdrop-filter: blur(28px) saturate(118%) brightness(1.12);
+}
+
+[data-fondo="flujo"] .apple-card:hover {
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.125), rgba(255, 255, 255, 0.055)),
+    linear-gradient(155deg, rgba(28, 36, 50, 0.58), rgba(18, 24, 35, 0.72));
+}
+
+/* **Las marcadas se reescriben aquí, y por especificidad.**
+
+   `[data-fondo="flujo"] .apple-card` pesa más que `.tarjeta-critica`, así que
+   la regla de arriba les reiniciaba el `background` y se llevaba por delante
+   la capa del tramado: las dos volvían a ser un color plano. Es exactamente
+   el mismo fallo que ya había ocurrido con `:hover`, y por la misma causa —un
+   atajo de `background` no se hereda por capas—.
+
+   Aprovechando que el fondo ahora es oscuro y quieto, los cuerpos aclaran un
+   punto respecto a la versión de las esferas: allí había que tapar color a
+   plena intensidad, aquí no. Así la textura se ve algo más. */
+[data-fondo="flujo"] .tarjeta-critica {
+  background-image:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.042)),
+    linear-gradient(155deg, rgba(20, 6, 10, 0.52), rgba(13, 4, 7, 0.66)),
+    var(--tramado);
+  background-size: auto, auto, 100% 100%;
+  background-repeat: no-repeat;
+}
+[data-fondo="flujo"] .tarjeta-critica:hover {
+  background-image:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.125), rgba(255, 255, 255, 0.055)),
+    linear-gradient(155deg, rgba(24, 8, 12, 0.46), rgba(16, 5, 8, 0.60)),
+    var(--tramado);
+  background-size: auto, auto, 100% 100%;
+}
+
+[data-fondo="flujo"] .tarjeta-alta {
+  background-image:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035)),
+    linear-gradient(155deg, rgba(18, 12, 6, 0.66), rgba(12, 8, 4, 0.78)),
+    var(--tramado);
+  background-size: auto, auto, 100% 100%;
+  background-repeat: no-repeat;
+}
+[data-fondo="flujo"] .tarjeta-alta:hover {
+  background-image:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.115), rgba(255, 255, 255, 0.05)),
+    linear-gradient(155deg, rgba(22, 15, 8, 0.58), rgba(15, 10, 5, 0.70)),
+    var(--tramado);
+  background-size: auto, auto, 100% 100%;
+}
+
+/* Los campos van al revés que las tarjetas: más oscuros que su alrededor, para
+   leerse como un hueco donde se escribe. Con las tarjetas más claras, los
+   campos tienen que bajar para conservar esa diferencia. */
+[data-fondo="flujo"] .form-input,
+[data-fondo="flujo"] .form-textarea {
+  background: rgba(6, 9, 14, 0.66);
+}
+
+/* ============================================================
+   Crítico
+   ============================================================
+   Lo que queda del boleto troquelado: su textura y su color, puestos donde
+   sirven. La pieza entera era bonita y estaba en el sitio equivocado —dentro
+   del ticket, o sea que había que abrirlo para enterarse—; la señal tiene que
+   verse **desde la lista**, que es donde se decide a cuál entrar.
+
+   Va solo en la vista de administrador. A quien reporta no le resuelve nada
+   saber que su avería es la más urgente de la cola.
+   ============================================================ */
+
+/* **El aura anima opacidad y nada más, y eso no es una preferencia.**
+
+   La primera versión animaba el `box-shadow` de la tarjeta. Funciona, pero un
+   `box-shadow` que cambia obliga a repintar el elemento en cada fotograma, y
+   repintar una tarjeta con `backdrop-filter` obliga a releer y volver a
+   desenfocar todo lo que tiene detrás —incluidas las esferas del fondo—. Con
+   eso el navegador se quedó sin responder al capturar la pantalla.
+
+   Así que el halo es un elemento aparte con su sombra **fija**, que se
+   rasteriza una vez, y lo único que late es su opacidad: eso lo resuelve el
+   compositor sin repintar nada. Va sin eventos, así que no se interpone en el
+   clic de la tarjeta. */
+.aura-critica {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 2px rgba(224, 35, 28, 0.55),
+    0 0 26px 2px rgba(224, 35, 28, 0.38);
+  animation: latidoAura 2.6s ease-in-out infinite;
+}
+
+@keyframes latidoAura {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.32; }
+}
+
+/* **La tarjeta crítica lleva la textura entera, no una franja.**
+
+   El tramado va como capa de fondo, debajo del cuerpo oscuro del cristal y
+   del velo blanco: el orden de `background-image` pinta la primera capa
+   arriba, así que la textura va la última. Ese cuerpo oscuro es más denso
+   aquí que en una tarjeta normal —del 11-22 % al 58-72 %— y no es un
+   capricho: sin él, el texto blanco del ticket cae sobre un campo rojo
+   tramado y deja de leerse. La textura tiene que estar por debajo del
+   contenido, no compitiendo con él.
+
+   `pixelated` para que el navegador no suavice los puntos al estirar la
+   imagen al tamaño de la tarjeta. */
+.tarjeta-critica {
+  background-image:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.03)),
+    linear-gradient(155deg, rgba(14, 4, 7, 0.58), rgba(9, 3, 5, 0.72)),
+    var(--tramado);
+  background-size: auto, auto, 100% 100%;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  border-color: rgba(224, 35, 28, 0.34);
+}
+
+/* El texto vuelve a `auto`: el `pixelated` de la tarjeta llega a todo lo que
+   tiene dentro y dejaría las letras dentadas. */
+.tarjeta-critica > * { image-rendering: auto; }
+
+/* **Alta: lo mismo un escalón por debajo.** Mismo tramado y mismo gesto para
+   que se reconozcan como la misma familia, pero en el naranja de la guía y
+   con el cuerpo oscuro más denso —del 58-72 % al 72-84 %—, así que la textura
+   se intuye en vez de imponerse. Sin aura: el latido es de la crítica y solo
+   de ella. */
+.tarjeta-alta {
+  background-image:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.028)),
+    linear-gradient(155deg, rgba(12, 8, 4, 0.72), rgba(8, 5, 3, 0.84)),
+    var(--tramado);
+  background-size: auto, auto, 100% 100%;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  border-color: rgba(214, 124, 47, 0.30);
+  box-shadow:
+    var(--shadow-float),
+    0 0 0 1px rgba(214, 124, 47, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.52),
+    inset 1px 0 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+}
+.tarjeta-alta > * { image-rendering: auto; }
+
+/* **El hover borraba la textura, y esto hay que explicarlo.**
+
+   `.apple-card:hover` redefine `background` con el atajo, y el atajo
+   **reinicia `background-image` entero**: las tres capas de la tarjeta
+   marcada se quedaban en las dos del hover y el rojo desaparecía de golpe al
+   pasar el ratón. Lo mismo con `box-shadow`, que se llevaba por delante el
+   filo de color de las demás prioridades.
+
+   Así que cada variante repite aquí su fondo con el aclarado del hover
+   incorporado. No hay forma de heredar solo una capa de un atajo. */
+.tarjeta-critica:hover {
+  background-image:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.045)),
+    linear-gradient(155deg, rgba(16, 5, 8, 0.50), rgba(11, 4, 6, 0.64)),
+    var(--tramado);
+  background-size: auto, auto, 100% 100%;
+}
+
+.tarjeta-alta:hover {
+  background-image:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.045)),
+    linear-gradient(155deg, rgba(14, 9, 5, 0.64), rgba(10, 6, 4, 0.76)),
+    var(--tramado);
+  background-size: auto, auto, 100% 100%;
+}
+
+.tarjeta-prioridad:hover {
+  box-shadow:
+    var(--shadow-float),
+    0 0 0 1px var(--fondo-prioridad),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* **Las demás solo cambian de color.** Un filo en el canto y un halo muy
+   flojo del color de su prioridad; ni textura ni latido. Si todas las
+   tarjetas destacaran, ninguna destacaría — que es justo lo que la crítica
+   necesita que no pase. */
+.tarjeta-prioridad {
+  border-left: 3px solid var(--color-prioridad) !important;
+  box-shadow:
+    var(--shadow-float),
+    0 0 0 1px var(--fondo-prioridad),
+    inset 0 1px 0 rgba(255, 255, 255, 0.52),
+    inset 1px 0 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* La palabra, porque el color solo deja fuera a quien no distingue el rojo. */
+.chip-critico {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Un halo que late es exactamente lo que alguien pide no ver cuando pide
+   menos movimiento. Se queda fijo, que es lo que lleva la señal. */
+@media (prefers-reduced-motion: reduce) {
+  .aura-critica { animation: none; opacity: 0.85; }
+}
+
+/* ---- Casillas ----
+   El último control nativo que quedaba sin vestir. Las cinco del portal
+   —buscar por significado, marcar un documento como sensible, "esto resolvió
+   el problema", aceptar la firma— salían como el cuadrito gris del sistema
+   operativo, que en una interfaz oscura se lee como un hueco y no como algo
+   que se pueda pulsar.
+
+   La marca se dibuja con dos bordes girados 45° en vez de con una imagen:
+   una `data:` en el CSS pasaría por `img-src` de la política de contenidos, y
+   esto no necesita pedirle permiso a nadie. */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 5px;
+  background: #0d111a;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+input[type="checkbox"]:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.42); }
+input[type="checkbox"]:checked {
+  background: var(--degradado-azul);
+  border-color: transparent;
+}
+input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 5px;
+  height: 10px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+input[type="checkbox"]:disabled { opacity: 0.45; cursor: not-allowed; }
+
+@media (prefers-reduced-motion: reduce) {
+  input[type="checkbox"] { transition: none; }
+}
+
+/* ---- El desplegable ----
+   El `<select>` nativo se sustituyó por `Selector`, porque su lista la dibuja
+   el sistema operativo: se consiguió que saliera oscura —Chrome sí respeta el
+   `background-color` de las `<option>`— pero la fila activa la pinta siempre
+   con el resaltado de Windows, un azul claro con texto negro que no hay CSS
+   que tape. Estas reglas visten el reemplazo.
+
+   El disparador se ve exactamente igual que un `.form-input`, porque es el
+   mismo campo: lo único que cambia es que lo que se despliega es nuestro. */
+.selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  background: #0d111a;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  font-size: 0.95rem;
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.selector:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.22); }
+.selector[aria-expanded="true"],
+.selector:focus-visible {
+  outline: none;
+  border-color: var(--marca-azul-luz);
+  box-shadow: 0 0 0 4px rgba(75, 176, 230, 0.22),
+              inset 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+.selector:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.selector-valor {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.selector-flecha {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.25s var(--curva);
+}
+.selector[aria-expanded="true"] .selector-flecha { transform: rotate(180deg); }
+
+/* La lista vive en el `<body>`, así que se posiciona en coordenadas de
+   ventana. Sin `backdrop-filter`: un desplegable tiene que poder leerse
+   encima de cualquier cosa, y aquí no hay nada que ganar dejando pasar el
+   fondo. Opaca y se acabó. */
+.selector-lista {
+  position: fixed;
+  z-index: 1000;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  overflow-y: auto;
+  background: #0d111a;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+}
+
+.selector-opcion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.selector-opcion--elegida { color: var(--text-primary); font-weight: 600; }
+/* El resaltado es el azul de marca, que es de lo que iba todo esto. */
+.selector-opcion--resaltada { background: var(--degradado-azul); color: #ffffff; }
+.selector-opcion--desactivada { opacity: 0.4; cursor: not-allowed; }
+
+@media (prefers-reduced-motion: reduce) {
+  .selector-flecha { transition: none; }
+}
+
+/* Foco visible con teclado en todo lo interactivo. Sin esto, quien navega
+   con tabulador no sabe dónde está. */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--marca-azul-luz);
+  outline-offset: 2px;
+}
+
+.badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  white-space: nowrap;
-  letter-spacing: 0.01em;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  /* El borde del mismo color, muy diluido, es lo que evita que la insignia
+     flote sobre el vidrio como una pegatina. */
+  border: 1px solid currentColor;
+  box-shadow: none;
 }
 
 .badge-abierto { background-color: var(--status-abierto-bg); color: var(--status-abierto-text); }
@@ -209,18 +2878,33 @@ a:hover {
 .badge-espera_proveedor { background-color: var(--status-espera-proveedor-bg); color: var(--status-espera-proveedor-text); }
 .badge-resuelto { background-color: var(--status-resuelto-bg); color: var(--status-resuelto-text); }
 .badge-cerrado { background-color: var(--status-cerrado-bg); color: var(--status-cerrado-text); }
-
-/* Animation Utils */
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+/* Cancelado: el gris de "archivado", pero sin relleno y con el trazo cortado.
+   Junto a un cerrado tiene que leerse distinto de un vistazo —uno lo resolvió
+   TI, el otro lo retiró quien lo reportó— sin inventar un color nuevo que
+   el reparto de estados no tiene. */
+.badge-cancelado {
+  background-color: transparent;
+  color: var(--status-cerrado-text);
+  border: 1px dashed var(--status-cerrado-text);
 }
 
-.animate-fade-in {
-  animation: fadeInUp 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
+/* **Esta clase ya no anima, y es a propósito.**
 
-/* Scrollbar iOS style */
+   Se usa sobre `.page-container`, que envuelve el contenido de cada página.
+   Cualquier `transform` u `opacity` en un ancestro apaga el `backdrop-filter`
+   de todo lo que tenga debajo, así que mientras duraba la entrada las
+   tarjetas se veían en crudo —las esferas del fondo pasando nítidas— y al
+   acabar el vidrio entraba de golpe. Ese salto es peor que no tener entrada.
+
+   Y no hace falta: el cambio de ruta ya lo anima la View Transitions API más
+   abajo, que trabaja sobre una instantánea de la página **ya renderizada**,
+   con su vidrio incluido, así que ahí no hay nada que apagar.
+
+   Se conserva la clase en lugar de quitarla de diecisiete archivos: el
+   marcado sigue diciendo "esto entra", y este es el sitio donde volver a
+   darle una entrada si algún día se puede sin romper el vidrio. */
+.animate-fade-in { }
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -229,19 +2913,35 @@ a:hover {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.16);
   border-radius: var(--radius-full);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(255, 255, 255, 0.28);
 }
 
 /* Layout utilities */
+/* **Un solo ancho para todas las pantallas.**
+
+   Cada página traía el suyo escrito a mano —800, 980, 1000, 1020, 1050, 1080,
+   1100 y los 1200 de esta regla, ocho valores para doce pantallas—, así que al
+   pasar de Tickets a Temas el título se movía sesenta píxeles a la derecha y
+   la barra de sección con él. En una aplicación que se recorre por el menú
+   todo el día, ese salto se lee como si cambiara de sitio la ventana.
+
+   El ancho vive en una variable para que una pantalla pueda apartarse cuando
+   tenga motivo, y no por descuido: `--estrecho` es la única excepción y está
+   ahí abajo. */
 .page-container {
-  max-width: 1200px;
+  --ancho-pagina: 1120px;
+  max-width: var(--ancho-pagina);
   margin: 0 auto;
   padding: 2rem;
 }
+
+/* Un formulario de una columna. A 1120 px los campos quedan como renglones de
+   un kilómetro y el ojo pierde el principio de la línea al volver del final. */
+.page-container--estrecho { --ancho-pagina: 760px; }
 
 .page-header {
   margin-bottom: 2rem;
@@ -251,20 +2951,33 @@ a:hover {
 }
 
 .page-title {
-  font-size: 2.2rem;
+  font-family: var(--font-heading);
+  font-size: 2rem;
   font-weight: 700;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.028em;
+  /* De azul a rosa: los dos primarios de la marca, en el mismo orden en que
+     aparecen en el logotipo. El navy original sobre negro sería ilegible, así
+     que van sus versiones claras. Solo en títulos de sección; en cuerpo de
+     texto no se usa nunca. */
+  background: linear-gradient(96deg,
+    var(--marca-azul-luz) 6%, #9d8fd4 46%, var(--marca-rosa-luz) 92%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
 }
 
-/* Table styles (Apple style) */
+/* Tablas */
 .apple-table-container {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.03)),
+    linear-gradient(160deg, rgba(14, 19, 27, 0.11), rgba(8, 11, 16, 0.22));
+  backdrop-filter: blur(46px) saturate(135%) brightness(0.58);
+  -webkit-backdrop-filter: blur(46px) saturate(135%) brightness(0.58);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.22);
   overflow: hidden;
-  border: 1px solid var(--border-color);
+  border: 1px solid rgba(255, 255, 255, 0.11);
 }
 
 .apple-table {
@@ -274,7 +2987,7 @@ a:hover {
 }
 
 .apple-table th {
-  background: rgba(0, 0, 0, 0.02);
+  background: rgba(255, 255, 255, 0.05);
   padding: 14px 18px;
   font-size: 0.8rem;
   font-weight: 600;
@@ -296,7 +3009,7 @@ a:hover {
 }
 
 .apple-table tbody tr:hover {
-  background-color: rgba(0, 0, 0, 0.02);
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 .apple-table tbody tr:last-child td {
@@ -311,24 +3024,24 @@ a:hover {
    constante cansa. Ver el bloque al final.
    ============================================================ */
 
-@keyframes aparecer {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
 @keyframes subirYAparecer {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { transform: translateY(12px); }
+  to   { transform: translateY(0); }
 }
 
 @keyframes entrarDerecha {
-  from { opacity: 0; transform: translateX(16px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from { transform: translateX(16px); }
+  to   { transform: translateX(0); }
 }
 
+/* Sin `opacity` en los fotogramas. El desplazamiento y la escala son
+   inocuos —un `transform` propio no apaga el `backdrop-filter` del propio
+   elemento—, pero una opacidad por debajo de 1 sí, y eso hacía que el
+   cristal entrara de golpe al terminar la entrada. Se comprobó con las
+   cuatro combinaciones. */
 @keyframes escalarEntrada {
-  from { opacity: 0; transform: scale(0.94) translateY(8px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
+  from { transform: scale(0.94) translateY(8px); }
+  to   { transform: scale(1) translateY(0); }
 }
 
 @keyframes girar {
@@ -357,14 +3070,36 @@ a:hover {
   100% { transform: translateX(400%); }
 }
 
-.animate-scale-in { animation: escalarEntrada 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-.animate-slide-right { animation: entrarDerecha 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-.animate-appear { animation: aparecer 0.25s ease both; }
+/* **`backwards` y no `forwards`/`both`, y esto no es un detalle de estilo.**
+
+   Todas estas animaciones terminan justo en el estado natural del elemento
+   —opacidad 1, sin desplazamiento—, así que retener el último fotograma no
+   aporta nada visible. Lo que sí hace es dejar un `transform` puesto para
+   siempre, y un elemento con `transform` es una **raíz de fondo**: el
+   `backdrop-filter` de cualquier cosa que tenga dentro solo puede leer lo
+   que se pinta dentro de él.
+
+   Como cada página envuelve su contenido en `.page-container.animate-fade-in`
+   y las esferas van en una capa `fixed` por fuera, el vidrio de todas las
+   tarjetas del portal no tenía nada que filtrar: las esferas lo atravesaban
+   nítidas y sin atenuar. El login se salvaba porque su panel lleva la clase
+   él mismo en vez de tenerla en un ancestro.
+
+   `backwards` da el primer fotograma antes de arrancar —que es lo que evita
+   el parpadeo— y no deja nada puesto al terminar. De paso quita el
+   `transform` que convertía a los contenedores de página en bloque
+   contenedor de `position: fixed`, que es lo que recortaba los modales. */
+.animate-scale-in { animation: escalarEntrada 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.animate-slide-right { animation: entrarDerecha 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+/* Sin animación: `aparecer` era una fundida de opacidad pura, y la opacidad
+   propia de un elemento apaga su propio `backdrop-filter`. Se usa sobre una
+   tarjeta de cristal en Temas. */
+.animate-appear { }
 
 /* Entrada escalonada de listas: cada fila entra un poco después de la
    anterior, lo que hace legible de un vistazo cuántos elementos llegaron. */
 .lista-escalonada > * {
-  animation: subirYAparecer 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: subirYAparecer 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
 }
 .lista-escalonada > *:nth-child(1) { animation-delay: 0.02s; }
 .lista-escalonada > *:nth-child(2) { animation-delay: 0.06s; }
@@ -381,9 +3116,9 @@ a:hover {
 .esqueleto {
   background: linear-gradient(
     90deg,
-    var(--bg-tertiary) 25%,
-    var(--bg-secondary) 50%,
-    var(--bg-tertiary) 75%
+    var(--bg-secondary) 25%,
+    var(--bg-tertiary) 50%,
+    var(--bg-secondary) 75%
   );
   background-size: 200% 100%;
   animation: barrido 1.4s ease-in-out infinite;
@@ -434,12 +3169,6 @@ a:hover {
 }
 .realzar { animation: realce 1.6s ease-out both; }
 
-/* Botones: respuesta física al presionar */
-.btn-primary:active:not(:disabled),
-.btn-secondary:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
 /* Accesibilidad: quien pidió menos movimiento no lo recibe. */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -453,31 +3182,207 @@ a:hover {
 }
 
 /* ============================================================
+   Señales de que el portal está vivo
+   ============================================================ */
+
+/* El punto de conexión. Verde y latiendo cuando el flujo de eventos está
+   abierto; ámbar y quieto cuando no. **Ámbar y no rojo**: perder el canal en
+   vivo no rompe nada —el portal sigue funcionando, solo deja de avisarse
+   solo—, y el rojo en esta interfaz significa "algo se venció o se va a
+   borrar". Gastarlo aquí lo devaluaría donde sí importa. */
+.pulso-conexion {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--status-espera-proveedor-text);
+  box-shadow: 0 0 0 0 rgba(224, 164, 104, 0.5);
+  transition: background-color 0.4s ease;
+}
+
+.pulso-conexion--vivo {
+  background: var(--status-resuelto-text);
+  animation: latidoConexion 2.6s ease-out infinite;
+}
+
+/* Un aro que sale del punto y se desvanece. Es barato —solo `box-shadow` y
+   opacidad sobre un elemento de ocho píxeles— y se lee de reojo, que es la
+   única forma en que alguien va a mirarlo. */
+@keyframes latidoConexion {
+  0%   { box-shadow: 0 0 0 0 rgba(183, 204, 126, 0.45); }
+  70%  { box-shadow: 0 0 0 7px rgba(183, 204, 126, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(183, 204, 126, 0); }
+}
+
+/* ============================================================
+   Transiciones entre pantallas
+   ============================================================
+   La View Transitions API: el navegador toma una foto de lo que
+   hay, deja que React pinte lo nuevo y funde las dos. Donde no
+   está soportada no ocurre nada — la navegación es la de siempre,
+   sin `polyfill` ni ramas en el código.
+
+   Corta a propósito: 180 ms. Una transición de pantalla que se
+   nota es una transición que estorba a quien lleva ocho horas
+   navegando el mismo portal.
+   ============================================================ */
+::view-transition-old(root) {
+  animation: 140ms ease-in both desvanecerSaliente;
+}
+::view-transition-new(root) {
+  animation: 180ms ease-out both aparecerEntrante;
+}
+
+@keyframes desvanecerSaliente {
+  to { opacity: 0; }
+}
+@keyframes aparecerEntrante {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation: none !important; }
+}
+
+/* ============================================================
    Barra de navegación
    ============================================================
-   Con las secciones de admin son seis enlaces, que no caben en
+   Con las secciones de admin son trece enlaces, que no caben en
    una laptop de planta ni en tablet. Se degrada por pasos:
    texto -> solo iconos -> fila con scroll.
    ============================================================ */
 
 .navbar {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--border-color);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035)),
+    linear-gradient(180deg, rgba(11, 15, 21, 0.58), rgba(8, 11, 16, 0.70));
+  backdrop-filter: blur(46px) saturate(135%) brightness(0.58);
+  -webkit-backdrop-filter: blur(46px) saturate(135%) brightness(0.58);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
   position: sticky;
   top: 0;
   z-index: 100;
   padding: 12px 24px;
-  box-shadow: var(--shadow-sm);
+  /* Sin sombra hacia abajo: la barra pegajosa se lee mejor como una lámina
+     apoyada sobre el contenido, con una hairline por debajo. */
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
+/* **Rejilla y no `space-between`.** Con `space-between` el grupo del medio
+   no queda centrado: cae donde sobra el espacio, y como la marca mide unos
+   200 px y el bloque de la derecha —idioma, nombre, salir— unos 350, los
+   iconos se iban setenta y pico píxeles a la izquierda del centro real.
+
+   Con tres columnas y las dos de los lados a `1fr`, la del medio queda
+   centrada en la ventana pese a que los lados midan distinto.
+
+   **Se centra entre los bloques, no en la ventana.** Antes las dos pistas
+   laterales eran `1fr` iguales, con lo que el grupo del medio caía justo en
+   el centro del monitor. Medía bien y se veía torcido: con el logo en 62 px
+   y el bloque de la cuenta en 249, quedaban 203 px de claro a la izquierda y
+   16 a la derecha, y lo que el ojo lee no es el eje del grupo sino el
+   reparto del vacío alrededor.
+
+   Con los lados a `auto` cada bloque toma lo suyo y el del medio se centra
+   dentro de lo que sobra, así que los dos huecos salen iguales. Es el mismo
+   criterio que se usa al colgar cuadros: se iguala el aire, no las medidas.
+
+   Los `max-width: 100%` siguen siendo necesarios: con muchas secciones el
+   bloque de la cuenta no encoge por su cuenta —su `min-content` es su ancho
+   entero— y se desbordaba hacia dentro, dejando enlaces pintados encima del
+   perfil. `max-width: 100%` es el ancho de la pista y le obliga a caber; lo
+   que cede es el nombre, que se corta con puntos suspensivos. */
 .navbar-contenido {
-  max-width: 1280px;
+  /* **Más ancha que la columna de contenido, a propósito.** Con las dos
+     columnas de fuera iguales, el ancho que le toca a la cuenta es la mitad
+     de lo que sobra; a 1280 de pista eso son 249 px y el nombre completo
+     —"Alex Rios Carballo (IT Admin)"— pide algo más, así que se cortaba con
+     puntos suspensivos. Dárselo es cuestión de pista, no de maquetación: la
+     barra cruza la ventana entera y no tiene por qué medir lo mismo que el
+     contenido, al que de todos modos nunca estuvo alineada. */
+  max-width: 1480px;
   margin: 0 auto;
-  display: flex;
+  display: grid;
+  /* **Las dos columnas de fuera miden lo mismo, y por eso el centro está en
+     el centro.**
+
+     Antes era `auto minmax(0,1fr) auto`: la pista de enlaces se quedaba con
+     lo que sobraba entre la marca y la cuenta, y se centraba *ahí dentro*.
+     Con la marca a 190 px y la cuenta a 250 el grupo queda a treinta píxeles
+     a la izquierda del centro de la página, y esos anchos cambian con el
+     idioma —"Cerrar Sesión", "Sign Out" y "Déconnexion" no miden igual, ni
+     "Conocimiento", "Knowledge" y "Connaissances"—, así que la barra salía
+     descentrada de una manera distinta en cada uno.
+
+     Con `1fr auto 1fr` la columna del medio se planta en el centro de la
+     barra y las dos de fuera se reparten el resto por igual, mida lo que
+     mida cada una. El centrado deja de depender del idioma. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
+}
+.navbar-contenido > .navbar-marca { justify-self: start; min-width: 0; max-width: 100%; }
+.navbar-contenido > .navbar-enlaces { justify-self: center; max-width: 100%; }
+.navbar-contenido > .navbar-derecha { justify-self: end; min-width: 0; max-width: 100%; }
+
+/* **En el teléfono, el centrado deja de ser posible y hay que soltarlo.**
+
+   `1fr auto 1fr` centra la pista de enlaces repartiendo el sobrante entre las
+   dos columnas de fuera. Cuando no sobra nada, esas dos columnas se van a cero
+   —y su contenido no desaparece con ellas: la marca y el bloque de la derecha
+   tienen `overflow` visible y **siguen pintando fuera de su caja**.
+
+   Medido en un iframe de ancho controlado: a 720 px no sobra nada de la
+   página; a 680 se sale 11 px, y de 480 para abajo se estanca en 59 px, que es
+   justo lo que mide el bloque de la derecha —búsqueda, indicador de conexión y
+   menú de cuenta— pintando a partir de una columna de ancho cero. El resultado
+   en un teléfono es que **la página entera se arrastra de lado**: uno intenta
+   desplazarse hacia abajo y el contenido se va de costado.
+
+   Con `auto minmax(0,1fr) auto` las columnas de fuera piden lo que necesitan
+   (62 y 84 px) y el apretón se lo come la pista del medio, que es la única de
+   las tres que sabe encajarlo: ya tiene `overflow-x: auto`, así que los
+   enlaces se deslizan dentro de la barra en vez de empujar la página.
+
+   El corte a 720 px es el ancho medido, no uno redondo elegido a ojo: por
+   encima no cambia nada de lo que ya funciona. */
+@media (max-width: 720px) {
+  .navbar-contenido {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+}
+
+/* **Los `min-width: 0` de arriba evitan un solape, no son cosmética.**
+
+   Un elemento de rejilla trae `min-width: auto`, o sea que su mínimo es su
+   contenido: si la pista es más estrecha, no encoge — se desborda. Con trece
+   secciones la pista derecha queda en 328 px y el bloque de idioma, nombre y
+   salir necesita 422, así que se derramaba 78 px hacia dentro y los enlaces
+   de Métricas y Estado acababan pintados **encima** del selector de idioma.
+   Un clic en el globo tocaba el enlace, no el selector.
+
+   Con el mínimo a cero el bloque encoge de verdad, y lo que cede es el nombre
+   del perfil, que se corta con puntos suspensivos. Es la única pieza de la
+   barra que puede perder letras sin perder función: el correo va debajo y la
+   sesión se identifica igual. Así los enlaces se quedan centrados de verdad y
+   nada se monta sobre nada. */
+.navbar-perfil { min-width: 0; }
+.navbar-perfil-nombre {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* El correo desaparece en el mismo punto en que los enlaces pierden su
+   texto. A partir de ahí la barra va justa, el bloque del perfil se acota a
+   su pista y el correo se cortaba en "admin@c…", que no identifica a nadie:
+   ocupaba sitio que le hace falta al nombre y no aportaba nada. Debajo de
+   820 px ya desaparecía; ahora se va antes, que es cuando empieza a estorbar. */
+@media (max-width: 1500px) {
+  .navbar-perfil-correo { display: none; }
 }
 
 .navbar-marca {
@@ -485,6 +3390,20 @@ a:hover {
   align-items: center;
   gap: 10px;
   text-decoration: none;
+  flex-shrink: 0;
+}
+
+/* La placa de la barra: mismo criterio que la del login, pero apretada.
+   El aire alrededor del logotipo es lo minimo que pide cualquier manual de
+   marca; por debajo de eso se lee como recortado. */
+.navbar-marca-placa {
+  display: block;
+  width: 62px;
+  height: auto;
+  padding: 6px 9px;
+  background: #ffffff;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.40);
   flex-shrink: 0;
 }
 
@@ -497,6 +3416,12 @@ a:hover {
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
+  /* El `overflow-x: auto` recorta también en vertical — no hay forma de
+     pedir scroll horizontal y desbordamiento vertical a la vez. La gota
+     crece unos 6 px por arriba y por abajo, así que se le hace sitio con
+     relleno y se devuelve con margen negativo para no mover la barra. */
+  padding: 7px 0;
+  margin: -7px 0;
 }
 .navbar-enlaces::-webkit-scrollbar { display: none; }
 
@@ -511,10 +3436,159 @@ a:hover {
   text-decoration: none;
   white-space: nowrap;
   color: var(--text-secondary);
-  transition: color 0.2s ease, background-color 0.2s ease;
+  position: relative;
+  isolation: isolate;
+  transition: color 0.2s ease;
 }
-.navbar-enlace:hover { color: var(--text-primary); background: var(--bg-tertiary); }
-.navbar-enlace.activo { color: var(--accent-primary); background: var(--bg-secondary); }
+/* Sin fondo propio al pasar: el velo blanco que había aquí se pintaba
+   encima de la gota (que vive detrás, en z-index -1) y era lo único que
+   se llegaba a ver — de ahí que el efecto se leyera como una mancha
+   translúcida y no como el azul de la marca. */
+/* El mismo gesto de los botones, con una diferencia: aquí la gota no puede
+   estar siempre encendida. Trece pastillas de color permanentes taparían al
+   enlace activo, que es el único que debe verse coloreado. Así que la gota
+   entra por opacidad, y por eso este es el único sitio del portal donde no
+   lleva `#fundir-boton`: al cruzar el umbral de alfa del filtro el enlace
+   parpadearía invisible a mitad de la transición. Sin filtro que la selle,
+   el estirón se queda corto a propósito —lo justo para que se note el
+   empuje sin que asome un canto duro. */
+.navbar-enlace::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--gota-barra);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.4s var(--curva), opacity 0.28s ease;
+}
+
+.navbar-enlace {
+  --gota-barra: var(--degradado-azul);
+  --halo-barra: rgba(27, 61, 121, 0.45);
+}
+.navbar-enlace:nth-of-type(even) {
+  --gota-barra: var(--degradado-rosa);
+  --halo-barra: rgba(179, 22, 113, 0.45);
+}
+
+.navbar-enlace:hover { color: #ffffff; }
+.navbar-enlace:hover::before { transform: scale(1.05, 1.16); opacity: 1; }
+.navbar-enlace:active::before { transform: scale(0.98, 0.95); opacity: 1; }
+
+/* El carril es el marco de referencia de lo que se posiciona dentro. */
+.navbar-enlaces { position: relative; }
+
+/* ---- Los grupos plegados ----
+   El botón del grupo es un `.navbar-enlace` más —misma gota, misma
+   alternancia azul/rosa— con una flecha al final. Se marca como activo
+   cuando la sección abierta vive dentro: sin eso se pierde el "usted está
+   aquí" en cuanto una sección deja de estar suelta en la barra. */
+.navbar-grupo {
+  border: none;
+  font-family: var(--font-sans);
+  cursor: pointer;
+}
+/* El grupo no lleva icono, así que su texto no debe esconderse con el de los
+   enlaces sueltos: sin él el botón se quedaría vacío. Por debajo del umbral
+   se queda solo el nombre, que es lo mínimo que lo identifica. */
+.navbar-grupo-texto { display: inline !important; }
+
+.navbar-grupo-flecha {
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: transform 0.25s var(--curva);
+}
+.navbar-grupo[aria-expanded="true"] .navbar-grupo-flecha { transform: rotate(180deg); }
+
+/* El panel va en el `<body>`, así que se posiciona en coordenadas de ventana:
+   la barra lleva `backdrop-filter` y sus contenedores recortan, y un panel
+   dibujado dentro se cortaría contra el borde de abajo. Opaco, como el
+   desplegable: un menú tiene que leerse encima de lo que sea. */
+.navbar-grupo-panel {
+  position: fixed;
+  z-index: 1000;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: #0d111a;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+}
+
+/* Las entradas son enlaces o botones según naveguen o hagan algo, así que
+   el botón necesita el reseteo: sin él, las acciones —idioma, contraseña,
+   salir— salían con el fondo gris que les pone el navegador y no se parecían
+   a los enlaces de al lado. */
+.navbar-grupo-opcion {
+  appearance: none;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  color: var(--text-secondary);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+.navbar-grupo-opcion:hover { background: rgba(255, 255, 255, 0.07); color: #ffffff; }
+.navbar-grupo-opcion--activa { background: var(--degradado-azul); color: #ffffff; }
+.navbar-grupo-opcion--peligro { color: var(--peligro); }
+.navbar-grupo-opcion--peligro:hover { background: var(--peligro-bg); color: var(--peligro); }
+
+/* El chip del perfil, ahora botón de menú. Conserva su aspecto de pastilla
+   —es identidad, no navegación— y solo suma el cursor y la flecha. */
+.navbar-perfil--menu {
+  gap: 9px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  max-width: 100%;
+}
+.navbar-perfil--menu .navbar-perfil-nombre {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.navbar-perfil--menu:hover { border-color: rgba(255, 255, 255, 0.26); }
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar-grupo-flecha { transition: none; }
+}
+
+/* El activo ya lleva su azul puesto en el elemento; su gota solo empuja. */
+.navbar-enlace.activo::before { opacity: 0; }
+.navbar-enlace.activo:hover::before { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar-enlace::before { transition: none; }
+}
+/* **El activo se queda con su propio color, no con el azul.**
+   Antes esto era `var(--degradado-azul)` fijo, así que un enlace que se
+   iluminaba en rosa al pasar el ratón cambiaba a azul en cuanto lo pulsabas
+   —justo lo contrario de lo que se espera—. Ahora usa `--gota-barra`, que es
+   el color que ya tenía asignado por su posición, y el halo lo sigue. */
+.navbar-enlace.activo {
+  color: #ffffff;
+  background: var(--gota-barra);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.45),
+              0 2px 10px var(--halo-barra);
+}
 
 .navbar-derecha {
   display: flex;
@@ -528,23 +3602,50 @@ a:hover {
   align-items: center;
   gap: 10px;
   padding: 6px 14px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: var(--radius-full);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
-/* Pantallas medianas: los enlaces se quedan solo con el icono. El nombre
-   sigue disponible como tooltip y para lectores de pantalla. */
-@media (max-width: 1180px) {
+/* Los enlaces se quedan solo con el icono antes de lo que parece necesario.
+   Un admin tiene trece secciones, y con el texto puesto no caben ni en una
+   pantalla de 1366: la barra recortaba en "Perso" y ocho secciones quedaban
+   fuera de alcance. El nombre sigue en el tooltip y para lectores de pantalla.
+   El umbral se calculó con la barra llena, no con la de un usuario normal. */
+/* El texto se esconde mucho más tarde que antes. Con trece secciones sueltas
+   el umbral estaba en 1500 px y ningún administrador llegaba a verlo;
+   agrupadas son seis entradas y caben con su nombre en una pantalla normal.
+
+   **1220 no es un número redondo elegido a ojo.** Medidos los anchos
+   naturales de las tres piezas con el texto puesto —62 el logotipo, 750 los
+   enlaces, 286 la cuenta— más los dos huecos de 16, la barra necesita 1130 px
+   de contenido, o sea una ventana de 1178 contando el relleno. El umbral
+   estuvo un rato en 1120 y eso dejaba una franja entre 1121 y 1178 en la que
+   el texto se enseñaba sin caber y algo tenía que ceder. */
+@media (max-width: 1220px) {
   .navbar-enlace-texto { display: none; }
   .navbar-enlace { padding: 9px 11px; }
+}
+
+/* Con sitio de sobra, el texto vuelve. */
+@media (min-width: 1221px) {
+  .navbar-enlace-texto { display: inline; }
+}
+
+/* El nombre del portal se va antes que los nombres de las secciones. Saber
+   en qué aplicación estás lo resuelve el logotipo que tiene al lado; saber a
+   qué sección lleva cada botón, no. Con el título puesto, los nombres de los
+   grupos no caben en una pantalla de 1366. */
+@media (max-width: 1400px) {
+  .navbar-marca-texto { display: none; }
 }
 
 /* Angosto: se oculta el correo y el subtítulo de la marca para dejarle
    el ancho a lo que sí se usa. */
 @media (max-width: 820px) {
   .navbar { padding: 10px 14px; }
-  .navbar-marca-sub, .navbar-perfil-correo { display: none; }
+  .navbar-marca-sub { display: none; }
   .navbar-marca-titulo { font-size: 0.98rem; }
 }
 
@@ -553,3 +3654,1341 @@ a:hover {
   .navbar-perfil-nombre { display: none; }
   .navbar-perfil { padding: 6px 10px; }
 }
+
+/* ==========================================================================
+   Grafo de conciencia
+   --------------------------------------------------------------------------
+   La ventana a lo que pasa mientras el portal piensa: qué nodo se encendió,
+   por dónde fue la consulta y cuánto tardó cada salto.
+
+   Todo el movimiento sale de aquí y no de JavaScript. Es deliberado: son
+   animaciones que el compositor del navegador resuelve solo, sin despertar al
+   hilo principal en cada fotograma. En una máquina donde la CPU está ocupada
+   generando texto, una animación que pida tiempo de CPU se ve a tirones justo
+   cuando más importa que se vea bien — que es mientras el modelo trabaja.
+   ========================================================================== */
+
+.grafo-conciencia {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+/* --- Nodos ---------------------------------------------------------------- */
+
+.grafo-nodo-circulo {
+  fill: var(--bg-tertiary);
+  stroke: var(--border-color);
+  stroke-width: 1.5;
+  transition: fill 260ms ease, stroke 260ms ease, stroke-width 260ms ease;
+}
+
+.grafo-nodo[data-estado="activo"] .grafo-nodo-circulo {
+  stroke: var(--accent-primary);
+  stroke-width: 2.2;
+  fill: var(--status-abierto-bg);
+}
+
+.grafo-nodo[data-estado="listo"] .grafo-nodo-circulo {
+  stroke: var(--cgr-verde);
+  stroke-width: 2.2;
+  fill: var(--status-resuelto-bg);
+}
+
+/* Omitido NO es un fallo: es la escalera del asistente funcionando. Cuando la
+   coincidencia es directa, ningún modelo redacta y su nodo se queda apagado a
+   propósito. Por eso va en gris con el borde punteado —"no hizo falta"— y no
+   en rojo, que diría otra cosa muy distinta. */
+.grafo-nodo[data-estado="omitido"] .grafo-nodo-circulo {
+  stroke: var(--text-muted);
+  stroke-dasharray: 3 3;
+  fill: transparent;
+}
+
+.grafo-nodo[data-estado="error"] .grafo-nodo-circulo {
+  stroke: var(--peligro);
+  stroke-width: 2.2;
+  fill: var(--peligro-bg);
+}
+
+.grafo-nodo-icono {
+  color: var(--text-muted);
+  transition: color 260ms ease;
+}
+
+.grafo-nodo[data-estado="activo"] .grafo-nodo-icono { color: var(--accent-primary); }
+.grafo-nodo[data-estado="listo"] .grafo-nodo-icono { color: var(--cgr-verde); }
+.grafo-nodo[data-estado="error"] .grafo-nodo-icono { color: var(--peligro); }
+
+.grafo-nodo-etiqueta {
+  fill: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-anchor: middle;
+  transition: fill 260ms ease;
+}
+
+.grafo-nodo[data-estado="activo"] .grafo-nodo-etiqueta,
+.grafo-nodo[data-estado="listo"] .grafo-nodo-etiqueta {
+  fill: var(--text-primary);
+}
+
+.grafo-nodo-detalle {
+  fill: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-anchor: middle;
+}
+
+/* El anillo que late mientras un nodo trabaja. Es la única señal de que algo
+   está pasando cuando el modelo tarda cuatro segundos en contestar. */
+.grafo-nodo-pulso {
+  fill: none;
+  stroke: var(--accent-primary);
+  stroke-width: 2;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.grafo-nodo[data-estado="activo"] .grafo-nodo-pulso {
+  animation: grafoPulso 1.6s ease-out infinite;
+}
+
+@keyframes grafoPulso {
+  0%   { opacity: 0.55; transform: scale(1); }
+  100% { opacity: 0;    transform: scale(1.75); }
+}
+
+/* --- Líneas --------------------------------------------------------------- */
+
+.grafo-arista {
+  stroke: var(--border-color);
+  stroke-width: 1.5;
+  fill: none;
+}
+
+/* La línea se dibuja sola de origen a destino. El truco es el de siempre:
+   se pinta discontinua con un hueco tan largo como ella misma y se desplaza
+   ese hueco hasta cero. `--largo` lo calcula el componente, que es quien sabe
+   dónde cayó cada nodo. */
+.grafo-arista-viva {
+  stroke: var(--accent-primary);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: var(--largo);
+  stroke-dashoffset: var(--largo);
+  animation: grafoTrazar 620ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes grafoTrazar {
+  to { stroke-dashoffset: 0; }
+}
+
+/* El punto que viaja por la línea, que es lo que de verdad da la sensación de
+   que algo se está moviendo de un sitio a otro. Se desplaza con `translate`
+   —no con `cx`/`cy`— porque las transformaciones no obligan al navegador a
+   recalcular la geometría del SVG en cada fotograma. */
+.grafo-particula {
+  fill: var(--accent-primary);
+  animation: grafoViajar 620ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes grafoViajar {
+  0%   { transform: translate(0, 0); opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)); opacity: 0; }
+}
+
+/* --- Sin movimiento ------------------------------------------------------- */
+/*
+   Quien pidió no ver animaciones sigue viendo el estado: los nodos se
+   encienden y las líneas quedan trazadas, solo que aparecen en vez de
+   recorrerse. La información es la misma; lo que se quita es el movimiento. */
+@media (prefers-reduced-motion: reduce) {
+  .grafo-nodo[data-estado="activo"] .grafo-nodo-pulso {
+    animation: none;
+    opacity: 0.45;
+  }
+  .grafo-arista-viva {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .grafo-particula { display: none; }
+}
+
+/* ==========================================================================
+   Conciencia — de lo general a lo particular
+   --------------------------------------------------------------------------
+   Tres bloques que se leen en orden: el mapa de lo que sabe la planta, la
+   tubería por la que entra conocimiento nuevo, y las consultas una por una.
+
+   El orden no es estético. Una respuesta mala del asistente parece siempre un
+   problema del modelo, y casi siempre es que no había nada que recuperar;
+   empezar por el mapa pone esa pregunta primero.
+   ========================================================================== */
+
+/* Las tres tarjetas necesitan aire entre ellas, y más del habitual.
+   
+   Se quedaron pegadas —cero píxeles, medido— y como el borde de
+   `.tarjeta-cristal` sobresale 3 px hacia fuera con su resplandor, los cantos
+   de dos tarjetas contiguas llegaban a solaparse: se leían como un solo bloque
+   en vez de como tres niveles distintos, que es justo lo que esta pantalla
+   necesita distinguir.
+   
+   28 px y no los 20-24 del resto del portal: aquí la separación es lo que
+   marca el salto de "qué sabe" a "cómo aprende" a "qué se preguntó". */
+.conciencia-pagina > .tarjeta-cristal { margin-bottom: 28px; }
+.conciencia-pagina > .tarjeta-cristal:last-child { margin-bottom: 0; }
+
+/* --- Encabezado numerado de cada nivel ------------------------------------ */
+
+.conciencia-encabezado {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.conciencia-numero {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-full);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent-primary);
+  background: var(--status-abierto-bg);
+  border: 1px solid var(--border-color);
+}
+
+.conciencia-encabezado h2 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  color: var(--text-primary);
+}
+
+.conciencia-encabezado p {
+  margin: 2px 0 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* Cuando la ayuda lleva una cifra mala, se tiñe: en el gris de siempre se
+   leería como una explicación más y pasaría desapercibida. */
+.conciencia-encabezado p[data-alerta="si"] {
+  color: var(--status-espera-proveedor-text);
+  font-weight: 500;
+}
+
+/* --- Nivel 1 en dos columnas ---------------------------------------------
+   Apilado medía 708 px de alto —más que el viewport de un portátil— con 460 px
+   de ancho sin usar al lado. El dibujo a un lado y lo que hay que leer al otro
+   hace que la tarjeta entre entera en una pantalla, que era el punto. */
+.conciencia-nivel1 {
+  display: grid;
+  gap: 20px;
+  /* Al inicio y no centrado: la columna derecha es más corta que el mapa, y
+     centrándola quedaba un hueco arriba justo donde el ojo entra a leer.
+     Alineadas por arriba, el titular empieza a la altura del dibujo y el aire
+     sobrante queda abajo, que es donde no estorba. */
+  align-items: start;
+}
+
+@media (min-width: 980px) {
+  .conciencia-nivel1 {
+    /* `minmax(0, …)` y no `1fr` a secas: sin él, el SVG impone su ancho
+       intrínseco como mínimo y la columna se niega a encogerse, desbordando
+       la tarjeta en las anchuras intermedias. */
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    gap: 28px;
+  }
+}
+
+.conciencia-resumen {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* Si alguien solo lee una línea de toda la pantalla, que sea ésta. */
+.conciencia-titular {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--text-primary);
+  padding: 10px 13px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  border-left: 3px solid var(--accent-primary);
+}
+
+/* De qué está hecho el total: tickets resueltos, procedimientos escritos y
+   documentación de TI. No es lo mismo saber diez cosas porque hay diez tickets
+   que porque alguien escribió diez procedimientos — lo segundo está redactado
+   para responder preguntas y lo primero cuenta lo que pasó un día concreto. */
+.conciencia-desglose {
+  display: grid;
+  /* `auto-fit` y no `repeat(3, …)`: con tres columnas fijas, "documentación
+     TI" deja de caber por debajo de ~110 px y empuja el bloque fuera de su
+     caja. Así se reacomoda solo a dos columnas, o a una, en cuanto le falta
+     sitio — y nunca desborda. */
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.conciencia-cifra {
+  padding: 10px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.conciencia-cifra strong {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: 1.35rem;
+  line-height: 1.15;
+  color: var(--text-primary);
+}
+
+.conciencia-cifra span {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  color: var(--text-muted);
+}
+
+/* Un cero es una ausencia, no una cifra: se atenúa para que no compita con los
+   números que sí dicen algo. */
+.conciencia-cifra[data-vacia="si"] { opacity: 0.5; }
+.conciencia-cifra[data-vacia="si"] strong { color: var(--text-muted); }
+
+/* --- Nivel 1 · El mapa ---------------------------------------------------- */
+
+.mapa-conocimiento {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+  /* Sin tope, en un monitor ancho el mapa se estira hasta ocupar la pantalla
+     entera y hay que bajar para ver los otros dos niveles — que es justo lo
+     contrario de lo que esta pantalla quiere: que se lean los tres seguidos. */
+  /* Sin tope propio: el ancho lo decide la columna de la rejilla. Un
+     `max-width` fijo aquí dejaba el dibujo pequeño en el centro de una
+     columna ancha, que es el problema que la rejilla vino a resolver. */
+  margin: 0 auto;
+}
+
+/* El grosor de la línea es cuánto se pregunta de esa categoría; lo pone el
+   componente. El color viene del estado, para que una línea gruesa hacia un
+   nodo rojo salte a la vista: mucha gente preguntando sobre algo que no está
+   escrito es el peor caso que tiene este portal. */
+.mapa-radio {
+  stroke: var(--border-color);
+  stroke-linecap: round;
+  opacity: 0.55;
+}
+
+.mapa-radio[data-estado="hueco"] { stroke: var(--peligro); opacity: 0.75; }
+.mapa-radio[data-estado="flojo"] { stroke: var(--status-espera-proveedor-text); opacity: 0.7; }
+
+.mapa-centro circle {
+  fill: var(--bg-tertiary);
+  stroke: var(--accent-primary);
+  stroke-width: 1.6;
+}
+
+.mapa-centro-cifra {
+  fill: var(--text-primary);
+  font-family: var(--font-heading);
+  font-size: 26px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.mapa-centro-texto {
+  fill: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-anchor: middle;
+}
+
+.mapa-nodo { cursor: pointer; }
+
+.mapa-nodo-circulo {
+  fill: color-mix(in srgb, var(--color) 18%, transparent);
+  stroke: var(--color);
+  stroke-width: 2;
+  transition: stroke-width 180ms ease, fill 180ms ease;
+}
+
+/* Una categoría sin nada escrito se dibuja hueca y punteada: el hueco se ve
+   como hueco, no como un círculo pequeño que podría pasar por "poco". */
+.mapa-nodo[data-estado="vacio"] .mapa-nodo-circulo,
+.mapa-nodo[data-estado="hueco"] .mapa-nodo-circulo {
+  fill: transparent;
+  stroke-dasharray: 4 3;
+}
+
+.mapa-nodo:hover .mapa-nodo-circulo,
+.mapa-nodo:focus-visible .mapa-nodo-circulo {
+  stroke-width: 3.5;
+  fill: color-mix(in srgb, var(--color) 32%, transparent);
+}
+
+.mapa-nodo[data-activa="si"] .mapa-nodo-circulo {
+  stroke-width: 4;
+  fill: color-mix(in srgb, var(--color) 38%, transparent);
+  stroke-dasharray: none;
+}
+
+.mapa-nodo:focus { outline: none; }
+.mapa-nodo:focus-visible .mapa-nodo-etiqueta { fill: var(--accent-primary); }
+
+.mapa-nodo-etiqueta {
+  fill: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.mapa-nodo-cifra {
+  fill: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-anchor: middle;
+}
+
+.conciencia-leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.conciencia-leyenda-item { display: inline-flex; align-items: center; gap: 6px; }
+
+.conciencia-punto {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-full);
+  display: inline-block;
+}
+
+.conciencia-huecos {
+  padding: 11px 13px;
+  border-radius: var(--radius-sm);
+  background: var(--peligro-bg);
+  border: 1px solid var(--peligro-borde);
+  color: var(--peligro);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+/* --- Nivel 2 · La tubería ------------------------------------------------- */
+
+.tuberia {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  /* En pantallas angostas se desplaza en horizontal en vez de apilarse: la
+     tubería cuenta una secuencia, y apilada deja de leerse como secuencia. */
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.tuberia-etapa {
+  flex: 1 1 0;
+  min-width: 118px;
+  padding: 12px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  text-align: center;
+}
+
+/* Seca = no le llegó nada, que en un portal nuevo es lo normal y no un fallo.
+   Rota = le llegaron cosas y no dejó pasar ninguna: eso sí hay que mirarlo. */
+.tuberia-etapa[data-estado="seca"] { opacity: 0.62; }
+
+.tuberia-etapa[data-estado="rota"] {
+  border-color: var(--peligro-borde);
+  background: var(--peligro-bg);
+}
+
+.tuberia-cifra {
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.tuberia-etapa[data-estado="rota"] .tuberia-cifra { color: var(--peligro); }
+
+.tuberia-nombre {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-top: 3px;
+}
+
+.tuberia-de {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.tuberia-aviso {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 7px;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: var(--peligro);
+}
+
+.tuberia-flecha {
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.tuberia-flecha-rota { color: var(--peligro); }
+
+/* Los votos de "¿te sirvió?", que desde ahora mueven el orden de la busqueda
+   y no solo una estadistica. Va pegado a la tuberia porque es su ultimo tramo:
+   el conocimiento entra, se usa, y lo que sirve sube. */
+.conciencia-realimentacion {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 13px;
+  border-radius: var(--radius-sm);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.conciencia-realimentacion svg { flex-shrink: 0; margin-top: 2px; }
+
+/* El color dice lo mismo que la cifra, que no es lo que hacia antes: pintaba
+   de verde cualquier tasa con tal de que hubiera votos, y un 13 % salia como
+   buena noticia. */
+.conciencia-realimentacion[data-nivel="bien"] {
+  background: var(--status-resuelto-bg);
+  color: var(--status-resuelto-text);
+}
+
+.conciencia-realimentacion[data-nivel="regular"] {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+/* Por debajo de la mitad, una sugerencia estorba mas veces de las que ayuda. */
+.conciencia-realimentacion[data-nivel="mal"] {
+  background: var(--status-espera-proveedor-bg);
+  color: var(--status-espera-proveedor-text);
+}
+
+/* Sin votos no se pinta en verde: no hay nada que celebrar todavia. */
+.conciencia-realimentacion[data-nivel="vacia"] {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.conciencia-enlace-aviso {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent-primary);
+  text-decoration: none;
+}
+
+.conciencia-enlace-aviso:hover { text-decoration: underline; }
+
+.conciencia-subtitulo {
+  margin: 18px 0 8px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.conciencia-avisos { list-style: none; margin: 0; padding: 0; }
+
+.conciencia-avisos li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.conciencia-avisos li + li { margin-top: 7px; }
+.conciencia-avisos li.grave { color: var(--peligro); background: var(--peligro-bg); }
+
+.conciencia-comando {
+  display: block;
+  margin-top: 6px;
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.conciencia-sin-avisos {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 13px;
+  border-radius: var(--radius-sm);
+  background: var(--status-resuelto-bg);
+  color: var(--status-resuelto-text);
+  font-size: 0.86rem;
+}
+
+/* Sin nada escrito no hay visto bueno: en verde se leeria como "todo bien"
+   cuando lo unico que hay que hacer es empezar. */
+.conciencia-sin-avisos[data-nivel="vacio"] {
+  background: var(--status-abierto-bg);
+  color: var(--status-abierto-text);
+}
+
+/* --- Nivel 3 · Las consultas ---------------------------------------------- */
+
+.conciencia-filtros { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+
+.conciencia-filtro {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 0.79rem;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.conciencia-filtro:hover { color: var(--text-primary); border-color: var(--accent-primary); }
+
+.conciencia-filtro.activo {
+  background: var(--status-abierto-bg);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.conciencia-resumen-origen { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+
+.conciencia-pastilla {
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: var(--bg-tertiary);
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+}
+
+.conciencia-pastilla.fallida { background: var(--peligro-bg); color: var(--peligro); }
+
+/* La tabla es lo único de esta pantalla que puede ser más ancha que el móvil:
+   se desplaza dentro de su caja en vez de estirar la página. */
+.conciencia-tabla-envoltorio { overflow-x: auto; }
+
+.conciencia-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  /* Anchos fijos por columna.
+     
+     Con el reparto automático, la pregunta se recortaba a 460 px pero su
+     columna seguía ocupando todo lo que sobraba: quedaba un agujero de casi
+     200 px entre el texto y la columna siguiente. La pregunta se lleva lo que
+     de verdad necesita y las tres columnas de datos quedan juntas y legibles
+     como un bloque. */
+  table-layout: fixed;
+}
+
+.conciencia-tabla col.col-pregunta   { width: auto; }
+.conciencia-tabla col.col-encontrado { width: 132px; }
+.conciencia-tabla col.col-resultado  { width: 168px; }
+.conciencia-tabla col.col-tiempo     { width: 82px; }
+
+.conciencia-tabla th {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.conciencia-tabla td {
+  padding: 10px;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+/* Una franja roja al costado de las consultas que no se pudieron contestar:
+   son las que hay que leer, y en una tabla larga tienen que encontrarse sin
+   ir columna por columna. */
+.conciencia-tabla tr.fallida td:first-child { box-shadow: inset 3px 0 0 var(--peligro); }
+
+.conciencia-pregunta {
+  color: var(--text-primary);
+  line-height: 1.45;
+  /* Las preguntas llegan hasta 2000 caracteres. Se cortan a tres renglones:
+     lo bastante para reconocer de qué iba, sin que una sola fila ocupe la
+     pantalla entera. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.conciencia-meta { font-size: 0.74rem; color: var(--text-muted); margin-top: 3px; }
+
+.conciencia-origen { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.conciencia-origen.fallida { color: var(--peligro); }
+
+.conciencia-tiempo { font-family: var(--font-mono); font-size: 0.78rem; white-space: nowrap; }
+
+.conciencia-vacio {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+/* Cómo se lee el mapa, en una línea, pegado a la leyenda. */
+.conciencia-como-leer {
+  margin: 0;
+  font-size: 0.79rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 720px) {
+  /* En móvil la tabla se desplaza dentro de su caja, así que las columnas
+     necesitan un mínimo o el texto se estruja en una tira vertical. */
+  .conciencia-tabla { table-layout: auto; min-width: 560px; }
+}
+
+/* ============================================================
+   Paleta de comandos
+   ============================================================
+   `Ctrl+K`. Ver `components/PaletaComandos.jsx` para el porqué.
+
+   **No lleva `backdrop-filter`.** Es la única superficie del portal que se
+   dibuja encima de todo lo demás, y desenfocar una página entera por
+   fotograma mientras alguien escribe es el peor sitio para pagarlo. Un velo
+   opaco separa igual de bien y no cuesta nada. */
+.paleta-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  justify-content: center;
+  /* Arriba y no centrada: la lista crece hacia abajo, y centrada verticalmente
+     el campo de escritura se movería solo a cada letra. */
+  align-items: flex-start;
+  padding: 12vh 20px 20px;
+  background: rgba(4, 6, 10, 0.62);
+  animation: aparecerVelo 0.16s ease-out;
+}
+
+@keyframes aparecerVelo { from { opacity: 0; } to { opacity: 1; } }
+
+.paleta {
+  width: 100%;
+  max-width: 560px;
+  max-height: 64vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #0c1119;
+  box-shadow: var(--shadow-float);
+  animation: subirPaleta 0.18s cubic-bezier(0.2, 1, 0.3, 1);
+}
+
+/* Sin `opacity` en el fotograma final: una opacidad por debajo de 1 en un
+   ancestro apaga el `backdrop-filter` de todo lo que tenga dentro, que es el
+   fallo que ya costó caro en las tarjetas del portal. Aquí no hay ninguno
+   todavía, pero el día que lo haya no debe romperse por esto. */
+@keyframes subirPaleta {
+  from { transform: translateY(-8px) scale(0.99); }
+  to   { transform: none; }
+}
+
+.paleta-campo {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 15px 17px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.paleta-campo input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+}
+.paleta-campo input::placeholder { color: var(--text-muted); }
+
+.paleta-tecla {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  font-family: var(--font-codigo);
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.paleta-lista {
+  list-style: none;
+  margin: 0;
+  padding: 7px;
+  overflow-y: auto;
+}
+
+.paleta-grupo {
+  padding: 9px 11px 5px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.paleta-opcion {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-secondary);
+  /* Sin transición de fondo: con las flechas se recorren diez filas por
+     segundo y una atenuación de 200 ms deja media lista encendida a medias. */
+}
+
+.paleta-opcion--resaltada {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-primary);
+}
+.paleta-opcion--peligro.paleta-opcion--resaltada {
+  background: var(--peligro-bg);
+  color: var(--peligro);
+}
+
+.paleta-texto {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.92rem;
+}
+
+/* El cajón del que viene la sección. Es un rastro para situarla, no un dato:
+   va en gris y a la derecha, donde no compite con el nombre. */
+.paleta-pista {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.paleta-vacia {
+  padding: 26px 18px;
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}
+
+/* El pie con las teclas. No se desplaza con la lista: es una referencia, y
+   una referencia que se va al hacer scroll no está donde se necesita. */
+.paleta-pie {
+  display: flex;
+  gap: 18px;
+  flex-shrink: 0;
+  padding: 9px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.paleta-pie span { display: inline-flex; align-items: center; gap: 5px; }
+.paleta-pie kbd {
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  background: rgba(255, 255, 255, 0.05);
+  font-family: var(--font-codigo);
+  font-size: 0.68rem;
+  line-height: 1.5;
+}
+
+/* ---- En la consola ---- */
+[data-fondo="flujo"] .paleta {
+  border-radius: var(--radius-md);
+  border-color: rgba(255, 255, 255, 0.11);
+  background: #080b11;
+}
+[data-fondo="flujo"] .paleta-grupo,
+[data-fondo="flujo"] .paleta-pista {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+[data-fondo="flujo"] .paleta-pista { letter-spacing: 0.1em; }
+[data-fondo="flujo"] .paleta-campo input { font-size: 0.95rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .paleta-fondo, .paleta { animation: none; }
+}
+
+/* El botón de la barra que abre la paleta y enseña su atajo. */
+.navbar-atajo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 5px 9px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+.navbar-atajo:hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.08);
+}
+.navbar-atajo kbd {
+  font-family: var(--font-codigo);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+}
+
+/* Por debajo de este ancho la barra ya va justa y lo que cedería sería el
+   nombre de la cuenta. El atajo sigue funcionando; lo que se esconde es el
+   cartel. */
+@media (max-width: 1360px) {
+  .navbar-atajo { display: none; }
+}
+
+/* ============================================================
+   Folio copiable
+   ============================================================ */
+
+/* Texto que solo existe para quien no ve la pantalla. No se puede usar
+   `display:none` ni `visibility:hidden`: las dos lo sacan también del árbol
+   de accesibilidad, que es justo a quien va dirigido. El recorte a un píxel
+   es la forma que sí lo deja legible para un lector de pantalla. */
+.solo-lectores {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.folio {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-family: var(--font-codigo);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+/* El icono aparece al pasar por encima. Fijo, el folio pasaría de ser un dato
+   a ser un botón, y en una lista de quince tickets serían quince botones
+   compitiendo con el asunto, que es lo que de verdad se lee. Reserva su sitio
+   siempre —`visibility` y no `display`— para que la fila no se mueva al
+   pasar el ratón. */
+.folio-icono {
+  flex-shrink: 0;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.folio:hover, .folio:focus-visible { color: var(--text-primary); border-color: rgba(255, 255, 255, 0.16); }
+.folio:hover .folio-icono,
+.folio:focus-visible .folio-icono { visibility: visible; opacity: 1; }
+
+/* Copiado: el icono se queda puesto y el filo se enciende un momento. */
+.folio--ok { color: var(--status-resuelto-text); border-color: var(--status-resuelto-text); }
+.folio--ok .folio-icono { visibility: visible; opacity: 1; }
+.folio--error { color: var(--peligro); border-color: var(--peligro-borde); }
+.folio--error .folio-icono { visibility: visible; opacity: 1; }
+
+.boton-copiar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+.boton-copiar:hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.26);
+  background: rgba(255, 255, 255, 0.06);
+}
+.boton-copiar--ok { color: var(--status-resuelto-text); border-color: var(--status-resuelto-text); }
+.boton-copiar--error { color: var(--peligro); border-color: var(--peligro-borde); }
+
+/* En la consola el folio pierde el relleno: ahí la mono ya lo distingue del
+   resto del renglón y una pastilla por fila llena la lista de cajas. */
+[data-fondo="flujo"] .folio {
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 0.86rem;
+  letter-spacing: 0.02em;
+}
+
+/* ======================================================================
+   Multi-planta, alertas de TI, encuesta, etiqueta QR y Monitoreo ESP32
+   (2026-10-02)
+   ====================================================================== */
+
+/* La planta de un ticket o un equipo: discreta, con la clave legible de un
+   vistazo y el nombre completo al pasar el ratón. */
+.chip-planta {
+  background: rgba(75, 176, 230, 0.10);
+  color: var(--marca-azul-luz);
+  border: 1px solid rgba(75, 176, 230, 0.28);
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
+.nota-suave {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-top: 6px;
+}
+
+.boton-mini {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.boton-mini:hover { color: var(--text-primary); border-color: var(--border-focus); }
+.boton-mini:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+
+.boton-texto {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: none; border: none; padding: 4px 6px;
+  color: var(--accent-primary); font-size: 0.8rem; font-weight: 600;
+  cursor: pointer; border-radius: var(--radius-sm);
+}
+.boton-texto:hover { text-decoration: underline; }
+
+/* --- Varias plantas por persona ---------------------------------------- */
+.plantas-multiples { display: flex; flex-wrap: wrap; gap: 8px; }
+.plantas-multiples .chip-filtro { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.plantas-multiples .chip-filtro:focus-within { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.plantas-principal {
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 1px 6px; border-radius: var(--radius-full);
+  background: var(--accent-primary); color: #04101c;
+}
+
+/* --- La campana de TI -------------------------------------------------- */
+.campana { position: relative; display: inline-flex; }
+.campana-boton {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.campana-boton:hover { color: var(--text-primary); }
+.campana-boton:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.campana-boton--activa { color: var(--status-espera-proveedor-text); border-color: var(--status-espera-proveedor-text); }
+.campana-boton--grave { color: var(--peligro); border-color: var(--peligro); animation: campana-latido 2.4s ease-in-out infinite; }
+@keyframes campana-latido {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 90, 90, 0); }
+  50% { box-shadow: 0 0 0 5px rgba(255, 90, 90, 0.18); }
+}
+@media (prefers-reduced-motion: reduce) { .campana-boton--grave { animation: none; } }
+.campana-cifra {
+  position: absolute; top: -5px; right: -6px;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: var(--radius-full);
+  background: var(--peligro); color: #fff;
+  font-size: 0.68rem; font-weight: 700; line-height: 18px; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.campana-panel {
+  position: absolute; top: calc(100% + 10px); right: 0;
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(70vh, 560px);
+  display: flex; flex-direction: column;
+  background: rgba(10, 14, 24, 0.97);
+  border: 1px solid var(--borde-medio, var(--border-color));
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float, var(--shadow-lg));
+  z-index: 1200;
+  overflow: hidden;
+}
+.campana-cabecera {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 14px; border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+.campana-vacia { padding: 26px 14px; text-align: center; color: var(--text-muted); font-size: 0.88rem; }
+.campana-lista { list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; }
+.campana-item {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.campana-item:last-child { border-bottom: none; }
+.campana-item-icono { flex-shrink: 0; margin-top: 2px; color: var(--status-espera-proveedor-text); }
+.campana-item--sla_vencido .campana-item-icono,
+.campana-item--iot_umbral .campana-item-icono { color: var(--peligro); }
+.campana-item--satisfaccion_baja .campana-item-icono { color: var(--marca-rosa-luz); }
+.campana-item-cuerpo { flex: 1; min-width: 0; }
+.campana-item-texto { color: var(--text-primary); font-size: 0.88rem; line-height: 1.4; overflow-wrap: anywhere; }
+.campana-item-meta { display: flex; gap: 8px; align-items: center; margin-top: 4px; font-size: 0.76rem; color: var(--text-muted); }
+.campana-item-detalle {
+  margin-top: 6px; font-size: 0.8rem; color: var(--text-secondary);
+  border-left: 2px solid var(--border-color); padding-left: 8px;
+  overflow-wrap: anywhere;
+}
+.campana-item-acciones { display: flex; gap: 4px; flex-shrink: 0; }
+.franja-alertas { margin-bottom: 16px; }
+
+/* --- Encuesta de satisfacción ------------------------------------------ */
+.encuesta {
+  margin-top: 24px; padding: 20px;
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  display: flex; flex-direction: column; gap: 12px; align-items: flex-start;
+}
+.encuesta .form-textarea { width: 100%; }
+.encuesta-titulo { font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0; }
+.estrellas { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.estrella-opcion { cursor: pointer; display: inline-flex; padding: 2px; border-radius: var(--radius-sm); }
+.estrella-opcion:focus-within { outline: 2px solid var(--border-focus); outline-offset: 1px; }
+.estrella { color: var(--text-muted); transition: transform 0.12s ease, color 0.12s ease; }
+.estrella--llena { color: #f5b942; fill: #f5b942; }
+.estrella-opcion:hover .estrella { transform: scale(1.12); }
+.estrellas-texto { margin-left: 8px; font-size: 0.88rem; color: var(--text-secondary); }
+.encuesta-comentario {
+  margin: 0; padding: 10px 14px; border-left: 3px solid #f5b942;
+  color: var(--text-secondary); font-style: italic; white-space: pre-line;
+}
+@media (prefers-reduced-motion: reduce) { .estrella { transition: none; } }
+
+.fila-canal-relleno--baja { background: var(--degradado-peligro, var(--peligro)); }
+.distribucion-estrellas .fila-canal-nombre { color: #f5b942; letter-spacing: 0.08em; }
+
+/* --- Etiqueta QR ------------------------------------------------------- */
+.etiqueta-qr-dialogo {
+  width: 100%; max-width: 680px; padding: 28px; position: relative;
+  max-height: 92vh; overflow-y: auto;
+}
+.dialogo-cerrar {
+  position: absolute; top: 20px; right: 20px;
+  background: none; border: none; cursor: pointer; color: var(--text-muted);
+}
+.dialogo-titulo {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 1.3rem; font-weight: 700; color: var(--text-primary); margin: 0 0 4px;
+}
+.dialogo-sub { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 18px; }
+.etiqueta-qr-vista {
+  background: #fff; border-radius: var(--radius-md);
+  padding: 10px; aspect-ratio: 2 / 1;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.etiqueta-qr-vista img { width: 100%; height: auto; display: block; }
+.etiqueta-qr-cargando { color: #59636e; font-size: 0.9rem; }
+.etiqueta-qr-enlace {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 14px; font-size: 0.8rem; color: var(--text-secondary);
+}
+.etiqueta-qr-enlace code {
+  font-family: var(--font-mono); overflow-wrap: anywhere;
+  background: var(--bg-tertiary); padding: 3px 8px; border-radius: var(--radius-sm);
+}
+.etiqueta-qr-pista { font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; margin-top: 8px; }
+.etiqueta-qr-acciones { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.etiqueta-qr-acciones .desactivado { opacity: 0.5; pointer-events: none; }
+.aviso-qr {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 12px 14px; margin-bottom: 22px;
+  border-radius: var(--radius-md);
+  background: var(--acento-bg);
+  border: 1px solid rgba(75, 176, 230, 0.3);
+  color: var(--text-primary); font-size: 0.9rem;
+}
+
+/* --- Monitoreo ESP32 y plantas ----------------------------------------- */
+.iot-rejilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 18px;
+}
+.iot-tarjeta {
+  text-align: left; padding: 18px 20px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 12px;
+  font: inherit; color: inherit; width: 100%;
+}
+.iot-tarjeta--elegida { outline: 2px solid var(--accent-primary); outline-offset: -2px; }
+.iot-tarjeta:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.iot-tarjeta-cabeza { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.iot-nombre { color: var(--text-primary); font-size: 1rem; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.iot-tarjeta-sub {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  font-size: 0.8rem; color: var(--text-muted);
+}
+.iot-tarjeta-sub code { font-family: var(--font-mono); font-size: 0.75rem; }
+.iot-punto { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: var(--text-muted); }
+.iot-punto--vivo { background: #4cd38a; box-shadow: 0 0 0 4px rgba(76, 211, 138, 0.15); }
+.iot-punto--callado { background: var(--peligro); box-shadow: 0 0 0 4px rgba(255, 90, 90, 0.15); }
+.iot-alerta { color: var(--peligro); background: var(--peligro-bg); }
+.iot-lecturas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.iot-lectura {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  padding: 10px; border-radius: var(--radius-md);
+  background: var(--bg-tertiary); color: var(--text-secondary);
+}
+.iot-lectura-valor {
+  font-size: 1.15rem; font-weight: 700; color: var(--text-primary);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.iot-lectura-nombre { font-size: 0.7rem; color: var(--text-muted); }
+.iot-lectura--alta { background: var(--peligro-bg); }
+.iot-lectura--alta .iot-lectura-valor { color: var(--peligro); }
+.iot-tarjeta-pie { display: flex; align-items: center; gap: 6px; font-size: 0.76rem; color: var(--text-muted); }
+.iot-detalle-cabeza {
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 18px;
+}
+.iot-graficas { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+.iot-graficas .nota-suave { grid-column: 1 / -1; }
+.iot-pasos { margin: 0 0 10px 18px; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.7; }
+.iot-codigo {
+  font-family: var(--font-mono); font-size: 0.8rem;
+  background: var(--bg-tertiary); padding: 2px 8px; border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+}
+.iot-umbrales {
+  border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  padding: 12px 16px; margin: 6px 0 12px;
+}
+.iot-umbrales legend { padding: 0 6px; color: var(--text-secondary); font-size: 0.85rem; font-weight: 600; }
+
+.grafica { margin: 0; }
+.grafica-titulo { display: flex; align-items: baseline; gap: 10px; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 6px; }
+.grafica-valor { font-size: 1.2rem; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.grafica-valor--alto { color: var(--peligro); }
+.grafica-hora { font-size: 0.75rem; color: var(--text-muted); }
+.grafica-svg { width: 100%; height: auto; display: block; overflow: visible; touch-action: pan-y; }
+.grafica-reja { stroke: rgba(255, 255, 255, 0.06); stroke-width: 1; }
+.grafica-eje { fill: var(--text-muted); font-size: 17px; font-family: var(--font-mono); }
+.grafica-umbral { stroke: var(--peligro); stroke-width: 1.2; stroke-dasharray: 5 4; opacity: 0.8; }
+.grafica-umbral-texto { fill: var(--peligro); font-size: 16px; font-family: var(--font-mono); }
+.grafica-cursor { stroke: rgba(255, 255, 255, 0.25); stroke-width: 1; }
+.grafica-vacia {
+  padding: 26px; text-align: center; color: var(--text-muted); font-size: 0.88rem;
+  background: var(--bg-tertiary); border-radius: var(--radius-md);
+}
+
+.planta-tarjeta { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.planta-tarjeta--inactiva { opacity: 0.6; }
+.planta-cifras { display: flex; gap: 16px; color: var(--text-secondary); font-size: 0.86rem; font-variant-numeric: tabular-nums; }
+.planta-cifras span { display: inline-flex; align-items: center; gap: 5px; }
+
+@media (max-width: 640px) {
+  .iot-lecturas { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .iot-lectura-valor { font-size: 1rem; }
+  .etiqueta-qr-dialogo { padding: 20px 16px; }
+  .campana-panel { position: fixed; top: 64px; right: 16px; left: 16px; width: auto; }
+}
+
+/* La etiqueta que se imprime: oculta en pantalla (ver EtiquetaQR.jsx). */
+.impresion-etiqueta { display: none; }

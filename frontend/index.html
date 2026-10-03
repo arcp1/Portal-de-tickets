@@ -3,11 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Instalable como aplicación (PWA). El Service Worker solo se registra
+         en contexto seguro —HTTPS o localhost—; por la IP del tailnet en HTTP
+         el navegador no lo permite y el portal funciona igual, sin instalar. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#070b15" />
+    <link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Tickets TI" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Portal de Tickets TI — CGR de México</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Tipografias servidas por el propio portal.
+         Antes venian de Google Fonts, lo que significaba dos cosas malas: cada
+         visitante le anunciaba su IP a Google al abrir el portal, y en una
+         planta sin salida a internet la interfaz se degradaba. Ahora el portal
+         no le pide nada a nadie de fuera. -->
+    <link rel="stylesheet" href="/fuentes/fuentes.css">
   </head>
   <body>
     <div id="root"></div>

@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../api/client';
-import { TrendingUp, Database, MessageCircle, Cpu, AlertTriangle } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import forma from '../lib/forma';
+import lista from '../lib/lista';
+import { TrendingUp, Database, MessageCircle, Cpu, Star } from 'lucide-react';
+import { usePlantas, SelectorPlanta } from '../lib/plantas';
+import NumeroQueSube from '../components/NumeroQueSube';
+import GlassCard from '../components/GlassCard';
+import Aviso from '../components/Aviso';
 
 /**
  * Tablero del admin.
@@ -12,78 +19,94 @@ import { TrendingUp, Database, MessageCircle, Cpu, AlertTriangle } from 'lucide-
  */
 
 const Tarjeta = ({ etiqueta, valor, sufijo = '', ayuda }) => (
-  <div style={{
-    padding: '20px',
-    background: 'var(--bg-secondary)',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--border-color)',
-    boxShadow: 'var(--shadow-sm)'
-  }}>
-    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: '500', marginBottom: '8px' }}>
-      {etiqueta}
+  <div className="casilla-metrica">
+    <div className="casilla-metrica-etiqueta">{etiqueta}</div>
+    <div className="casilla-metrica-valor">
+      <NumeroQueSube valor={valor} sufijo={sufijo} />
     </div>
-    <div style={{ fontSize: '1.9rem', fontWeight: '700', color: 'var(--text-primary)', lineHeight: 1.1 }}>
-      {valor === null || valor === undefined ? '—' : `${valor}${sufijo}`}
-    </div>
-    {ayuda && (
-      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.4 }}>
-        {ayuda}
-      </div>
-    )}
+    {ayuda && <div className="casilla-metrica-ayuda">{ayuda}</div>}
   </div>
 );
 
 const Seccion = ({ icono, titulo, children }) => (
-  <div className="apple-card" style={{ padding: '28px', marginBottom: '24px' }}>
-    <h2 style={{ fontSize: '1.2rem', fontWeight: '700', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-primary)' }}>
+  // La tarjeta de cristal envuelve cada bloque de métricas. El borde separa
+  // una sección de la siguiente mejor que el espacio en blanco: aquí abajo hay
+  // muchas cifras seguidas y sin un canto que las agrupe se leen como una
+  // lista larga en vez de como tres temas distintos.
+  <GlassCard relleno="28px" style={{ marginBottom: '24px' }}>
+    <h2 className="titulo-bloque">
       {icono}
       {titulo}
     </h2>
     {children}
-  </div>
+  </GlassCard>
 );
-
-const rejilla = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
-  gap: '16px'
-};
 
 const Metricas = () => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(false);
+  // TI ve todas las plantas juntas; puede quedarse con una.
+  const [plantas] = usePlantas();
+  const [plantaId, setPlantaId] = useState(null);
 
   useEffect(() => {
-    api.get('/metricas')
-      .then((res) => setDatos(res.data))
+    api.get('/metricas', { params: plantaId ? { sitio_id: plantaId } : {} })
+      .then((res) => { setDatos(res.data); setError(false); })
       .catch(() => setError(true))
       .finally(() => setCargando(false));
-  }, []);
+  }, [plantaId]);
 
   if (cargando) {
     return <div className="page-container" style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>{t('metricas.cargando')}</div>;
   }
-  if (error || !datos) {
+  // Se comprueban los cuatro bloques, no solo que `datos` no sea nulo. Con un
+  // cuerpo de otra forma, `tickets` salía `undefined` y la línea de abajo
+  // —`tickets.por_canal`— tumbaba la pantalla entera con «Algo se rompió».
+  // Enseñar el aviso de error es cierto y deja la pantalla en pie.
+  if (error || !forma(datos, ['tickets', 'base_conocimiento', 'chatbot', 'ollama'], 'las métricas')) {
     return <div className="page-container" style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>{t('metricas.error')}</div>;
   }
 
   const { tickets, base_conocimiento: kb, chatbot, ollama } = datos;
   const canales = Object.entries(tickets.por_canal || {});
+  // `forma` comprueba los cuatro bloques de primer nivel, no lo que hay dentro
+  // de cada uno. Ésta se recorre con `.map`, así que se guarda aparte: son las
+  // dos mitades del mismo cuidado, y la segunda hace falta porque estas dos
+  // claves vecinas **no tienen la misma forma** —`por_canal` es un diccionario
+  // y `por_categoria` una lista—, que es precisamente lo fácil de confundir.
+  const categorias = lista(tickets.por_categoria, 'las categorías de tickets');
   const totalCanales = canales.reduce((suma, [, n]) => suma + n, 0);
+  const satisfaccion = tickets.satisfaccion || null;
+  const distribucion = satisfaccion?.distribucion || {};
+  const maxEstrellas = Math.max(1, ...Object.values(distribucion).map(Number).filter(Number.isFinite));
+  const plantaElegida = plantas.find((p) => p.id === plantaId);
 
   return (
-    <div className="page-container animate-fade-in" style={{ maxWidth: '1100px' }}>
-      <h1 style={{ fontSize: '1.85rem', fontWeight: '700', marginBottom: '8px', color: 'var(--text-primary)' }}>
-        {t('metricas.title')}
-      </h1>
-      <p style={{ color: 'var(--text-secondary)', marginBottom: '32px' }}>
-        {t('metricas.subtitle', { dias: tickets.periodo_dias })}
-      </p>
+    <div className="page-container animate-fade-in">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">
+            {t('metricas.title')}
+          </h1>
+          <p>
+              {/* La planta sale de la sesión: las cifras son de la planta de
+                  quien mira, y el nombre estaba escrito en la traducción. */}
+              {t('metricas.subtitle', { dias: tickets.periodo_dias })}
+              {' · '}
+              {plantaElegida ? plantaElegida.nombre : t('plantas.todas')}
+          </p>
+        </div>
+        {plantas.length > 1 && (
+          <SelectorPlanta todas plantas={plantas} value={plantaId} onChange={setPlantaId}
+            style={{ minWidth: '230px' }} />
+        )}
+      </div>
 
       <Seccion icono={<TrendingUp size={20} color="var(--accent-primary)" />} titulo={t('metricas.tickets')}>
-        <div style={rejilla}>
+        <div className="rejilla-metricas">
           <Tarjeta
             etiqueta={t('metricas.deflexion')}
             valor={tickets.tasa_deflexion}
@@ -105,10 +128,18 @@ const Metricas = () => {
             sufijo="%"
             ayuda={t('metricas.normalizados_ayuda')}
           />
+          {/* Aparte y con su propia explicación: ninguna de las cifras de
+              arriba los cuenta, y sin decirlo el total parecería no cuadrar
+              con el tablero. */}
+          <Tarjeta
+            etiqueta={t('metricas.cancelados')}
+            valor={tickets.tickets_cancelados}
+            ayuda={t('metricas.cancelados_ayuda')}
+          />
         </div>
 
         {/* Distribución por canal: la métrica más importante de la spec */}
-        <h3 style={{ fontSize: '0.95rem', fontWeight: '600', margin: '28px 0 14px', color: 'var(--text-primary)' }}>
+        <h3 className="rotulo-seccion" style={{ margin: '28px 0 14px' }}>
           {t('metricas.por_canal')}
         </h3>
         {totalCanales === 0 ? (
@@ -116,14 +147,14 @@ const Metricas = () => {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {canales.sort((a, b) => b[1] - a[1]).map(([canal, n]) => (
-              <div key={canal} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '110px', fontSize: '0.88rem', color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
+              <div key={canal} className="fila-canal">
+                <div className="fila-canal-nombre">
                   {t(`metricas.canal_${canal}`, { defaultValue: canal })}
                 </div>
-                <div style={{ flex: 1, height: '10px', background: 'var(--bg-tertiary)', borderRadius: '5px', overflow: 'hidden' }}>
-                  <div style={{ width: `${(100 * n) / totalCanales}%`, height: '100%', background: 'var(--accent-primary)' }} />
+                <div className="fila-canal-pista">
+                  <div className="fila-canal-relleno" style={{ width: `${(100 * n) / totalCanales}%` }} />
                 </div>
-                <div style={{ width: '72px', textAlign: 'right', fontSize: '0.88rem', color: 'var(--text-primary)', fontWeight: '600' }}>
+                <div className="fila-canal-cifra">
                   {n} · {Math.round((100 * n) / totalCanales)}%
                 </div>
               </div>
@@ -132,19 +163,17 @@ const Metricas = () => {
         )}
 
         {/* Top de incidencias recurrentes: dice qué arreglar de raíz */}
-        <h3 style={{ fontSize: '0.95rem', fontWeight: '600', margin: '28px 0 14px', color: 'var(--text-primary)' }}>
+        <h3 className="rotulo-seccion" style={{ margin: '28px 0 14px' }}>
           {t('metricas.top_categorias')}
         </h3>
-        {tickets.por_categoria.length === 0 ? (
+        {categorias.length === 0 ? (
           <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{t('metricas.sin_datos')}</div>
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-            {tickets.por_categoria.map((c) => (
-              <div key={c.categoria} style={{
+            {categorias.map((c) => (
+              <div key={c.categoria} className="chip-dato" style={{
                 padding: '10px 16px',
                 background: 'var(--bg-tertiary)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: '0.9rem',
                 color: 'var(--text-primary)'
               }}>
                 <strong>{c.total}</strong>{' '}
@@ -155,8 +184,44 @@ const Metricas = () => {
         )}
       </Seccion>
 
+      {/* Lo que el tiempo de resolución no cuenta: rápido no es lo mismo
+          que bien resuelto. La contestan quienes reportaron. */}
+      {satisfaccion && (
+        <Seccion icono={<Star size={20} color="var(--accent-primary)" />} titulo={t('encuesta.metricas_titulo')}>
+          <div className="rejilla-metricas">
+            <Tarjeta etiqueta={t('encuesta.promedio')} valor={satisfaccion.promedio} sufijo=" / 5" />
+            <Tarjeta etiqueta={t('encuesta.respuestas')} valor={satisfaccion.respuestas} />
+            <Tarjeta
+              etiqueta={t('encuesta.tasa_respuesta')}
+              valor={satisfaccion.tasa_respuesta}
+              sufijo="%"
+              ayuda={t('encuesta.tasa_respuesta_ayuda')}
+            />
+          </div>
+          {satisfaccion.respuestas > 0 && (
+            <div className="distribucion-estrellas" style={{ marginTop: '22px' }}>
+              {[5, 4, 3, 2, 1].map((n) => {
+                const cuantos = Number(distribucion[String(n)] || 0);
+                return (
+                  <div key={n} className="fila-canal">
+                    <div className="fila-canal-nombre" aria-label={t('encuesta.n_de_5', { n })}>
+                      {'★'.repeat(n)}<span style={{ opacity: 0.25 }}>{'★'.repeat(5 - n)}</span>
+                    </div>
+                    <div className="fila-canal-pista">
+                      <div className={`fila-canal-relleno${n <= 2 ? ' fila-canal-relleno--baja' : ''}`}
+                        style={{ width: `${(100 * cuantos) / maxEstrellas}%` }} />
+                    </div>
+                    <div className="fila-canal-cifra">{cuantos}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Seccion>
+      )}
+
       <Seccion icono={<Database size={20} color="var(--accent-primary)" />} titulo={t('metricas.kb')}>
-        <div style={rejilla}>
+        <div className="rejilla-metricas">
           <Tarjeta
             etiqueta={t('metricas.utilidad')}
             valor={kb.tasa_utilidad}
@@ -180,7 +245,7 @@ const Metricas = () => {
       </Seccion>
 
       <Seccion icono={<MessageCircle size={20} color="var(--accent-primary)" />} titulo={t('metricas.chatbot')}>
-        <div style={rejilla}>
+        <div className="rejilla-metricas">
           <Tarjeta etiqueta={t('metricas.sesiones')} valor={chatbot.sesiones_iniciadas} />
           <Tarjeta
             etiqueta={t('metricas.termino_ticket')}
@@ -191,30 +256,15 @@ const Metricas = () => {
             etiqueta={t('metricas.precision')}
             valor={chatbot.precision_clasificacion}
             sufijo="%"
-            ayuda={t('metricas.precision_ayuda', { n: chatbot.clasificaciones_comparables })}
+            ayuda={t('metricas.precision_ayuda', { count: chatbot.clasificaciones_comparables })}
           />
           <Tarjeta etiqueta={t('metricas.umbral_confianza')} valor={chatbot.umbral_confianza} />
         </div>
       </Seccion>
 
       <Seccion icono={<Cpu size={20} color="var(--accent-primary)" />} titulo={t('metricas.ollama')}>
-        {!ollama.disponible && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '14px 18px',
-            background: 'var(--status-espera-proveedor-bg)',
-            color: 'var(--status-espera-proveedor-text)',
-            borderRadius: 'var(--radius-md)',
-            marginBottom: '18px',
-            fontSize: '0.9rem'
-          }}>
-            <AlertTriangle size={18} />
-            {t('metricas.ollama_caido')}
-          </div>
-        )}
-        <div style={rejilla}>
+        {!ollama.disponible && <Aviso texto={t('metricas.ollama_caido')} />}
+        <div className="rejilla-metricas">
           <Tarjeta
             etiqueta={t('metricas.estado')}
             valor={ollama.disponible ? t('metricas.en_linea') : t('metricas.fuera_linea')}

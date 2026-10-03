@@ -1,21 +1,52 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
-import LanguageSelector from './LanguageSelector';
-import {
-  Ticket, PlusCircle, Laptop, Sliders, LogOut, ShieldCheck, User,
-  TrendingUp, ListChecks, FolderOpen, FileSignature, Users, BookOpen,
-  Upload, Activity, BookOpenCheck
+import MenuBarra from './MenuBarra';
+import { seccionesDe } from '../lib/navegacion';
+import { LogOut, ShieldCheck, User, FolderOpen, KeyRound, Languages, Check, Search
 } from 'lucide-react';
+import { useConexionPortal } from '../context/Eventos';
+import CambiarPassword from './CambiarPassword';
+import { cambiarIdioma as cambiarIdiomaDelPortal } from '../i18n';
+import CampanaAlertas from './CampanaAlertas';
+import { textoPlantasDe } from '../lib/plantas';
+
+/* Los tres idiomas viven aquí y no en un control aparte de la barra: el
+   selector suelto ocupaba noventa y ocho píxeles de una fila que no daba más
+   de sí, y es un ajuste que una persona toca una vez en su vida. Dentro del
+   menú de la cuenta está donde uno lo busca. */
+const IDIOMAS = [['es', 'Español'], ['en', 'English'], ['fr', 'Français']];
+
+/* En el Mac la combinación es ⌘K y en todo lo demás Ctrl+K. Enseñar la que no
+   es deja el atajo inservible para quien se fía del cartel. Las máquinas de
+   la planta son Windows, así que lo normal aquí es "Ctrl". */
+const esMac = typeof navigator !== 'undefined'
+  && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 const Navbar = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const enVivo = useConexionPortal();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [cambiandoPassword, setCambiandoPassword] = useState(false);
+
+  /* El diálogo de contraseña vive aquí, pero la paleta de comandos también lo
+     ofrece. En vez de subir este estado a la aplicación entera por un atajo,
+     la paleta lanza un evento y la barra lo escucha. Va **antes** del
+     `return null` de abajo: un hook detrás de una salida temprana dejaría de
+     ejecutarse en el render en que no hay sesión, que es justo lo que React
+     no admite. */
+  useEffect(() => {
+    const abrir = () => setCambiandoPassword(true);
+    window.addEventListener('portal:cambiar-password', abrir);
+    return () => window.removeEventListener('portal:cambiar-password', abrir);
+  }, []);
 
   if (!user) return null;
+
+  const cambiarIdioma = (codigo) => { cambiarIdiomaDelPortal(codigo); };
 
   const cerrarSesion = () => {
     logout();
@@ -26,46 +57,30 @@ const Navbar = () => {
 
   const esAdmin = user.rol === 'admin';
 
-  // El orden es el del uso real: primero lo que hace todo el mundo todos los
-  // días, al final lo de administración.
-  const enlaces = [
-    { ruta: '/', icono: <Ticket size={18} />, texto: t('nav.dashboard') },
-    { ruta: '/new-ticket', icono: <PlusCircle size={18} />, texto: t('nav.new_ticket') },
-    { ruta: '/inventory', icono: <Laptop size={18} />, texto: t('nav.inventory') },
-    { ruta: '/expediente', icono: <FolderOpen size={18} />, texto: t('nav.expediente') },
-    ...(esAdmin ? [
-      { ruta: '/usuarios', icono: <Users size={18} />, texto: t('nav.usuarios') },
-      { ruta: '/importar', icono: <Upload size={18} />, texto: t('nav.importar') },
-      { ruta: '/resguardos', icono: <FileSignature size={18} />, texto: t('nav.resguardos') },
-      { ruta: '/soluciones', icono: <BookOpenCheck size={18} />, texto: t('nav.soluciones') },
-      { ruta: '/documentacion', icono: <BookOpen size={18} />, texto: t('nav.documentacion') },
-      { ruta: '/temas', icono: <ListChecks size={18} />, texto: t('nav.temas') },
-      { ruta: '/rules', icono: <Sliders size={18} />, texto: t('nav.rules') },
-      { ruta: '/metricas', icono: <TrendingUp size={18} />, texto: t('nav.metricas') },
-      { ruta: '/estado', icono: <Activity size={18} />, texto: t('nav.estado') }
-    ] : [])
-  ];
+  // La lista vive en `lib/navegacion`, no aquí: la paleta de comandos
+  // necesita exactamente la misma, y copiada en dos sitios el día que se
+  // añada una sección se añadiría en uno solo.
+  const secciones = seccionesDe(t, esAdmin);
 
   return (
     <nav className="navbar">
       <div className="navbar-contenido">
-        <Link to="/" className="navbar-marca">
-          <div style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '10px',
-            background: 'var(--accent-primary)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 'bold',
-            color: 'white',
-            fontSize: '0.82rem',
-            flexShrink: 0,
-            boxShadow: '0 4px 12px rgba(0, 122, 255, 0.3)'
-          }}>
-            CGR
-          </div>
+        <Link viewTransition to="/" className="navbar-marca">
+          {/* El logotipo oficial, sobre placa blanca por lo mismo que en el
+              login: el archivo de marca es la version positiva —letras y lema
+              en azul— y `#003b7c` sobre una barra casi negra no se lee. La
+              placa es lo que deja que los colores lleguen como los define la
+              marca.
+
+              A esta altura el lema no se lee, y esta bien: a 30 px hace de
+              textura, no de texto. El nombre del portal va al lado. */}
+          <img
+            className="navbar-marca-placa"
+            src="/marca/cgr.png"
+            alt="CGR"
+            width={62}
+            height={31}
+          />
           <div className="navbar-marca-texto">
             <div className="navbar-marca-titulo" style={{
               fontFamily: 'var(--font-heading)',
@@ -75,74 +90,135 @@ const Navbar = () => {
               color: 'var(--text-primary)',
               whiteSpace: 'nowrap'
             }}>
-              Portal de Tickets TI
+              {t('nav.portal')}
             </div>
-            <div className="navbar-marca-sub" style={{
-              fontSize: '0.75rem',
-              color: 'var(--text-secondary)',
-              fontWeight: '500',
-              whiteSpace: 'nowrap'
-            }}>
-              {t('nav.plant')}
-            </div>
+            {/* La planta de quien entra, leída de la base. Estaba escrita en
+                la traducción, así que desde otra planta se leía "Querétaro".
+                Desde multi-planta: TI es de todas, y quien trabaja en varias
+                ve sus claves. */}
+            {textoPlantasDe(user, t) && (
+              <div className="navbar-marca-sub" style={{
+                fontSize: '0.75rem',
+                color: 'var(--text-secondary)',
+                fontWeight: '500',
+                whiteSpace: 'nowrap'
+              }}>
+                {textoPlantasDe(user, t)}
+              </div>
+            )}
           </div>
         </Link>
 
+        {/* Enlaces y grupos salen de una sola lista y en su orden, no en dos
+            pasadas: con dos, cualquier enlace suelto se colaba delante de
+            todos los menús y Personas —que es administración— acababa
+            pegada a "Nuevo Ticket", entre las tareas del día a día. */}
         <div className="navbar-enlaces">
-          {enlaces.map((e) => (
-            <Link
-              key={e.ruta}
-              to={e.ruta}
-              className={`navbar-enlace${activo(e.ruta) ? ' activo' : ''}`}
-              title={e.texto}
-              aria-current={activo(e.ruta) ? 'page' : undefined}
+          {secciones.map((s) => (s.entradas ? (
+            <MenuBarra
+              key={s.clave}
+              texto={s.texto}
+              entradas={s.entradas}
+              rutaActiva={location.pathname}
+            />
+          ) : (
+            <Link viewTransition
+              key={s.ruta}
+              to={s.ruta}
+              className={`navbar-enlace${activo(s.ruta) ? ' activo' : ''}`}
+              title={s.texto}
+              aria-current={activo(s.ruta) ? 'page' : undefined}
             >
-              {e.icono}
-              <span className="navbar-enlace-texto">{e.texto}</span>
+              {s.icono}
+              <span className="navbar-enlace-texto">{s.texto}</span>
             </Link>
-          ))}
+          )))}
         </div>
 
         <div className="navbar-derecha">
-          <LanguageSelector />
+          {/* **El atajo hay que enseñarlo o no existe.** Una paleta de
+              comandos que solo se abre con una combinación que nadie ha dicho
+              es una función que no usa nadie. Este botón la abre con el ratón
+              y, sobre todo, enseña la combinación.
 
-          <div className="navbar-perfil">
-            {esAdmin
-              ? <ShieldCheck size={18} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-              : <User size={18} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />}
-            <div className="navbar-perfil-nombre" style={{ lineHeight: 1.25, minWidth: 0 }}>
-              <div style={{
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                color: 'var(--text-primary)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                maxWidth: '160px'
-              }}>
-                {user.nombre}
-              </div>
-              <div className="navbar-perfil-correo" style={{
-                fontSize: '0.72rem',
-                color: 'var(--text-secondary)',
-                whiteSpace: 'nowrap'
-              }}>
-                {user.email}
-              </div>
-            </div>
-          </div>
-
+              Se esconde por debajo de 1360 px: ahí la barra ya va justa y lo
+              primero que cedería sería el nombre de la cuenta, que importa
+              más —en una terminal de planta compartida, saber con qué cuenta
+              estás abierto no es un adorno—. Quien la conozca sigue teniendo
+              el atajo, que funciona a cualquier ancho. */}
           <button
-            onClick={cerrarSesion}
-            className="btn-secondary"
-            style={{ padding: '9px 12px' }}
-            title={t('nav.logout')}
-            aria-label={t('nav.logout')}
+            type="button"
+            className="navbar-atajo"
+            onClick={() => window.dispatchEvent(new CustomEvent('portal:paleta'))}
+            title={t('paleta.pista')}
+            aria-label={t('paleta.titulo')}
           >
-            <LogOut size={17} />
+            <Search size={13} aria-hidden="true" />
+            <kbd>{esMac ? '\u2318' : 'Ctrl'} K</kbd>
           </button>
+
+          {/* Que el portal esté escuchando es información: si se cae, lo que
+              hay en pantalla deja de ser lo que hay en la base y quien esté
+              atendiendo tickets tiene derecho a saberlo. Sin texto, porque el
+              caso normal es que esté verde y nadie necesita leer "conectado"
+              cien veces al día; el título lo dice para quien pase el ratón y
+              para los lectores de pantalla. */}
+          {/* Lo que el portal detectó solo —SLA por vencer, sensores fuera
+              de rango, una calificación baja—. Solo TI. */}
+          {esAdmin && <CampanaAlertas />}
+          <span
+            className={`pulso-conexion${enVivo ? ' pulso-conexion--vivo' : ''}`}
+            title={t(enVivo ? 'navbar.en_vivo' : 'navbar.sin_conexion')}
+            role="status"
+            aria-label={t(enVivo ? 'navbar.en_vivo' : 'navbar.sin_conexion')}
+          />
+          {/* **El perfil, la contraseña y la salida, en un solo menú.**
+              Sueltos eran tres piezas —un chip con el nombre y dos botones de
+              icono— que sumaban más de lo que le cabe a su columna, así que lo
+              primero en desaparecer era justo el nombre: en una terminal de
+              planta compartida, saber con qué cuenta estás abierto no es un
+              adorno. Plegados, el nombre vuelve a verse.
+
+              "Mi Expediente" se mudó aquí desde el grupo de Personas: son los
+              equipos, resguardos y documentos de uno mismo, no la
+              administración de los demás. */}
+          <MenuBarra
+            alinear="derecha"
+            claseBoton="navbar-perfil navbar-perfil--menu"
+            rutaActiva={location.pathname}
+            contenido={
+              <>
+                {esAdmin
+                  ? <ShieldCheck size={18} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                  : <User size={18} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />}
+                <span className="navbar-perfil-nombre">{user.nombre}</span>
+              </>
+            }
+            entradas={[
+              { ruta: '/expediente', icono: <FolderOpen size={16} />, texto: t('nav.expediente') },
+              ...IDIOMAS.map(([codigo, nombre]) => ({
+                onSelect: () => cambiarIdioma(codigo),
+                icono: i18n.language?.startsWith(codigo)
+                  ? <Check size={16} />
+                  : <Languages size={16} style={{ opacity: 0.45 }} />,
+                texto: nombre
+              })),
+              { onSelect: () => setCambiandoPassword(true), icono: <KeyRound size={16} />, texto: t('password.abrir') },
+              { onSelect: cerrarSesion, icono: <LogOut size={16} />, texto: t('nav.logout'), peligro: true }
+            ]}
+          />
         </div>
       </div>
+
+      {cambiandoPassword && (
+        <CambiarPassword
+          onCerrar={() => setCambiandoPassword(false)}
+          // Al cambiarla, el backend sube la version del token y esta sesion
+          // deja de valer: se acompana a la puerta en vez de esperar a que la
+          // siguiente peticion devuelva un 401.
+          onCambiada={() => { setCambiandoPassword(false); cerrarSesion(); }}
+        />
+      )}
     </nav>
   );
 };

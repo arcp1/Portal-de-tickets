@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../api/client';
 import { FileSignature, X, Check, AlertTriangle, Download } from 'lucide-react';
+import CapaModal from './CapaModal';
+import Formulario from './Formulario';
 
 /**
  * Firma de un resguardo.
@@ -18,6 +20,17 @@ const FirmaResguardo = ({ resguardo, nombreSugerido, onFirmado, onCerrar }) => {
   const [nombre, setNombre] = useState('');
   const [acepto, setAcepto] = useState(false);
   const [leyoTodo, setLeyoTodo] = useState(false);
+  const cajaCondiciones = useRef(null);
+
+  // Unas condiciones cortas no desbordan la caja, el evento de scroll nunca
+  // dispara y la casilla de aceptacion se quedaba deshabilitada para siempre:
+  // la persona no podia firmar de ninguna manera. Si no hay nada que
+  // desplazar, ya lo leyo todo.
+  useEffect(() => {
+    const caja = cajaCondiciones.current;
+    if (!caja) return;
+    if (caja.scrollHeight - caja.clientHeight < 40) setLeyoTodo(true);
+  }, [resguardo.condiciones]);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
 
@@ -53,15 +66,8 @@ const FirmaResguardo = ({ resguardo, nombreSugerido, onFirmado, onCerrar }) => {
   };
 
   return (
-    <div
-      onClick={onCerrar}
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '20px', zIndex: 1000
-      }}
-    >
-      <form
+    <CapaModal onCerrar={onCerrar}>
+      <Formulario
         onClick={(e) => e.stopPropagation()}
         onSubmit={firmar}
         className="apple-card animate-scale-in"
@@ -103,6 +109,7 @@ const FirmaResguardo = ({ resguardo, nombreSugerido, onFirmado, onCerrar }) => {
           {t('resguardos.condiciones')}
         </label>
         <div
+          ref={cajaCondiciones}
           onScroll={(e) => {
             const el = e.target;
             // Se habilita la aceptación cuando llegó al final del texto.
@@ -182,8 +189,8 @@ const FirmaResguardo = ({ resguardo, nombreSugerido, onFirmado, onCerrar }) => {
             </button>
           </div>
         </div>
-      </form>
-    </div>
+      </Formulario>
+    </CapaModal>
   );
 };
 
