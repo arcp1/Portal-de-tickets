@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.core.security import get_password_hash
 from app.models import ChatSesion, Equipo, Sitio, Ticket, Usuario
 from app.services.pdf_service import generar_pdf_resguardo
+from app.tests.imagenes_de_prueba import jpeg
 
 PASSWORD = "Secret123!"
 
@@ -231,7 +232,9 @@ def test_un_adjunto_legitimo_sigue_entrando(client, tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "ADJUNTOS_RUTA", str(tmp_path))
     cab = _cab(client, "user@test.com")
     ticket = _ticket(client, cab)
-    for contenido, tipo in ((b"\xff\xd8\xff\xe0 foto", "image/jpeg"),
+    # La foto tiene que ser una foto: el portal la abre para quitarle los
+    # metadatos, y una firma JPEG seguida de texto ya no pasa.
+    for contenido, tipo in ((jpeg(), "image/jpeg"),
                             (b"%PDF-1.7\n...", "application/pdf"),
                             ("Registro del error: línea 4".encode(), "text/plain")):
         r = client.post(f"/api/tickets/{ticket['id']}/adjuntos", headers=cab,

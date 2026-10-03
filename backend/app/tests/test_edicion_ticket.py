@@ -9,6 +9,7 @@ y que el canal lo ponga TI.
 """
 
 import pytest
+from app.tests.imagenes_de_prueba import png
 
 SOLUCION = "Se limpió el cabezal con alcohol isopropílico y volvió a imprimir bien."
 
@@ -145,9 +146,9 @@ def test_solo_se_asigna_a_alguien_de_ti(client, db_session):
 # Cerrado, es de solo lectura para quien lo reportó
 # ----------------------------------------------------------------------
 
-PNG = (b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00"
-       b"\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00"
-       b"\x00\x00IEND\xaeB`\x82")
+# Una imagen de verdad: desde que se les quitan los metadatos, el portal las
+# abre, y un PNG con la firma bien pero los datos rotos se rechaza.
+PNG = png()
 
 
 def _subir(client, ticket_id, cabeceras):

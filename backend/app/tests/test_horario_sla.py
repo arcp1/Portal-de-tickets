@@ -10,6 +10,7 @@ import pytest
 
 from app.core.config import settings
 from app.services.horario_service import HorarioService, a_utc
+from app.tests.imagenes_de_prueba import misma_imagen
 
 
 def token(client, email="user@test.com", password="Secret123!"):
@@ -189,7 +190,9 @@ def test_se_puede_adjuntar_una_foto(client, tmp_path, monkeypatch):
     assert r.status_code == 201
     assert r.json()["nombre_original"] == "foto.png"
     assert r.json()["tipo_mime"] == "image/png"
-    assert r.json()["tamano_bytes"] == len(PNG)
+    # Se guarda limpia de metadatos (core/metadatos.py): no es byte a byte la
+    # que se subió, pero es la misma imagen —ver la prueba de descarga—.
+    assert r.json()["tamano_bytes"] > 0
 
 
 def test_la_foto_se_puede_descargar(client, tmp_path, monkeypatch):
@@ -201,7 +204,8 @@ def test_la_foto_se_puede_descargar(client, tmp_path, monkeypatch):
     r = client.get(f"/api/tickets/{ticket['id']}/adjuntos/{adjunto['id']}", headers=cabeceras)
 
     assert r.status_code == 200
-    assert r.content == PNG
+    assert misma_imagen(r.content, PNG)
+    assert len(r.content) == adjunto["tamano_bytes"]
 
 
 def test_no_se_aceptan_ejecutables(client, tmp_path, monkeypatch):

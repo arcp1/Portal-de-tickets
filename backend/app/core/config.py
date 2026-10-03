@@ -373,6 +373,10 @@ class Settings(BaseSettings):
     # disco de produccion.
     IMAGENES_MAX_MB: int = int(os.getenv("IMAGENES_MAX_MB", "10"))
     IMAGENES_MAX_POR_ELEMENTO: int = int(os.getenv("IMAGENES_MAX_POR_ELEMENTO", "8"))
+    # Tope al abrir una imagen para quitarle los metadatos (core/metadatos.py):
+    # se mira en la cabecera antes de descomprimir. 100 MP cubre la cámara de
+    # cualquier celular y deja fuera las «bombas» de 40 000 × 40 000.
+    IMAGENES_MAX_MEGAPIXELES: int = int(os.getenv("IMAGENES_MAX_MEGAPIXELES", "100"))
 
     # --- Catalogo visual: los problemas que se reconocen mirandolos ---
     #

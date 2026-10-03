@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin, get_current_user
 from app.core.archivos import contenido_coincide
+from app.core.metadatos import limpiar_subida
 from app.core.config import settings
 from app.core import plantas
 from app.core.db import get_db
@@ -138,6 +139,10 @@ async def subir(
             vence = datetime.fromisoformat(vigente_hasta.replace("Z", "+00:00")).replace(tzinfo=None)
         except ValueError:
             raise HTTPException(status_code=422, detail="Fecha de vigencia inválida.")
+
+    # Sin metadatos: ni GPS, ni cámara, ni fecha (ver core/metadatos.py). Va
+    # antes de escribir, para que el tamaño guardado sea el del archivo limpio.
+    contenido = await limpiar_subida(contenido, mime)
 
     nombre_guardado = f"{uuid.uuid4().hex}{TIPOS_PERMITIDOS[mime]}"
     (_carpeta() / nombre_guardado).write_bytes(contenido)

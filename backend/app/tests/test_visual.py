@@ -19,6 +19,7 @@ import io
 from app.core.config import settings
 from app.models import ConsultaAsistente, FichaVisual, Sitio, Ticket, Usuario
 from app.services.visual_service import VisualService
+from app.tests.imagenes_de_prueba import misma_imagen
 
 PNG = (
     b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
@@ -218,7 +219,7 @@ def test_la_imagen_se_puede_ver(client, tmp_path, monkeypatch):
                    headers=cab(client, "user@test.com"))
 
     assert r.status_code == 200
-    assert r.content == PNG
+    assert misma_imagen(r.content, PNG)
 
 
 def test_mostrar_confirmar_y_descartar_quedan_contados(client, tmp_path, monkeypatch, db_session):
@@ -523,7 +524,7 @@ def test_la_foto_copiada_se_puede_ver_aunque_se_borre_la_del_ticket(client, tmp_
     r = client.get(f"/api/visual/fichas/{ficha['id']}/imagenes/{imagen['id']}",
                    headers=cab(client))
     assert r.status_code == 200
-    assert r.content == PNG
+    assert misma_imagen(r.content, PNG)
 
 
 def test_pulsarlo_dos_veces_no_crea_dos_fichas(client, tmp_path, monkeypatch):

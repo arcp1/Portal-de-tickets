@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin, get_current_user, usuario_con_cupo_ia
 from app.core.archivos import contenido_coincide
+from app.core.metadatos import limpiar_subida
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.logging import logger
@@ -566,6 +567,10 @@ async def subir_imagen(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="El contenido del archivo no corresponde a su tipo.",
         )
+
+    # Sin metadatos: ni GPS, ni cámara, ni fecha (ver core/metadatos.py). Va
+    # antes de escribir, para que el tamaño guardado sea el del archivo limpio.
+    contenido = await limpiar_subida(contenido, tipo)
 
     # Nombre generado: el del usuario nunca toca el sistema de archivos.
     nombre_guardado = f"{uuid.uuid4().hex}{TIPOS_IMAGEN[tipo]}"

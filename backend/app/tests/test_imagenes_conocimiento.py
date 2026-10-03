@@ -22,6 +22,7 @@ import pytest
 from app.core.config import settings
 from app.core.security import get_password_hash
 from app.models import BaseConocimiento, Checklist, ImagenConocimiento, Ticket, Usuario
+from app.tests.imagenes_de_prueba import misma_imagen
 
 PNG = (
     b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
@@ -107,7 +108,7 @@ def test_ti_ilustra_un_paso_y_lo_ve_quien_levanta_un_ticket(client, paso):
 
     archivo = client.get(f"/api/imagenes/{imagen['id']}", headers=persona)
     assert archivo.status_code == 200
-    assert archivo.content == PNG
+    assert misma_imagen(archivo.content, PNG)
     assert archivo.headers["content-type"] == "image/png"
 
 
@@ -178,7 +179,7 @@ def test_quien_reporto_ve_como_le_resolvieron_su_ticket(client, ticket):
     visto = client.get(f"/api/tickets/{ticket.id}", headers=persona).json()
     assert [i["id"] for i in visto["imagenes_solucion"]] == [imagen["id"]]
     assert visto["imagenes_solucion"][0]["pie"] == "Así quedó la configuración"
-    assert client.get(f"/api/imagenes/{imagen['id']}", headers=persona).content == PNG
+    assert misma_imagen(client.get(f"/api/imagenes/{imagen['id']}", headers=persona).content, PNG)
 
 
 def test_la_solucion_de_un_ticket_ajeno_no_se_ve(client, ticket, otra_persona):
@@ -315,7 +316,7 @@ def test_al_pasar_a_la_kb_la_entrada_trae_las_capturas_del_ticket(
     # Ya es conocimiento de todos: la ve quien lee la entrada.
     assert [i["id"] for i in client.get(f"/api/imagenes/kb/{entrada.id}", headers=ajena).json()] \
         == [imagen["id"]]
-    assert client.get(f"/api/imagenes/{imagen['id']}", headers=ajena).content == PNG
+    assert misma_imagen(client.get(f"/api/imagenes/{imagen['id']}", headers=ajena).content, PNG)
 
 
 def test_una_captura_subida_despues_de_indexar_tambien_llega(client, ticket, indexar):
