@@ -4763,6 +4763,20 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: not-allowed; }
 .plantas-multiples { display: flex; flex-wrap: wrap; gap: 8px; }
 .plantas-multiples .chip-filtro { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .plantas-multiples .chip-filtro:focus-within { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+/* Cada planta es un `<label>` —la casilla va dentro—, y dentro de un
+   `.form-group` heredaba el estilo de rótulo de campo: versalitas en
+   monoespaciada y gris. En el alta salía "QRO · PLANTA QUERÉTARO" y en el
+   diálogo de la misma persona "QRO · Planta Querétaro". Es una opción, no
+   un rótulo. */
+.form-group .plantas-multiples label,
+[data-fondo="flujo"] .form-group .plantas-multiples label {
+  font-family: inherit;
+  font-size: 0.86rem;
+  text-transform: none;
+  letter-spacing: normal;
+  color: inherit;
+  margin-left: 0;
+}
 .plantas-principal {
   font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
   padding: 1px 6px; border-radius: var(--radius-full);
@@ -4992,3 +5006,14 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* La etiqueta que se imprime: oculta en pantalla (ver EtiquetaQR.jsx). */
 .impresion-etiqueta { display: none; }
+
+/* El selector de plantas de una persona, como botón: el chip de la planta
+   es donde se busca para cambiarla. */
+.plantas-boton {
+  display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap;
+  padding: 2px; border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: none; cursor: pointer; color: inherit;
+}
+.plantas-boton:hover { border-color: var(--border-focus); }
+.plantas-boton:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.plantas-boton-lapiz { color: var(--text-muted); display: inline-flex; }

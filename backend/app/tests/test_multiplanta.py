@@ -223,6 +223,28 @@ def test_cambiar_plantas_y_pasar_a_ti(client, escenario, db_session):
     assert r.json()["plantas"] == [] and r.json()["sitio_id"] is None
 
 
+def test_editar_a_varias_plantas_y_no_dejarla_sin_ninguna(client, escenario, db_session):
+    """Lo que manda el diálogo de plantas de Personas: la lista completa."""
+    cab = _cab(client, "admin@test.com")
+    persona = db_session.query(Usuario).filter_by(email="user@test.com").one()
+    mty = escenario["mty"].id
+
+    r = client.patch(f"/api/admin/usuarios/{persona.id}", headers=cab, json={"plantas": [1, mty]})
+    assert r.status_code == 200, r.text
+    assert {p["clave"] for p in r.json()["plantas"]} == {"QRO", "MTY"}
+    # La que ya era principal se queda: sigue en la lista.
+    assert r.json()["sitio_id"] == 1
+
+    # Y lo guardado es lo que se lee después, no solo lo que contestó el PATCH.
+    lista = client.get("/api/admin/usuarios", headers=cab).json()
+    vista = next(u for u in lista if u["email"] == "user@test.com")
+    assert {p["clave"] for p in vista["plantas"]} == {"QRO", "MTY"}
+
+    # Sin ninguna, una persona de planta no ve nada: se rechaza.
+    r = client.patch(f"/api/admin/usuarios/{persona.id}", headers=cab, json={"plantas": []})
+    assert r.status_code == 422
+
+
 def test_ti_ve_a_las_personas_de_todas_las_plantas(client, escenario):
     cab = _cab(client, "admin@test.com")
     correos = {u["email"] for u in client.get("/api/admin/usuarios", headers=cab).json()}

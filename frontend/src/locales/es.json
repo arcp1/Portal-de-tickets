@@ -1120,7 +1120,9 @@
     "activa": "Planta activa",
     "activa_ayuda": "Una planta inactiva deja de ofrecerse al levantar tickets. Sus tickets y equipos se conservan.",
     "error_cargar": "No se pudieron cargar las plantas.",
-    "error_guardar": "No se pudo guardar la planta."
+    "error_guardar": "No se pudo guardar la planta.",
+    "una_sola": "Por ahora hay una sola planta dada de alta, así que todas las personas trabajan en ella. Para asignar varias, dé de alta otra planta.",
+    "ir_a_plantas": "Ir a Plantas"
   },
   "qr": {
     "generar": "Generar QR",

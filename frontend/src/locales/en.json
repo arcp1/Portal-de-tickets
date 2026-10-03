@@ -1120,7 +1120,9 @@
     "activa": "Plant active",
     "activa_ayuda": "An inactive plant is no longer offered when raising tickets. Its tickets and equipment are kept.",
     "error_cargar": "Could not load the plants.",
-    "error_guardar": "Could not save the plant."
+    "error_guardar": "Could not save the plant.",
+    "una_sola": "There is only one plant registered for now, so everyone works there. To assign several, register another plant.",
+    "ir_a_plantas": "Go to Plants"
   },
   "qr": {
     "generar": "Generate QR",

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../api/client';
 import { EsqueletoLista } from '../components/Cargando';
@@ -394,16 +394,23 @@ const Usuarios = () => {
                         {t('plantas.ti_global')}
                       </span>
                     ) : (
-                      <>
-                        {(u.plantas || []).map((pl) => <EtiquetaPlanta key={pl.id} planta={pl} compacta />)}
-                        {variasPlantas && u.id !== sesion?.id && (
-                          <button type="button" className="boton-mini"
-                            onClick={() => setPorPlantas({ usuario: u, rol: null })}
-                            title={t('plantas.cambiar')} aria-label={t('plantas.cambiar')}>
-                            <Pencil size={11} />
-                          </button>
-                        )}
-                      </>
+                      /* **El chip de la planta es el botón para cambiarla.**
+                         Antes el lápiz solo aparecía con dos plantas o más, así
+                         que con una sola no había nada que pulsar y parecía
+                         que la asignación no existía. Ahora está siempre: el
+                         diálogo dice qué hacer cuando solo hay una. A una
+                         baja no se le ofrece, como el rol: decide qué ve al
+                         entrar, y no entra. */
+                      u.activo && u.id !== sesion?.id ? (
+                        <button type="button" className="plantas-boton"
+                          onClick={() => setPorPlantas({ usuario: u, rol: null })}
+                          title={t('plantas.cambiar')} aria-label={t('plantas.cambiar')}>
+                          {(u.plantas || []).map((pl) => <EtiquetaPlanta key={pl.id} planta={pl} compacta />)}
+                          <span className="plantas-boton-lapiz"><Pencil size={12} /></span>
+                        </button>
+                      ) : (
+                        (u.plantas || []).map((pl) => <EtiquetaPlanta key={pl.id} planta={pl} compacta />)
+                      )
                     )}
                     {/* **Una sola insignia de estado.** Antes se pintaban las
                         dos: `estado_cuenta` seguía diciendo "Activa" —porque
@@ -982,6 +989,17 @@ const ActivacionEnMostrador = ({ datos, onCerrar, onListo }) => {
 };
 
 /* ================================================================ */
+/** Con una sola planta no hay nada que repartir: se dice, y dónde se añade otra. */
+const NotaUnaPlanta = () => {
+  const { t } = useTranslation();
+  return (
+    <div className="nota-suave" style={{ marginTop: '10px' }}>
+      {t('plantas.una_sola')}{' '}
+      <Link to="/plantas" className="boton-texto" style={{ padding: 0 }}>{t('plantas.ir_a_plantas')}</Link>
+    </div>
+  );
+};
+
 /** Las plantas de una persona. Si viene `rol`, se guarda junto (dejar de ser TI). */
 const DialogoPlantas = ({ usuario, rol, plantas, onCerrar, onGuardado }) => {
   const { t } = useTranslation();
@@ -1014,6 +1032,7 @@ const DialogoPlantas = ({ usuario, rol, plantas, onCerrar, onGuardado }) => {
           {rol ? t('plantas.al_dejar_ti') : t('plantas.ayuda_persona')}
         </p>
         <PlantasMultiples plantas={plantas} value={elegidas} onChange={setElegidas} />
+        {plantas.length <= 1 && <NotaUnaPlanta />}
         <Aviso texto={aviso} />
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '18px' }}>
           <button type="button" onClick={onCerrar} className="btn-secondary" style={{ padding: '10px 18px' }}>
@@ -1041,10 +1060,15 @@ const FormularioAlta = ({ onCerrar, onCreado, onError }) => {
   const [area, setArea] = useState('');
   const [rol, setRol] = useState('usuario');
   const [dominios, setDominios] = useState([]);
-  // En qué plantas trabaja. Con una sola planta no se pregunta.
+  // En qué plantas trabaja. Con una sola planta se enseña igual, ya marcada:
+  // escondida, la asignación parecía no existir.
   const [plantas] = usePlantas();
   const [plantasElegidas, setPlantasElegidas] = useState([]);
   const [enviando, setEnviando] = useState(false);
+
+  useEffect(() => {
+    if (plantas.length === 1 && plantasElegidas.length === 0) setPlantasElegidas([plantas[0].id]);
+  }, [plantas]);
 
   useEffect(() => {
     api.get('/auth/requisitos-password')
@@ -1148,9 +1172,11 @@ const FormularioAlta = ({ onCerrar, onCreado, onError }) => {
         </div>
       </div>
 
-      {plantas.length > 1 && (
+      {plantas.length > 0 && (
         <div className="form-group">
           <label id="plantas-persona-rotulo">{t('plantas.plantas_persona')}</label>
+          {/* TI es global: no se le asignan plantas, y el selector no se
+              ofrece para no dar a entender que limita algo. */}
           {rol === 'admin' ? (
             <div className="nota-suave">{t('plantas.ti_global_ayuda')}</div>
           ) : (
@@ -1159,6 +1185,7 @@ const FormularioAlta = ({ onCerrar, onCreado, onError }) => {
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px' }}>
                 {t('plantas.ayuda_persona')}
               </div>
+              {plantas.length === 1 && <NotaUnaPlanta />}
             </>
           )}
         </div>
@@ -1178,7 +1205,7 @@ const FormularioAlta = ({ onCerrar, onCreado, onError }) => {
         </button>
         <button type="submit" className="btn-acento"
           disabled={enviando || !nombre || !numeroEmpleado
-            || (plantas.length > 1 && rol !== 'admin' && plantasElegidas.length === 0)}
+            || (plantas.length > 0 && rol !== 'admin' && plantasElegidas.length === 0)}
           style={{ padding: '10px 18px' }}>
           <Check size={15} /> {enviando ? t('temas.guardando') : t('usuarios.dar_de_alta')}
         </button>

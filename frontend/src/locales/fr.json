@@ -1120,7 +1120,9 @@
     "activa": "Usine active",
     "activa_ayuda": "Une usine inactive n'est plus proposée à la création de tickets. Ses tickets et équipements sont conservés.",
     "error_cargar": "Impossible de charger les usines.",
-    "error_guardar": "Impossible d'enregistrer l'usine."
+    "error_guardar": "Impossible d'enregistrer l'usine.",
+    "una_sola": "Une seule usine est enregistrée pour l’instant : tout le monde y travaille. Pour en attribuer plusieurs, enregistrez une autre usine.",
+    "ir_a_plantas": "Aller aux usines"
   },
   "qr": {
     "generar": "Générer le QR",
