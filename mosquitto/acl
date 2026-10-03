@@ -1,0 +1,10 @@
+# Quién puede qué. Los nombres de usuario salen del .env (MQTT_USUARIO y
+# MQTT_DISPOSITIVO_USUARIO); si se cambian allí, hay que cambiarlos aquí.
+
+# El receptor del portal: lee toda la telemetría.
+user portal
+topic read portal/+/sensores/+/telemetria
+
+# Los ESP32: solo publican telemetría, en cualquier planta y con su clave.
+user sensor
+topic write portal/+/sensores/+/telemetria
