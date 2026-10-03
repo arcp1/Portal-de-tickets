@@ -3,8 +3,14 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
+#: El mismo tope que la descripción de un ticket, que es de donde sale este
+#: texto. Sin él, cualquier sesión mandaba 60 000 caracteres directo al modelo,
+#: y con aforo 1 eso deja a la planta entera sin IA durante minutos.
+TEXTO_A_LA_IA = 5000
+
+
 class NormalizarRequest(BaseModel):
-    texto: str
+    texto: str = Field(max_length=TEXTO_A_LA_IA)
 
 
 class NormalizarResponse(BaseModel):
@@ -15,7 +21,7 @@ class NormalizarResponse(BaseModel):
 
 
 class SimilaresRequest(BaseModel):
-    texto: str
+    texto: str = Field(max_length=TEXTO_A_LA_IA)
     sitio_id: int
     categoria: Optional[str] = None
     # Si se manda, la sugerencia queda ligada al ticket que la originó.

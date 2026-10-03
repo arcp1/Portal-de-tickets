@@ -1,9 +1,70 @@
+"""Arranque de una instalación nueva: la planta y su primer administrador.
+
+**Nada más, a propósito.** Hasta septiembre de 2026 esto también plantaba tres
+equipos de ejemplo —una laptop HP, una impresora Zebra y un switch Cisco—, un
+operador ficticio ("Juan Pérez") con la laptop a su nombre, cinco pasos de
+checklist y una regla que mandaba las fallas de impresora a
+`soporte@zebra-mexico.com`. Todo se escribía en la base de verdad, así que el
+inventario de producción enseñaba equipos que no existen y la regla esperaba a
+que alguien configurara el correo para empezar a mandarle tickets de la planta
+a una dirección que nadie eligió.
+
+Lo que el portal necesita para arrancar es una planta y alguien que la
+administre. Lo demás lo da de alta TI desde el portal:
+
+  - Equipos: Inventario → Registrar equipo.
+  - Personas: Personas → Dar de alta, o Importar personal.
+  - Reglas: Reglas de negocio.
+  - Pasos de diagnóstico y conocimiento de arranque: `seed_temas.py`, que es
+    contenido escrito para la planta, no datos de ejemplo.
+
+Los datos salen del entorno (ver `.env.example`, sección "Siembra"). Correrlo
+dos veces no duplica nada ni toca lo que ya existe.
+"""
+
+import os
+import secrets
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
 from app.core.db import SessionLocal, Base, engine
-from app.core.security import get_password_hash
-from app.models import Sitio, Usuario, Equipo, Checklist, ReglaNegocio
 from app.core.logging import logger
+from app.core.security import get_password_hash
+from app.models import Sitio, Usuario
+from app.services.cuentas_service import validar_password
+
+
+def _password_de_siembra(variable: str) -> str:
+    """Contrasena inicial de una cuenta sembrada.
+
+    Sale de la variable de entorno indicada. Si no esta puesta se **genera una
+    al azar y se imprime una sola vez**, en vez de plantar una escrita en el
+    repositorio.
+
+    El motivo: las que habia —"Admin123!", "User123!"— estan en el codigo, o
+    sea que las conoce cualquiera que haya visto el proyecto, y ademas ni
+    siquiera cumplian la politica del propio portal (nueve caracteres contra un
+    minimo de diez), porque la siembra escribia el hash sin pasar por
+    `validar_password`. En un portal que da a internet eso es una cuenta de
+    administrador regalada.
+    """
+    valor = os.getenv(variable)
+    if valor:
+        problema = validar_password(valor)
+        if problema:
+            raise SystemExit(f"{variable}: {problema}")
+        return valor
+
+    generada = secrets.token_urlsafe(15)
+    print(f"  [siembra] {variable} no estaba puesta. Contrasena generada: {generada}")
+    print("  [siembra] Anotela ahora: no se vuelve a mostrar y no queda en ningun lado.")
+    return generada
+
+
+def _entorno(variable: str, reserva: str = "") -> str:
+    return (os.getenv(variable) or reserva).strip()
+
 
 def seed_db():
     logger.info("Starting database seeding...")
@@ -14,29 +75,34 @@ def seed_db():
     db: Session = SessionLocal()
 
     try:
-        # 1. Create default Site
-        site = db.query(Sitio).filter(Sitio.clave == "QRO").first()
+        # 1. La planta. La clave va en los folios (TICK-QRO-2026-0001), así
+        #    que conviene no cambiarla una vez que haya tickets.
+        clave = _entorno("SEED_SITIO_CLAVE", "QRO").upper()
+        site = db.query(Sitio).filter(Sitio.clave == clave).first()
         if not site:
             site = Sitio(
-                clave="QRO",
-                nombre="Planta Querétaro",
-                pais="México",
-                activo=True
+                clave=clave,
+                nombre=_entorno("SEED_SITIO_NOMBRE", "Planta Querétaro"),
+                pais=_entorno("SEED_SITIO_PAIS", "México"),
+                activo=True,
             )
             db.add(site)
             db.commit()
             db.refresh(site)
             logger.info(f"Created site: {site.nombre}")
 
-        # 2. Create Admin & Standard Users
-        admin_user = db.query(Usuario).filter(Usuario.email == "admin@cgr.mx").first()
+        # 2. El primer administrador. Se le reconoce por su número de
+        #    empleado, que es con lo que entra.
+        numero = _entorno("SEED_ADMIN_NUMERO", "10001")
+        admin_user = db.query(Usuario).filter(Usuario.numero_empleado == numero).first()
         if not admin_user:
             admin_user = Usuario(
                 sitio_id=site.id,
-                nombre="Alex Ríos Carballo (IT Admin)",
-                email="admin@cgr.mx",
-                numero_empleado="10001",
-                password_hash=get_password_hash("Admin123!"),
+                nombre=_entorno("SEED_ADMIN_NOMBRE", "Administrador de TI"),
+                # Opcional, como en cualquier alta: sin correo entra con su número.
+                email=_entorno("SEED_ADMIN_EMAIL").lower() or None,
+                numero_empleado=numero,
+                password_hash=get_password_hash(_password_de_siembra("SEED_ADMIN_PASSWORD")),
                 estado_cuenta="activa",
                 rol="admin",
                 area="Sistemas / TI",
@@ -46,139 +112,15 @@ def seed_db():
             db.add(admin_user)
             db.commit()
             db.refresh(admin_user)
-            logger.info(f"Created admin user: {admin_user.email}")
+            logger.info(f"Created admin user: {admin_user.numero_empleado}")
         else:
-            admin_user.password_hash = get_password_hash("Admin123!")
-            # La migración 0008 dejó un número provisional TMP-xxxxx en las
-            # cuentas que ya existían. La semilla corrige las suyas.
-            if not admin_user.numero_empleado or admin_user.numero_empleado.startswith("TMP-"):
-                admin_user.numero_empleado = "10001"
-            db.commit()
-            logger.info("Updated admin password hash")
-
-        normal_user = db.query(Usuario).filter(Usuario.email == "operador@cgr.mx").first()
-        if not normal_user:
-            normal_user = Usuario(
-                sitio_id=site.id,
-                nombre="Juan Pérez (Operador)",
-                email="operador@cgr.mx",
-                numero_empleado="10002",
-                password_hash=get_password_hash("User123!"),
-                estado_cuenta="activa",
-                rol="usuario",
-                area="Producción",
-                idioma_preferido="es",
-                activo=True
-            )
-            db.add(normal_user)
-            db.commit()
-            db.refresh(normal_user)
-            logger.info(f"Created standard user: {normal_user.email}")
-        else:
-            normal_user.password_hash = get_password_hash("User123!")
-            if not normal_user.numero_empleado or normal_user.numero_empleado.startswith("TMP-"):
-                normal_user.numero_empleado = "10002"
-            db.commit()
-            logger.info("Updated standard user password hash")
-
-        # 3. Create Sample Equipment
-        if db.query(Equipo).count() == 0:
-            equipos_data = [
-                Equipo(
-                    sitio_id=site.id,
-                    tipo="activo",
-                    categoria="Laptop",
-                    marca="HP",
-                    modelo="ProBook 440 G8",
-                    numero_serie="HP-QRO-9941",
-                    ubicacion="Línea 1 - Ensamble",
-                    estado="asignado",
-                    asignado_a=normal_user.id,
-                    notas="Laptop de planta para control de calidad"
-                ),
-                Equipo(
-                    sitio_id=site.id,
-                    tipo="activo",
-                    categoria="Impresora",
-                    marca="Zebra",
-                    modelo="ZT230 Industrial",
-                    numero_serie="ZEB-QRO-3301",
-                    ubicacion="Almacén de Embarques",
-                    estado="disponible",
-                    notas="Impresora de etiquetas con soporte directo de fábrica"
-                ),
-                Equipo(
-                    sitio_id=site.id,
-                    tipo="pasivo",
-                    categoria="Red",
-                    marca="Cisco",
-                    modelo="Catalyst 2960",
-                    numero_serie="CIS-QRO-1022",
-                    ubicacion="IDC Principal",
-                    estado="disponible",
-                    notas="Switch de distribución de planta"
-                )
-            ]
-            db.add_all(equipos_data)
-            db.commit()
-            logger.info("Created initial equipment items.")
-
-        # 4. Create Checklists by Category
-        if db.query(Checklist).count() == 0:
-            checklists = [
-                Checklist(
-                    categoria="impresora",
-                    orden=1,
-                    pregunta_key="checklists.impresora.encendida",
-                    accion_si_no="Verifique que el cable de corriente y el LED de encendido estén activos.",
-                    resuelve=False
-                ),
-                Checklist(
-                    categoria="impresora",
-                    orden=2,
-                    pregunta_key="checklists.impresora.papel_toner",
-                    accion_si_no="Asegúrese de que la bandeja tenga etiquetas/papel y el ribbon no esté agotado.",
-                    resuelve=False
-                ),
-                Checklist(
-                    categoria="impresora",
-                    orden=3,
-                    pregunta_key="checklists.impresora.reinicio",
-                    accion_si_no="Apague la impresora durante 10 segundos y vuelva a encenderla.",
-                    resuelve=True
-                ),
-                Checklist(
-                    categoria="red",
-                    orden=1,
-                    pregunta_key="checklists.red.cable",
-                    accion_si_no="Verifique que el cable de red ethernet esté firmemente conectado.",
-                    resuelve=False
-                ),
-                Checklist(
-                    categoria="red",
-                    orden=2,
-                    pregunta_key="checklists.red.wifi",
-                    accion_si_no="Compruebe si la red 'CGR_PLANTA' está visible y conectada.",
-                    resuelve=True
-                )
-            ]
-            db.add_all(checklists)
-            db.commit()
-            logger.info("Created static checklists.")
-
-        # 5. Create Business Rules
-        if db.query(ReglaNegocio).count() == 0:
-            regla_impresora = ReglaNegocio(
-                sitio_id=site.id,
-                categoria="impresora",
-                condicion="hardware",
-                accion="proveedor",
-                destinatario="soporte@zebra-mexico.com",
-                activa=True
-            )
-            db.add(regla_impresora)
-            db.commit()
-            logger.info("Created default business rules.")
+            # **No se toca la contraseña de una cuenta que ya existe.**
+            #
+            # Antes cada corrida la reponía a la del repositorio. En un portal
+            # que ya está en uso eso es un secuestro de cuenta con una sola
+            # orden: quien pudiera lanzar la semilla se quedaba con el admin, y
+            # el dueño legítimo perdía la suya sin enterarse.
+            logger.info("El admin ya existe: no se toca su contraseña")
 
         logger.info("Database seeding completed successfully.")
 

@@ -10,8 +10,9 @@ nombre, la fecha y la IP. Si no, lleva línea para firma de puño y letra.
 """
 
 import io
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
+from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
@@ -58,6 +59,23 @@ def _estilos():
     }
 
 
+def _t(valor) -> str:
+    """Un dato, listo para ir dentro del marcado de un `Paragraph`.
+
+    **`Paragraph` no recibe texto: recibe marcado.** Todo lo que se le pase se
+    interpreta como etiquetas de reportlab, y el nombre que la persona teclea
+    al firmar iba tal cual. Un `<` o un `&` en ese nombre tumbaba la descarga
+    del PDF con un 500, y `<img src="http://…"/>` hacía que **el servidor
+    pidiera esa URL** —o abriera esa ruta del disco— al generar el documento.
+
+    Se escapa todo dato, venga de quien venga: el nombre del sitio y las
+    condiciones los escribe TI, pero la regla vale igual si mañana los escribe
+    otro. Las celdas de `_tabla_datos` no lo necesitan: una celda con texto
+    plano se dibuja como texto, no se interpreta.
+    """
+    return escape("" if valor is None else str(valor))
+
+
 def _fecha(valor: Optional[datetime]) -> str:
     """Fecha en hora de la planta, legible para quien firma."""
     if not valor:
@@ -100,7 +118,7 @@ def generar_pdf_resguardo(resguardo, equipo, usuario, sitio, emisor) -> bytes:
     # --- Encabezado ---
     partes.append(Paragraph("RESGUARDO DE EQUIPO", e["titulo"]))
     partes.append(Paragraph(
-        f"CGR de México · {sitio.nombre if sitio else 'Planta'} · Folio <b>{resguardo.folio}</b>",
+        f"CGR de México · {_t(sitio.nombre) if sitio else 'Planta'} · Folio <b>{_t(resguardo.folio)}</b>",
         e["subtitulo"]))
 
     # --- Resguardante ---
@@ -125,14 +143,14 @@ def generar_pdf_resguardo(resguardo, equipo, usuario, sitio, emisor) -> bytes:
 
     if resguardo.observaciones_entrega:
         partes.append(Paragraph("OBSERVACIONES DE ENTREGA", e["seccion"]))
-        partes.append(Paragraph(resguardo.observaciones_entrega, e["normal"]))
+        partes.append(Paragraph(_t(resguardo.observaciones_entrega), e["normal"]))
 
     # --- Condiciones ---
     partes.append(Paragraph("CONDICIONES DEL RESGUARDO", e["seccion"]))
     for parrafo in (resguardo.condiciones or "").split("\n\n"):
         limpio = " ".join(parrafo.split())
         if limpio:
-            partes.append(Paragraph(limpio, e["condicion"]))
+            partes.append(Paragraph(_t(limpio), e["condicion"]))
 
     # --- Firma ---
     partes.append(Spacer(1, 6 * mm))
@@ -141,10 +159,12 @@ def generar_pdf_resguardo(resguardo, equipo, usuario, sitio, emisor) -> bytes:
         # Aceptado en el portal: se hace constar el rastro.
         constancia = Table([[Paragraph(
             "<b>ACEPTADO ELECTRÓNICAMENTE EN EL PORTAL</b><br/><br/>"
-            f"Nombre capturado: <b>{resguardo.firma_nombre}</b><br/>"
+            f"Nombre capturado: <b>{_t(resguardo.firma_nombre)}</b><br/>"
             f"Fecha y hora: {_fecha(resguardo.firmado_en)}<br/>"
-            f"Dirección IP de origen: {resguardo.firma_ip or 'no registrada'}<br/>"
-            f"Cuenta: {usuario.email}",
+            f"Dirección IP de origen: {_t(resguardo.firma_ip or 'no registrada')}<br/>"
+            # Sin correo —mucha gente de planta no tiene— se dice con qué
+            # número de empleado entró; antes salía la palabra "None".
+            f"Cuenta: {_t(usuario.email or usuario.numero_empleado or '—')}",
             e["normal"])]], colWidths=[170 * mm])
         constancia.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), GRIS_CLARO),
@@ -185,7 +205,7 @@ def generar_pdf_resguardo(resguardo, equipo, usuario, sitio, emisor) -> bytes:
     generado = a_hora_local(datetime.utcnow()).strftime("%d/%m/%Y %H:%M")
     partes.append(Paragraph(
         f"Documento generado por el Portal de Tickets TI el {generado} h · "
-        f"Folio {resguardo.folio} · Estado: {resguardo.estado.replace('_', ' ')}",
+        f"Folio {_t(resguardo.folio)} · Estado: {_t(resguardo.estado.replace('_', ' '))}",
         e["pie"]))
 
     doc.build(partes)
@@ -223,7 +243,7 @@ def generar_carta_no_adeudo(usuario, sitio, emisor, resguardos_abiertos, tickets
         "RELACIÓN DE PENDIENTES" if hay_pendientes else "CARTA DE NO ADEUDO",
         e["titulo"]))
     partes.append(Paragraph(
-        f"Área de TI · CGR de México · {sitio.nombre if sitio else 'Planta'}",
+        f"Área de TI · CGR de México · {_t(sitio.nombre) if sitio else 'Planta'}",
         e["subtitulo"]))
 
     partes.append(Paragraph("DATOS DE LA PERSONA", e["seccion"]))

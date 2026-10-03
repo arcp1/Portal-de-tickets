@@ -6,6 +6,8 @@ import {
   BookOpenCheck, Sparkles, Check, Archive, Pencil, X, Layers,
   AlertTriangle, Ban, Plus
 } from 'lucide-react';
+import Selector from '../components/Selector';
+import lista from '../lib/lista';
 
 /**
  * Soluciones generales: un procedimiento por problema recurrente.
@@ -23,6 +25,15 @@ const ESTADOS = {
   archivada: ['var(--text-secondary)', 'var(--bg-tertiary)']
 };
 
+// Las de los tickets: la categoría de una solución es la de los tickets a los
+// que contesta. Vacía = sirve para cualquiera.
+const CATEGORIAS = ['impresora', 'red', 'equipo', 'software', 'accesos', 'otro'];
+
+// Lo que exige el backend al crear (`CrearSolucion`). Al editar no lo exige,
+// pero un título vacío chocaba con la columna NOT NULL y salía un 500.
+const MINIMO_TITULO = 5;
+const MINIMO_CONTENIDO = 20;
+
 const Soluciones = () => {
   const { t } = useTranslation();
   const [soluciones, setSoluciones] = useState([]);
@@ -31,14 +42,23 @@ const Soluciones = () => {
   const [trabajando, setTrabajando] = useState(false);
   const [aviso, setAviso] = useState('');
   const [editando, setEditando] = useState(null);
+  const [creando, setCreando] = useState(false);
 
   const cargar = async () => {
     try {
-      const [lista, grupos] = await Promise.all([
+      // `publicadas` y no `lista`: ese nombre lo ocupa ahora el ayudante que
+      // obliga a que la respuesta sea una lista.
+      const [publicadas, grupos] = await Promise.all([
         api.get('/admin/soluciones'),
         api.get('/admin/soluciones/candidatos')
       ]);
-      setSoluciones(lista.data);
+      setSoluciones(lista(publicadas.data, 'las soluciones'));
+      // `candidatos` **no** pasa por `lista`: ese endpoint devuelve un objeto
+      // `{ total, grupos }`, no una lista. Envolverlo lo vaciaba —se llegó a
+      // hacer— y la tarjeta salía contando `undefined` problemas. Aquí no
+      // hace falta guarda: lo que se lee son `candidatos.total`, que como
+      // mucho queda en `undefined`, y `candidatos.grupos?.length`, que ya
+      // trae la suya. Nada de esto revienta el render.
       setCandidatos(grupos.data);
     } catch {
       setAviso(t('soluciones.error_cargar'));
@@ -55,7 +75,7 @@ const Soluciones = () => {
     try {
       const res = await api.post('/admin/soluciones/proponer');
       setAviso(res.data.redactadas
-        ? t('soluciones.redactadas', { n: res.data.redactadas })
+        ? t('soluciones.redactadas', { count: res.data.redactadas })
         : (res.data.detalle || t('soluciones.nada_que_redactar')));
       cargar();
     } catch (err) {
@@ -84,18 +104,66 @@ const Soluciones = () => {
     }
   };
 
+  /* **Escribirla a mano, sin esperar a que el problema se repita.** El backend
+     lo permitía desde el principio (`POST /admin/soluciones`), pero la pantalla
+     no tenía por dónde: el único camino era que la máquina propusiera, y eso
+     exige que la falla ya haya pasado varias veces. Lo que TI ya sabe no tiene
+     por qué esperar. Nace como borrador, igual que las propuestas: la firma
+     sigue siendo un paso aparte. */
+  const crear = async (datos) => {
+    try {
+      await api.post('/admin/soluciones', {
+        ...datos,
+        categoria: datos.categoria || null,
+        descartado: datos.descartado || null
+      });
+      setCreando(false);
+      setAviso('');
+      cargar();
+    } catch (err) {
+      setAviso(err.response?.data?.detail || t('soluciones.error_accion'));
+    }
+  };
+
   if (cargando) return <div className="page-container"><EsqueletoLista /></div>;
 
   const borradores = soluciones.filter((s) => s.estado === 'borrador');
 
   return (
-    <div className="page-container animate-fade-in" style={{ maxWidth: '980px' }}>
-      <h1 style={{ fontSize: '1.85rem', fontWeight: '700', marginBottom: '6px', color: 'var(--text-primary)' }}>
-        {t('soluciones.title')}
-      </h1>
-      <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', maxWidth: '70ch', lineHeight: 1.55 }}>
-        {t('soluciones.subtitle')}
-      </p>
+    <div className="page-container animate-fade-in">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">
+            {t('soluciones.title')}
+          </h1>
+          {/* Sin ancho propio: el subtítulo de todas las pantallas es un
+              rótulo en versalitas monoespaciadas, y a 70ch este caía en un
+              bloque de cuatro renglones estrechos debajo de un título que
+              ocupaba el ancho entero. Un rótulo de panel es de un renglón; lo
+              que explica el porqué de la pantalla está en el texto de la
+              tarjeta de candidatos, que es donde se necesita leerlo. */}
+          <p>{t('soluciones.subtitle')}</p>
+        </div>
+
+        {!creando && (
+          <button onClick={() => { setCreando(true); setEditando(null); }} className="btn-primary">
+            <Plus size={18} />
+            {t('soluciones.nueva')}
+          </button>
+        )}
+      </div>
+
+      {creando && (
+        <div style={{ marginBottom: '22px' }}>
+          <Editor
+            solucion={{ titulo: '', contenido: '', descartado: '', categoria: '' }}
+            esNueva
+            onGuardar={(_, datos) => crear(datos)}
+            onCancelar={() => setCreando(false)}
+            t={t}
+          />
+        </div>
+      )}
 
       {aviso && (
         <div className="animate-scale-in" style={{
@@ -115,7 +183,7 @@ const Soluciones = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
             <Layers size={18} color="var(--accent-primary)" />
             <strong style={{ color: 'var(--text-primary)' }}>
-              {t('soluciones.candidatos', { n: candidatos.total })}
+              {t('soluciones.candidatos', { count: candidatos.total })}
             </strong>
           </div>
           <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.55, margin: '0 0 14px' }}>
@@ -137,7 +205,7 @@ const Soluciones = () => {
           )}
 
           <button onClick={proponer} disabled={trabajando || !candidatos.total}
-            className="btn-primary" style={{ padding: '11px 20px', fontSize: '0.9rem' }}>
+            className="btn-acento" style={{ padding: '11px 20px', fontSize: '0.9rem' }}>
             <Sparkles size={16} />
             {trabajando ? t('soluciones.redactando') : t('soluciones.proponer')}
           </button>
@@ -152,7 +220,7 @@ const Soluciones = () => {
           fontSize: '0.88rem', lineHeight: 1.55, color: 'var(--text-secondary)'
         }}>
           <Ban size={17} style={{ flexShrink: 0, marginTop: '1px' }} />
-          <span>{t('soluciones.aviso_borradores', { n: borradores.length })}</span>
+          <span>{t('soluciones.aviso_borradores', { count: borradores.length })}</span>
         </div>
       )}
 
@@ -187,17 +255,22 @@ const Tarjeta = ({ solucion, onEditar, onPublicar, onArchivar, t }) => {
         <strong style={{ color: 'var(--text-primary)', fontSize: '1rem', flex: 1, minWidth: '200px' }}>
           {solucion.titulo}
         </strong>
-        <span style={{
-          fontSize: '0.72rem', fontWeight: 600, padding: '3px 10px',
-          borderRadius: 'var(--radius-full)', color, background: fondo
-        }}>
+        <span className="chip-dato" style={{ color, background: fondo }}>
           {t(`soluciones.estado_${solucion.estado}`)}
         </span>
       </div>
 
       <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
-        {t('soluciones.de_tickets', { n: solucion.tickets_origen })}
+        {/* Una escrita a mano no sale de ningún ticket: "de 0 tickets" leía
+            como si le faltara algo. */}
+        {solucion.tickets_origen > 0
+          ? t('soluciones.de_tickets', { count: solucion.tickets_origen })
+          : t('soluciones.sin_tickets_origen')}
         {solucion.redactada_por && ` · ${t(`soluciones.por_${solucion.redactada_por}`)}`}
+        {' · '}
+        {solucion.categoria
+          ? t(`new_ticket.category_${solucion.categoria}`, { defaultValue: solucion.categoria })
+          : t('soluciones.categoria_general')}
       </div>
 
       <div style={{
@@ -227,7 +300,7 @@ const Tarjeta = ({ solucion, onEditar, onPublicar, onArchivar, t }) => {
           <Pencil size={14} /> {t('soluciones.revisar')}
         </button>
         {solucion.estado !== 'publicada' && (
-          <button onClick={onPublicar} className="btn-primary"
+          <button onClick={onPublicar} className="btn-acento"
             style={{ padding: '8px 14px', fontSize: '0.84rem' }}>
             <Check size={14} /> {t('soluciones.publicar')}
           </button>
@@ -243,19 +316,39 @@ const Tarjeta = ({ solucion, onEditar, onPublicar, onArchivar, t }) => {
   );
 };
 
-const Editor = ({ solucion, onGuardar, onCancelar, t }) => {
+const Editor = ({ solucion, esNueva = false, onGuardar, onCancelar, t }) => {
   const [titulo, setTitulo] = useState(solucion.titulo);
   const [contenido, setContenido] = useState(solucion.contenido);
   const [descartado, setDescartado] = useState(solucion.descartado || '');
+  const [categoria, setCategoria] = useState(solucion.categoria || '');
+
+  const completa = titulo.trim().length >= MINIMO_TITULO
+    && contenido.trim().length >= MINIMO_CONTENIDO;
 
   return (
     <div className="apple-card animate-scale-in" style={{
       padding: '20px', border: '1px solid var(--accent-primary)'
     }}>
+      {esNueva && (
+        <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.55, margin: '0 0 16px' }}>
+          {t('soluciones.nueva_ayuda')}
+        </p>
+      )}
       <div className="form-group">
         <label>{t('soluciones.titulo_campo')}</label>
-        <input className="form-input" style={{ width: '100%' }}
+        <input className="form-input" style={{ width: '100%' }} autoFocus={esNueva}
+          maxLength={200}
           value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+      </div>
+      <div className="form-group">
+        <label>{t('soluciones.categoria_campo')}</label>
+        <Selector className="form-select" value={categoria}
+          onChange={(e) => setCategoria(e.target.value)}>
+          <option value="">{t('soluciones.categoria_general')}</option>
+          {CATEGORIAS.map((c) => (
+            <option key={c} value={c}>{t(`new_ticket.category_${c}`)}</option>
+          ))}
+        </Selector>
       </div>
       <div className="form-group">
         <label>{t('soluciones.procedimiento')}</label>
@@ -271,9 +364,14 @@ const Editor = ({ solucion, onGuardar, onCancelar, t }) => {
         <button onClick={onCancelar} className="btn-secondary" style={{ padding: '9px 16px' }}>
           <X size={15} /> {t('temas.cancelar')}
         </button>
-        <button onClick={() => onGuardar(solucion, { titulo, contenido, descartado })}
-          className="btn-primary" style={{ padding: '9px 16px' }}>
-          <Check size={15} /> {t('temas.guardando').replace('...', '')}
+        {/* Decía "Guardando" —salía de recortar los puntos a
+            `temas.guardando`— antes de haber pulsado nada. */}
+        <button onClick={() => onGuardar(solucion, { titulo, contenido, descartado, categoria })}
+          disabled={!completa}
+          title={completa ? undefined : t('soluciones.falta_texto', {
+            titulo: MINIMO_TITULO, contenido: MINIMO_CONTENIDO })}
+          className="btn-acento" style={{ padding: '9px 16px' }}>
+          <Check size={15} /> {t('temas.guardar')}
         </button>
       </div>
     </div>

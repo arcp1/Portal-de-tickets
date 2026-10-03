@@ -25,7 +25,12 @@ from app.models import Auditoria, Usuario
 TICKET_ESTADO = "ticket.estado"
 TICKET_ASIGNADO = "ticket.asignado"
 TICKET_SOLUCION = "ticket.solucion"
+# Lo retiró quien lo reportó. Va aparte de `ticket.estado` porque no lo hace TI.
+TICKET_CANCELADO = "ticket.cancelado"
 TICKET_PRIORIDAD = "ticket.prioridad"
+TICKET_CALIFICADO = "ticket.calificado"
+ALERTA_ATENDIDA = "alerta.atendida"
+DISPOSITIVO_EDITADO = "dispositivo_iot.editado"
 REGLA_CREADA = "regla.creada"
 REGLA_BORRADA = "regla.borrada"
 PASO_CREADO = "paso.creado"

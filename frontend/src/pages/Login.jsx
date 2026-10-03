@@ -3,7 +3,51 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import LanguageSelector from '../components/LanguageSelector';
-import { Lock, User, ArrowRight, Shield } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
+import Formulario from '../components/Formulario';
+import { SESION_CADUCADA, VOLVER_A } from '../api/client';
+
+/**
+ * La puerta del portal, con la estructura del componente Mercury.
+ *
+ * **Qué se tomó de la plantilla:** la cabecera alineada a la izquierda con un
+ * rótulo pequeño encima, los campos sin caja —solo una línea abajo que se
+ * enciende al enfocar—, el desplazamiento lateral del grupo al recibir el
+ * foco, y el botón con la gota que se expande.
+ *
+ * **Qué no se tomó, y por qué:**
+ *
+ *   Las tipografías de Google. No es solo que 'Space Mono' hiciera parecer
+ *   esto una terminal: la política de contenido del portal es `font-src
+ *   'self'`, así que un `@import` a fonts.googleapis.com **lo bloquea el
+ *   navegador**. Las fuentes de este proyecto se auto-alojan desde que se
+ *   cerró esa política. Se usa la del portal.
+ *
+ *   El `<style>` incrustado en el JSX. Los estilos van a `index.css` como el
+ *   resto: así se ajustan en un sitio y no compiten con las variables del
+ *   portal.
+ *
+ *   El formulario muerto. El de la plantilla hace `preventDefault` y ya; aquí
+ *   se conserva entero lo que había: la autenticación, el estado de envío, el
+ *   aviso de error, los `autoComplete` y los textos por i18n en tres idiomas.
+ */
+/**
+ * Si la sesión caducó a media tarea, la pantalla en la que se estaba.
+ *
+ * Solo para la misma cuenta, y solo rutas propias: una dirección que empezara
+ * con `//` saldría del portal. Se gasta al leerla.
+ */
+const destinoTrasEntrar = (quien) => {
+  try {
+    const guardado = JSON.parse(sessionStorage.getItem(VOLVER_A) || 'null');
+    sessionStorage.removeItem(VOLVER_A);
+    if (!guardado || guardado.usuarioId !== quien?.id) return null;
+    const ruta = String(guardado.ruta || '');
+    return ruta.startsWith('/') && !ruta.startsWith('//') && !ruta.startsWith('/login') ? ruta : null;
+  } catch {
+    return null;
+  }
+};
 
 const Login = () => {
   const { t } = useTranslation();
@@ -15,7 +59,18 @@ const Login = () => {
   // el backend resuelve cualquiera de los dos.
   const [identificador, setIdentificador] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  // Si se llegó aquí porque caducó la sesión, se dice. Antes se aterrizaba en
+  // la puerta sin explicación y parecía que el portal había echado a la
+  // persona por un fallo. La marca la deja `api/client.js` y se gasta al leerla.
+  const [error, setError] = useState(() => {
+    try {
+      if (!sessionStorage.getItem(SESION_CADUCADA)) return '';
+      sessionStorage.removeItem(SESION_CADUCADA);
+      return t('auth.sesion_caducada');
+    } catch {
+      return '';
+    }
+  });
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -23,159 +78,107 @@ const Login = () => {
     setError('');
     setSubmitting(true);
     try {
-      await login(identificador.trim(), password);
+      const quien = await login(identificador.trim(), password);
       // `replace` para que el botón de atrás no regrese al login.
-      navigate(location.state?.desde || '/', { replace: true });
+      navigate(destinoTrasEntrar(quien) || location.state?.desde || '/', { replace: true });
     } catch (err) {
-      setError(t('auth.error_login'));
+      // **El mensaje del servidor manda.** Pisarlo siempre con "Credenciales
+      // invalidas" se llevaba por delante lo unico que la persona necesitaba
+      // saber: que tras varios intentos el backend responde 429 ("Demasiados
+      // intentos. Espere N segundos") y hay que esperar. Quien lo leia como
+      // contrasena mal seguia probando, gastaba intentos y alargaba su propio
+      // bloqueo. El texto de reserva solo entra cuando no hay red o cuando el
+      // `detail` no es una frase -en un 422 de validacion es una lista de
+      // objetos, y pintar eso seria peor que no decir nada.
+      const detalle = err.response?.data?.detail;
+      setError(typeof detalle === 'string' && detalle ? detalle : t('auth.error_login'));
       setSubmitting(false);
     }
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px',
-      position: 'relative'
-    }}>
-      <div style={{ position: 'absolute', top: '24px', right: '24px' }}>
+    <div className="puerta">
+      <div className="puerta-idioma">
         <LanguageSelector />
       </div>
 
-      <div className="apple-card animate-fade-in" style={{
-        width: '100%',
-        maxWidth: '420px',
-        padding: '36px',
-        borderRadius: 'var(--radius-lg)'
-      }}>
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{
-            width: '64px',
-            height: '64px',
-            borderRadius: '16px',
-            background: 'var(--accent-primary)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: '20px',
-            boxShadow: '0 8px 16px rgba(0, 122, 255, 0.25)'
-          }}>
-            <Shield size={32} color="white" />
-          </div>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: '700', marginBottom: '8px' }}>
-            {t('auth.title')}
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-            {t('auth.subtitle')}
-          </p>
-        </div>
+      <main className="apple-card ventana-cristal animate-fade-in puerta-panel">
+        <header className="puerta-cabecera">
+          <span className="puerta-rotulo">{t('auth.title')}</span>
+          {/* El logotipo oficial, no el dibujado.
+
+              **Va sobre una placa blanca a propósito.** El archivo de marca
+              es la versión positiva: letras en azul y lema en azul, pensados
+              para fondo claro. Compuesto directamente sobre el panel del
+              login —casi negro— el lema desaparece y las letras quedan al
+              límite. Sobre blanco los colores llegan exactamente como los
+              define la marca, que es lo que se pide de un logotipo. Si algún
+              día aparece la versión en negativo, se sustituye el archivo y se
+              quita la placa. */}
+          <img
+            className="puerta-marca"
+            src="/marca/cgr.png"
+            alt="CGR · Form your world."
+            width={230}
+            height={116}
+          />
+          <p className="puerta-planta">{t('auth.subtitle')}</p>
+        </header>
 
         {error && (
-          <div style={{
-            background: '#FFF0F0',
-            border: '1px solid #FFD6D6',
-            color: '#D8000C',
-            padding: '12px',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: '0.9rem',
-            marginBottom: '20px',
-            textAlign: 'center'
-          }}>
+          <div className="puerta-error animate-scale-in">
+            <AlertTriangle size={17} />
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>{t('auth.identificador')}</label>
-            <div style={{ position: 'relative' }}>
-              <User size={18} style={{
-                position: 'absolute',
-                left: '14px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--text-muted)'
-              }} />
-              <input
-                type="text"
-                className="form-input"
-                style={{ width: '100%', paddingLeft: '42px' }}
-                placeholder={t('auth.identificador_ejemplo')}
-                autoComplete="username"
-                autoCapitalize="off"
-                spellCheck={false}
-                value={identificador}
-                onChange={(e) => setIdentificador(e.target.value)}
-                required
-              />
-            </div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px' }}>
-              {t('auth.identificador_ayuda')}
-            </div>
+        <Formulario onSubmit={handleSubmit} autoComplete="on">
+          <div className="campo-linea">
+            <label htmlFor="identificador">{t('auth.identificador')}</label>
+            <input
+              id="identificador"
+              type="text"
+              placeholder={t('auth.identificador_ejemplo')}
+              autoComplete="username"
+              autoCapitalize="off"
+              spellCheck={false}
+              value={identificador}
+              onChange={(e) => setIdentificador(e.target.value)}
+              required
+            />
+            <span className="campo-linea-luz" aria-hidden="true" />
+            <span className="campo-linea-ayuda">{t('auth.identificador_ayuda')}</span>
           </div>
 
-          <div className="form-group">
-            <label>{t('auth.password')}</label>
-            <div style={{ position: 'relative' }}>
-              <Lock size={18} style={{
-                position: 'absolute',
-                left: '14px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--text-muted)'
-              }} />
-              <input
-                type="password"
-                className="form-input"
-                style={{ width: '100%', paddingLeft: '42px' }}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
+          <div className="campo-linea">
+            <label htmlFor="password">{t('auth.password')}</label>
+            <input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <span className="campo-linea-luz" aria-hidden="true" />
           </div>
 
-          <button
-            type="submit"
-            className="btn-primary"
-            disabled={submitting}
-            style={{ width: '100%', justifyContent: 'center', marginTop: '24px', height: '48px', fontSize: '1rem' }}
-          >
-            {submitting ? t('auth.logging_in') : (
-              <>
-                {t('auth.login_btn')}
-                <ArrowRight size={18} />
-              </>
-            )}
-          </button>
-        </form>
-        <Link to="/activar" style={{
-          display: 'block', textAlign: 'center', marginTop: '20px',
-          fontSize: '0.9rem', color: 'var(--accent-primary)',
-          textDecoration: 'none', fontWeight: '600'
-        }}>
-          {t('activar.primera_vez')}
-        </Link>
-
-        {import.meta.env.DEV && (
-          <div style={{
-            marginTop: '32px',
-            paddingTop: '20px',
-            borderTop: '1px solid var(--border-color)',
-            fontSize: '0.85rem',
-            color: 'var(--text-muted)',
-            textAlign: 'center'
-          }}>
-            <div style={{ marginBottom: '8px' }}><strong>Solo en desarrollo:</strong></div>
-            <div style={{ marginBottom: '4px' }}>10001 / Admin123!</div>
-            <div>10002 / User123!</div>
+          {/* El botón de la gota. La gota vive detrás del texto y crece al
+              pasar el ratón; el `filter` del contenedor la funde con el borde
+              del botón, que es lo que hace que parezca líquido y no una caja
+              que se estira. */}
+          <div className="boton-gota">
+            <span className="boton-gota-liquido" aria-hidden="true" />
+            <button type="submit" className="boton-gota-base" disabled={submitting}>
+              {submitting ? t('auth.logging_in') : t('auth.login_btn')}
+            </button>
           </div>
-        )}
-      </div>
+        </Formulario>
+
+        <footer className="puerta-pie">
+          <Link to="/activar">{t('activar.primera_vez')}</Link>
+        </footer>
+      </main>
     </div>
   );
 };

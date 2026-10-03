@@ -9,12 +9,12 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from app.api.deps import get_current_admin
 from app.core.db import get_db
 from app.core.logging import logger
-from app.models import BaseConocimiento, Checklist, TemaSugerido, Usuario
+from app.models import BaseConocimiento, Checklist, SugerenciaKB, TemaSugerido, Ticket, Usuario
 from app.schemas.temas import (
     EntradaKBCreate,
     EntradaKBResponse,
@@ -25,7 +25,7 @@ from app.schemas.temas import (
     PromoverTemaRequest,
     TemaSugeridoResponse,
 )
-from app.services.ollama_client import CATEGORIAS_VALIDAS, ollama
+from app.services.ollama_client import CATEGORIAS_VALIDAS, normalizar_categoria, ollama
 from app.services.temas_service import TemasService
 
 router = APIRouter(prefix="/admin", tags=["Administración de temas"])
@@ -34,7 +34,7 @@ router = APIRouter(prefix="/admin", tags=["Administración de temas"])
 def _validar_categoria(categoria: str):
     if categoria not in CATEGORIAS_VALIDAS:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Categoría inválida. Debe ser una de: " + ", ".join(CATEGORIAS_VALIDAS),
         )
 
@@ -52,7 +52,9 @@ def listar_pasos(
 ):
     consulta = db.query(Checklist)
     if categoria:
-        consulta = consulta.filter(Checklist.categoria.ilike(categoria))
+        # Exacta: `%` como categoría no puede desactivar el filtro.
+        consulta = consulta.filter(
+            Checklist.categoria == (normalizar_categoria(categoria) or ""))
     if not incluir_inactivos:
         consulta = consulta.filter(Checklist.activo.is_(True))
     return consulta.order_by(Checklist.categoria, Checklist.orden).all()
@@ -142,8 +144,10 @@ def borrar_paso(
 # Base de conocimiento
 # ======================================================================
 
-def _con_tasa(entrada: BaseConocimiento) -> dict:
+def _con_tasa(entrada: BaseConocimiento, tiene_embedding: Optional[bool] = None) -> dict:
     sugerida = entrada.veces_sugerida or 0
+    if tiene_embedding is None:
+        tiene_embedding = entrada.embedding is not None
     return {
         "id": entrada.id,
         "titulo": entrada.titulo,
@@ -154,7 +158,7 @@ def _con_tasa(entrada: BaseConocimiento) -> dict:
         "veces_util": entrada.veces_util or 0,
         "ticket_origen_id": entrada.ticket_origen_id,
         "tasa_utilidad": round(100.0 * (entrada.veces_util or 0) / sugerida, 1) if sugerida else None,
-        "tiene_embedding": entrada.embedding is not None,
+        "tiene_embedding": tiene_embedding,
     }
 
 
@@ -164,10 +168,15 @@ def listar_kb(
     db: Session = Depends(get_db),
     admin: Usuario = Depends(get_current_admin),
 ):
-    consulta = db.query(BaseConocimiento).filter(BaseConocimiento.sitio_id == admin.sitio_id)
+    # Sin traer los vectores: la lista solo dice si la entrada tiene uno, y
+    # cada vector son 768 números que viajaban por cada fila sin usarse.
+    consulta = (db.query(BaseConocimiento, BaseConocimiento.embedding.isnot(None))
+                .options(defer(BaseConocimiento.embedding)))
     if categoria:
-        consulta = consulta.filter(BaseConocimiento.categoria.ilike(categoria))
-    return [_con_tasa(e) for e in consulta.order_by(BaseConocimiento.creado_en.desc()).all()]
+        consulta = consulta.filter(
+            BaseConocimiento.categoria == (normalizar_categoria(categoria) or ""))
+    return [_con_tasa(e, bool(tiene))
+            for e, tiene in consulta.order_by(BaseConocimiento.creado_en.desc()).all()]
 
 
 @router.post("/kb", response_model=EntradaKBResponse, status_code=status.HTTP_201_CREATED)
@@ -210,7 +219,6 @@ def actualizar_entrada_kb(
 ):
     entrada = db.query(BaseConocimiento).filter(
         BaseConocimiento.id == entrada_id,
-        BaseConocimiento.sitio_id == admin.sitio_id,
     ).first()
     if not entrada:
         raise HTTPException(status_code=404, detail="Entrada no encontrada")
@@ -251,10 +259,24 @@ def borrar_entrada_kb(
 ):
     entrada = db.query(BaseConocimiento).filter(
         BaseConocimiento.id == entrada_id,
-        BaseConocimiento.sitio_id == admin.sitio_id,
     ).first()
     if not entrada:
         raise HTTPException(status_code=404, detail="Entrada no encontrada")
+
+    # **Una entrada que ya se sugirió no se podía borrar.** Cada vez que se
+    # le enseña a alguien queda una fila en `sugerencias_kb` que apunta a
+    # ella, y la base rechazaba el borrado: TI veía "choca con datos ya
+    # registrados" justo con las entradas que más se usan. Ese historial es de
+    # la entrada —cuántas veces se mostró y si sirvió— y se va con ella.
+    db.query(SugerenciaKB).filter(SugerenciaKB.kb_id == entrada.id).delete(
+        synchronize_session=False)
+
+    # Si salió de un ticket, ese ticket vuelve a poder indexarse: con la marca
+    # puesta, el botón "Indexar en la base de conocimiento" no volvía a salir.
+    if entrada.ticket_origen_id:
+        db.query(Ticket).filter(Ticket.id == entrada.ticket_origen_id).update(
+            {Ticket.indexado_kb: False}, synchronize_session=False)
+
     db.delete(entrada)
     db.commit()
     return None
@@ -271,7 +293,7 @@ def listar_temas_sugeridos(
     admin: Usuario = Depends(get_current_admin),
 ):
     """Problemas que la gente reporta y el portal no tiene contemplados."""
-    consulta = db.query(TemaSugerido).filter(TemaSugerido.sitio_id == admin.sitio_id)
+    consulta = db.query(TemaSugerido)
     if estado:
         consulta = consulta.filter(TemaSugerido.estado == estado)
     else:
@@ -310,7 +332,6 @@ def promover_tema(
     """Convierte un problema recurrente en tema con su checklist."""
     tema = db.query(TemaSugerido).filter(
         TemaSugerido.id == tema_id,
-        TemaSugerido.sitio_id == admin.sitio_id,
     ).first()
     if not tema:
         raise HTTPException(status_code=404, detail="Tema no encontrado")
@@ -357,7 +378,6 @@ def descartar_tema(
 ):
     tema = db.query(TemaSugerido).filter(
         TemaSugerido.id == tema_id,
-        TemaSugerido.sitio_id == admin.sitio_id,
     ).first()
     if not tema:
         raise HTTPException(status_code=404, detail="Tema no encontrado")

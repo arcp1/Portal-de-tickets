@@ -13,7 +13,7 @@ Dos consecuencias de diseño:
    usuario con claridad cuándo lo van a atender de verdad.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from app.core.config import settings
@@ -44,6 +44,20 @@ def a_hora_local(momento: datetime) -> datetime:
 
 def a_utc(local: datetime) -> datetime:
     return local - timedelta(hours=settings.HUSO_HORARIO_OFFSET)
+
+
+def _iso_utc(momento: datetime) -> str:
+    """ISO con la `Z` explicita.
+
+    Todo se guarda en UTC pero como `datetime` ingenuo. Sin la marca de zona,
+    `new Date(...)` en el navegador lo interpreta como **hora local**: en
+    Queretaro (UTC-6) eso hacia que el aviso de fuera de horario dijera
+    "vuelven a las 14:00" en vez de "a las 8:00". Misma razon que `FechaUTC`
+    en schemas/comunes.py; aqui se aplica a mano porque no pasa por Pydantic.
+    """
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return momento.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 class HorarioService:
@@ -130,7 +144,7 @@ class HorarioService:
         proximo = None if laboral else HorarioService.proximo_inicio_laboral(momento)
         return {
             "es_horario_laboral": laboral,
-            "proximo_inicio": proximo.isoformat() if proximo else None,
+            "proximo_inicio": _iso_utc(proximo) if proximo else None,
             "horario_inicio": settings.HORARIO_INICIO,
             "horario_fin": settings.HORARIO_FIN,
             # Fuera de horario se muestran más sugerencias: no hay a quién escalar.

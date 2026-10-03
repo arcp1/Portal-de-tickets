@@ -6,7 +6,7 @@ de similitud se queda a ciegas.
 
 import pytest
 
-from app.models import BaseConocimiento, SugerenciaKB
+from app.models import BaseConocimiento, SugerenciaKB, Usuario
 
 
 def get_token(client, email="admin@test.com", password="Secret123!"):
@@ -16,7 +16,13 @@ def get_token(client, email="admin@test.com", password="Secret123!"):
 
 @pytest.fixture
 def sugerencia(db_session):
-    """Una entrada de base de conocimiento ya mostrada una vez al usuario."""
+    """Una entrada de base de conocimiento ya mostrada una vez al usuario.
+
+    La fila lleva `usuario_id` porque en produccion siempre lo lleva: la crea
+    `KBService.buscar_similares` a nombre de quien recibio la sugerencia. Sin
+    ese dato no se puede comprobar que quien vota sea quien la recibio, y el
+    voto de cualquiera contaria para calibrar el umbral de toda la planta.
+    """
     entrada = BaseConocimiento(
         sitio_id=1,
         titulo="Impresora de embarques no responde",
@@ -29,7 +35,9 @@ def sugerencia(db_session):
     db_session.commit()
     db_session.refresh(entrada)
 
-    fila = SugerenciaKB(kb_id=entrada.id, similitud=0.88, fue_util=None)
+    duenio = db_session.query(Usuario).filter(Usuario.email == "admin@test.com").first()
+    fila = SugerenciaKB(kb_id=entrada.id, usuario_id=duenio.id,
+                        similitud=0.88, fue_util=None)
     db_session.add(fila)
     db_session.commit()
     db_session.refresh(fila)

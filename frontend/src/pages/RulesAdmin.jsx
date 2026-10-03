@@ -2,7 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { Sliders, Plus, Trash2, ShieldAlert, X } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
+import CapaModal from '../components/CapaModal';
+import Confirmacion from '../components/Confirmacion';
+import Selector from '../components/Selector';
+import Formulario from '../components/Formulario';
+import EstadoVacio from '../components/EstadoVacio';
+import { EsqueletoLista } from '../components/Cargando';
+import Aviso from '../components/Aviso';
+import lista from '../lib/lista';
+import { usePlantas, SelectorPlanta, EtiquetaPlanta } from '../lib/plantas';
 
 const RulesAdmin = () => {
   const { t } = useTranslation();
@@ -11,13 +20,29 @@ const RulesAdmin = () => {
   const [reglas, setReglas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [aviso, setAviso] = useState('');
+  // **El diálogo tiene su propio aviso.** Compartía el de la página, que se
+  // pinta detrás de la capa del diálogo: un 422 al guardar —o el "falta el
+  // destinatario" de aquí mismo— quedaba tapado, el diálogo seguía abierto
+  // sin decir nada y "Guardar regla" parecía no hacer nada.
+  const [avisoForm, setAvisoForm] = useState('');
+  // La regla que espera el "¿seguro?". null = no hay pregunta abierta.
+  const [porEliminar, setPorEliminar] = useState(null);
 
-  const [formData, setFormData] = useState({
+  const FORMULARIO_VACIO = {
     categoria: 'impresora',
-    condicion: 'hardware',
+    condicion: '',
     accion: 'proveedor',
-    destinatario: 'soporte@proveedor.com'
-  });
+    destinatario: '',
+    // Cada regla es de una planta: decide el trato de los tickets de esa.
+    sitio_id: null
+  };
+  const [plantas] = usePlantas();
+  const variasPlantas = plantas.length > 1;
+  const nombreDePlanta = (id) => plantas.find((p) => p.id === id);
+
+  const [formData, setFormData] = useState(FORMULARIO_VACIO);
 
   useEffect(() => {
     fetchReglas();
@@ -26,94 +51,116 @@ const RulesAdmin = () => {
   const fetchReglas = async () => {
     try {
       const res = await api.get('/reglas');
-      setReglas(res.data);
+      setReglas(lista(res.data, 'las reglas'));
+      setAviso('');
     } catch (err) {
-      console.error("Error fetching rules", err);
+      setAviso(err.response?.data?.detail || t('reglas.error_cargar'));
     } finally {
       setLoading(false);
     }
   };
 
+  const abrirAlta = () => {
+    setFormData(FORMULARIO_VACIO);
+    setAvisoForm('');
+    setShowModal(true);
+  };
+
   const handleCreate = async (e) => {
     e.preventDefault();
+    if (guardando) return;
+    // "Enrutar a proveedor" sin correo no avisa a nadie: se pide antes de guardar.
+    // Unos espacios pasan el `required` del navegador y llegaban como una
+    // condición vacía; el backend la rechaza, pero con el nombre del campo.
+    if (!formData.condicion.trim()) {
+      setAvisoForm(t('reglas.falta_condicion'));
+      return;
+    }
+    if (formData.accion === 'proveedor' && !formData.destinatario.trim()) {
+      setAvisoForm(t('reglas.falta_destinatario'));
+      return;
+    }
+    setGuardando(true);
+    setAvisoForm('');
     try {
       await api.post('/reglas', {
         ...formData,
-        sitio_id: user.sitio_id,
+        condicion: formData.condicion.trim(),
+        destinatario: formData.destinatario.trim() || null,
+        sitio_id: formData.sitio_id || null,
         activa: true
       });
       setShowModal(false);
+      setFormData(FORMULARIO_VACIO);
       fetchReglas();
     } catch (err) {
-      console.error("Error creating rule", err);
+      // Antes solo iba a la consola: el boton "Guardar Regla" parecia muerto.
+      setAvisoForm(err.response?.data?.detail || t('reglas.error_guardar'));
+    } finally {
+      setGuardando(false);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("¿Seguro que desea eliminar esta regla de negocio?")) return;
+  const handleDelete = async (regla) => {
+    setPorEliminar(null);
     try {
-      await api.delete(`/reglas/${id}`);
+      await api.delete(`/reglas/${regla.id}`);
       fetchReglas();
     } catch (err) {
-      console.error("Error deleting rule", err);
+      setAviso(err.response?.data?.detail || t('reglas.error_borrar'));
     }
   };
 
   return (
-    <div className="page-container animate-fade-in" style={{ maxWidth: '1000px' }}>
+    <div className="page-container animate-fade-in">
       <div className="page-header">
         <div>
           <h1 className="page-title">
-            Reglas de Negocio Configurables
+            {t('reglas.title')}
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', marginTop: '4px' }}>
-            Enrutamiento automático de tickets por categoría y condición en Planta Querétaro
+            {t('reglas.subtitle')}
+            {' · '}{t('plantas.ti_global')}
           </p>
         </div>
 
-        <button onClick={() => setShowModal(true)} className="btn-primary">
+        <button onClick={abrirAlta} className="btn-acento">
           <Plus size={18} />
-          Nueva Regla
+          {t('reglas.nueva')}
         </button>
       </div>
 
+      <Aviso texto={aviso} />
+
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Cargando reglas de negocio...</div>
+        <EsqueletoLista filas={3} />
+      ) : reglas.length === 0 ? (
+        <EstadoVacio texto={t('reglas.vacio')} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {reglas.map((r) => (
             <div key={r.id} className="apple-card" style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                  <span style={{
-                    fontSize: '0.75rem',
-                    fontWeight: '700',
-                    textTransform: 'uppercase',
-                    padding: '4px 10px',
-                    borderRadius: 'var(--radius-full)',
-                    background: 'var(--status-espera-proveedor-bg)',
-                    color: 'var(--status-espera-proveedor-text)'
-                  }}>
-                    {r.categoria}
+                  {variasPlantas && <EtiquetaPlanta planta={nombreDePlanta(r.sitio_id)} compacta />}
+                  <span className="chip-dato" style={{ textTransform: 'uppercase', background: 'var(--status-espera-proveedor-bg)', color: 'var(--status-espera-proveedor-text)' }}>
+                    {t(`new_ticket.category_${r.categoria}`, { defaultValue: r.categoria })}
                   </span>
                   <span style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '1.05rem' }}>
-                    Condición: "{r.condicion}"
+                    {t('reglas.muestra_condicion', { condicion: r.condicion })}
                   </span>
                 </div>
                 <div style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
-                  Acción: <strong style={{ color: 'var(--text-primary)'}}>{r.accion.toUpperCase()}</strong> → {r.destinatario || 'Asignación estándar'}
+                  {t('reglas.muestra_accion')}{' '}
+                  <strong style={{ color: 'var(--text-primary)'}}>{t(`reglas.accion_${r.accion}`, { defaultValue: r.accion })}</strong>
+                  {' → '}{r.destinatario || t('reglas.asignacion_estandar')}
                 </div>
               </div>
 
               <button 
-                onClick={() => handleDelete(r.id)} 
-                className="btn-secondary" 
-                style={{ 
-                  color: '#FF3B30', // Apple Red
-                  padding: '10px',
-                  background: '#FFF0F0',
-                  border: 'none'
-                }}
+                onClick={() => setPorEliminar(r)} 
+                className="btn-secondary btn-secondary--peligro"
+                style={{ padding: '10px' }}
               >
                 <Trash2 size={18} />
               </button>
@@ -123,17 +170,7 @@ const RulesAdmin = () => {
       )}
 
       {showModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.4)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 200,
-          padding: '20px'
-        }} className="animate-fade-in">
+        <CapaModal>
           <div className="apple-card" style={{ width: '100%', maxWidth: '500px', padding: '32px', position: 'relative' }}>
             <button 
               onClick={() => setShowModal(false)}
@@ -143,71 +180,92 @@ const RulesAdmin = () => {
             </button>
             
             <h2 style={{ fontSize: '1.4rem', fontWeight: '700', marginBottom: '24px', color: 'var(--text-primary)' }}>
-              Crear Regla de Negocio
+              {t('reglas.crear_titulo')}
             </h2>
-            <form onSubmit={handleCreate}>
+            <Formulario onSubmit={handleCreate}>
+              {variasPlantas && (
+                <div className="form-group">
+                  <label htmlFor="planta-regla">{t('plantas.planta')}</label>
+                  <SelectorPlanta id="planta-regla" plantas={plantas} value={formData.sitio_id}
+                    onChange={(v) => setFormData({ ...formData, sitio_id: v })} required />
+                </div>
+              )}
               <div className="form-group">
-                <label>Categoría</label>
-                <select
+                <label>{t('reglas.categoria')}</label>
+                <Selector
                   className="form-select"
                   value={formData.categoria}
                   onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
                 >
-                  <option value="impresora">Impresora</option>
-                  <option value="red">Red</option>
-                  <option value="equipo">Equipo</option>
-                  <option value="software">Software</option>
-                  <option value="accesos">Accesos</option>
-                </select>
+                  <option value="impresora">{t('new_ticket.category_impresora')}</option>
+                  <option value="red">{t('new_ticket.category_red')}</option>
+                  <option value="equipo">{t('new_ticket.category_equipo')}</option>
+                  <option value="software">{t('new_ticket.category_software')}</option>
+                  <option value="accesos">{t('new_ticket.category_accesos')}</option>
+                </Selector>
               </div>
 
               <div className="form-group">
-                <label>Palabra Clave / Condición</label>
+                <label>{t('reglas.condicion')}</label>
                 <input
                   type="text"
                   className="form-input"
                   required
-                  placeholder="Ej. hardware, atasco, proveedor"
+                  placeholder={t('reglas.condicion_ejemplo')}
                   value={formData.condicion}
                   onChange={(e) => setFormData({ ...formData, condicion: e.target.value })}
                 />
               </div>
 
               <div className="form-group">
-                <label>Acción Automática</label>
-                <select
+                <label>{t('reglas.accion')}</label>
+                <Selector
                   className="form-select"
                   value={formData.accion}
                   onChange={(e) => setFormData({ ...formData, accion: e.target.value })}
                 >
-                  <option value="proveedor">Enrutar a Proveedor Externo</option>
-                  <option value="escalar">Escalar con Máxima Prioridad</option>
-                  <option value="auto">Auto-resolver por Sistema</option>
-                </select>
+                  <option value="proveedor">{t('reglas.accion_proveedor')}</option>
+                  <option value="escalar">{t('reglas.accion_escalar')}</option>
+                  <option value="auto">{t('reglas.accion_auto')}</option>
+                </Selector>
               </div>
 
               <div className="form-group">
-                <label>Destinatario / Correo Proveedor</label>
+                <label>{t('reglas.destinatario')}</label>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="Ej. soporte@proveedor.com"
+                  placeholder={t('reglas.destinatario_ejemplo')}
                   value={formData.destinatario}
                   onChange={(e) => setFormData({ ...formData, destinatario: e.target.value })}
                 />
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
+              <Aviso texto={avisoForm} />
+
+              <div style={{ display: 'flex', gap: '12px', marginTop: avisoForm ? '16px' : '32px' }}>
                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary" style={{ flex: 1 }}>
-                  Cancelar
+                  {t('comun.cancelar')}
                 </button>
-                <button type="submit" className="btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
-                  Guardar Regla
+                <button type="submit" className="btn-acento" disabled={guardando}
+                  style={{ flex: 1, justifyContent: 'center' }}>
+                  {guardando ? t('temas.guardando') : t('reglas.guardar')}
                 </button>
               </div>
-            </form>
+            </Formulario>
           </div>
-        </div>
+        </CapaModal>
+      )}
+
+      {porEliminar && (
+        <Confirmacion
+          titulo={t('reglas.muestra_condicion', { condicion: porEliminar.condicion })}
+          mensaje={t('reglas.confirmar_borrar')}
+          textoConfirmar={t('comun.eliminar')}
+          tono="peligro"
+          onConfirmar={() => handleDelete(porEliminar)}
+          onCancelar={() => setPorEliminar(null)}
+        />
       )}
     </div>
   );

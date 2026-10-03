@@ -184,6 +184,245 @@ modelo, hay que volver a medirlo en vez de asumir.
 
 ---
 
+## Lo que no cabe en un texto
+
+Todo lo de arriba está escrito en prosa, y funciona mientras el problema se
+pueda **nombrar**. Hay una clase de incidencia donde eso no alcanza:
+
+> *"Mi copia sale borrosa."*
+> *"Mi copia sale con una sombra doble."*
+> *"Mi copia sale con una raya fina."*
+
+Las tres se describen igual —"sale mal"— y se arreglan de tres maneras
+distintas. Ninguna búsqueda por significado las separa, porque en el texto no
+hay nada que separar. Quien tiene la hoja en la mano las separa de una mirada.
+
+Así que ahí el portal hace lo contrario de lo que hace en todo lo demás: **en
+vez de contestar, enseña y pregunta.**
+
+    Usuario:  mi copia sale borrosa
+    Portal:   ¿Se ve así su problema?
+              [foto: hoja desvanecida]   [foto: raya vertical]
+    Usuario:  (señala la primera)
+    Portal:   Abra la bandeja 2, saque el cartucho y agítelo cinco veces.
+              [captura señalada: destilde «Ahorro de tóner»]
+              ¿Se arregló?
+    Usuario:  Sí, ya quedó.
+
+Lo que se entrega es la solución atada a **la foto que esa persona reconoció**,
+no la que el parecido de texto puso primera.
+
+Esto pasa en los dos sitios donde alguien cuenta su problema: el chat flotante
+y la caja de descripción del formulario de ticket. No sólo en el chat, y el
+motivo es que mucha gente nunca abre el chat: va derecha al formulario. Si las
+fotos vivieran sólo en el chat, a esa persona el portal le enseñaría tres
+sugerencias de texto sobre defectos que se describen igual y la mandaría a
+levantar un ticket.
+
+### Las fotos no las mira ningún modelo
+
+No hay visión por computadora en ninguna parte de esto, y no es una limitación:
+es la misma regla de siempre. **La imagen la etiqueta quien la sube**, que es
+quien estuvo delante de la impresora. Lo único que empareja el modelo es texto
+contra texto: lo que escribe el usuario contra lo que TI escribió al documentar
+el defecto.
+
+Un modelo de visión aquí solo añadiría una manera nueva de equivocarse sobre
+algo que ya estaba escrito.
+
+### Cuándo se activa, que es la mitad del problema
+
+Esto **no** puede saltar en cualquier consulta. "No manda a imprimir" y "la
+copia sale borrosa" son las dos de impresora y no se parecen en nada:
+
+| | Qué pasa | Qué ayuda |
+|---|---|---|
+| **no manda a imprimir** | falta una función | el flujo de siempre: checklist, ticket |
+| **la copia sale borrosa** | hay algo que ver | la foto, y verla es lo que lo resuelve |
+
+Enseñarle fotos al primero es ruido que le estorba para llegar a su ticket. No
+enseñárselas al segundo desperdicia lo único que lo habría resuelto sin levantar
+nada.
+
+Hay **dos puertas** y ninguna sobra:
+
+1. **¿Esto describe algo que se ve?** Una tabla de términos de apariencia
+   —borroso, manchado, parpadea, luz roja— y otra de ausencias de función —no
+   imprime, no enciende, no aparece—. Instantánea, gratis y auditable: si
+   clasifica mal, se corrige una línea. Es el mismo criterio con el que ya se
+   clasifica por vocabulario de planta.
+2. **¿Tenemos una foto de eso?** La búsqueda contra el catálogo. Da igual cuánto
+   suene a defecto visual lo que alguien escriba: si TI no ha documentado nada
+   parecido, **no hay nada que enseñar** y la consulta sigue su camino de
+   siempre sin enterarse de que esto existió.
+
+**Y el listón de parecido es más alto aquí que en el resto del asistente**, que
+es al revés de lo que parece sensato. Medido con el modelo de la planta, sobre
+la ficha de la copia borrosa ya escrita:
+
+| Lo que escribe la persona | Parecido |
+|---|---|
+| "mi copia sale borrosa desde ayer" | 0,80 |
+| "no me deja entrar, cuenta bloqueada" | 0,58 |
+
+El corte va en 0,65, holgado entre las dos. La primera versión lo puso en 0,55
+razonando que preguntar es más barato que responder y que una foto de más sólo
+cuesta un "no"; el 0,58 del ruido dice que a esa altura la foto de más no es
+rara, es la de una cuenta bloqueada delante de alguien que preguntaba por una
+impresora. Se puede exigir más porque **una ficha está escrita para
+emparejar** —título, síntoma y las frases que usa la gente— mientras que un
+ticket cuenta lo que pasó un día concreto: el acierto sube a 0,80 donde el de un
+ticket rondaba 0,69.
+
+La segunda no vuelve prescindible a la primera, aunque lo parezca. Sin la
+primera, "no manda a imprimir" emparejaría con la ficha de "la hoja sale en
+blanco" —hablan de la misma impresora y de la misma ausencia de resultado— y el
+portal enseñaría fotos de hojas a alguien cuyo problema es que el trabajo no
+llega a la cola.
+
+Y si las fotos que se enseñan no son, **"ninguna se parece" está siempre a la
+vista**: se anota —una ficha que se enseña mucho y no confirma nadie está
+emparejando con lo que no debe— y la conversación sigue exactamente como si esto
+no existiera.
+
+### Esto se vuelve universal solo
+
+La tabla de términos la escribió alguien pensando en impresoras, pantallas y
+luces de equipo. Mañana el problema visual será de una báscula, de una etiqueta
+de embarque o de algo que hoy no existe en la planta, y nadie va a abrir el
+código para darlo de alta.
+
+Por eso cada ficha tiene un campo de **cómo lo dice la gente** —"queda recorrida
+la etiqueta", "marca el peso en cero"— y esas frases **abren la primera puerta
+igual que las del código**. El catálogo le va enseñando al portal a reconocer lo
+que nadie previó, escribiendo, no programando.
+
+### Los dos clics
+
+La otra mitad de cada ficha son las capturas de la solución, señaladas. Hay
+problemas que se arreglan destildando una casilla, y contar dónde está esa
+casilla cuesta un párrafo que nadie sigue: *"abra propiedades, pestaña avanzado,
+el tercer bloque, la casilla de abajo"*. Sobre la captura, cuesta una mirada.
+
+### La última pregunta es la que más enseña
+
+*"¿Se arregló?"* parece cortesía y no lo es. **Reconocer la foto y resolver el
+problema son dos cosas distintas**, y confundirlas esconde el peor de los dos
+fallos posibles:
+
+> Una ficha con la foto perfecta y la solución equivocada **la reconoce todo el
+> mundo**. En el tablero luce como la mejor del catálogo, con un 90 % de
+> aciertos, mientras manda a la planta entera a agitar un cartucho que no era el
+> problema.
+
+Por eso cada ficha lleva cuatro cuentas y no tres, y las dos lecturas que
+importan salen de dividirlas:
+
+| | Qué significa | Qué hacer |
+|---|---|---|
+| se enseña y **no la reconocen** | la foto o las frases están mal: empareja con consultas que no son de este defecto | corregir la foto y las frases |
+| la reconocen y **no les arregla** | la solución está mal escrita, o bajo una misma foto hay dos averías distintas | reescribirla, o partir la ficha en dos |
+
+La pantalla del catálogo hace esa división y lo dice en una línea, con un mínimo
+de casos por debajo del cual no diagnostica nada: con dos casos no hay patrón,
+hay dos casos.
+
+**Y si no se arregló, el ticket sale diciendo qué se probó ya.** La persona
+levanta su incidencia con una línea añadida —visible y editable, no una
+anotación a sus espaldas— que dice qué ficha del catálogo siguió y que no
+funcionó. Es la misma idea que el campo de "ya se probó y no era" de los
+tickets: media hora de un técnico se va en repetir lo que alguien ya descartó.
+
+### La foto casi siempre ya existe
+
+Documentar un defecto desde cero es trabajo, y el trabajo que se pide dos veces
+no se hace ninguna. Pero **las fotos del problema ya están en el portal**: la
+gente las adjunta a sus tickets desde que hay adjuntos —la hoja con la raya, la
+pantalla con el error, el LED en rojo—.
+
+Así que un ticket ya resuelto se convierte en ficha con un botón. Se lleva la
+descripción de quien lo reportó, la solución de quien lo cerró, lo que se
+descartó y las fotos adjuntas, y **nace en borrador**: eso es material en bruto,
+todavía no está redactado para contestarle a nadie. Alguien tiene que leerlo,
+ponerle título, escribir las frases con las que la gente lo dice, y publicar.
+
+Las fotos se **copian**, no se enlazan: si mañana alguien borra ese adjunto —o
+el ticket entero— la ficha no puede quedarse muda. Es conocimiento de la planta,
+no una vista de un ticket. Lo que sí queda anotado es de cuál salió, para poder
+abrirlo y comprobar el caso real dentro de un año.
+
+### Lo que faltaba fotografiar también se apunta
+
+Los contadores de arriba dicen cómo les va a las fichas **que existen**. No
+dicen nada de las que faltan, y ése es el dato con el que se escribe la
+siguiente.
+
+Así que cuando alguien describe algo que se ve y el portal no tiene la foto, la
+consulta se anota en la misma bitácora que ya lleva los huecos del asistente de
+texto —**Sistema → Conciencia**, la lista de qué documentar el lunes—, con su
+propio rótulo:
+
+| Rótulo | Qué pasó |
+|---|---|
+| **Faltaba la foto** | describió un defecto que se ve y no teníamos ninguna imagen parecida |
+| **Ninguna foto era** | se le enseñaron y ninguna era la suya |
+| **La foto no arregló** | reconoció la suya y la solución no le funcionó |
+| **Lo resolvió una foto** | reconoció la suya y quedó resuelto, sin ticket |
+
+Sin esto, el catálogo visual sería el único rincón del portal que no rinde
+cuentas de lo que no supo.
+
+Y cuando sí resuelve, el ticket queda registrado con canal **visual**, junto al
+checklist y la base de conocimiento: es lo que contesta si fotografiar un
+defecto valió la pena. Cada uno de esos es un ticket que nadie de TI atendió.
+
+### Cómo se sabe si está bien escrita
+
+El disparador se puede equivocar de dos maneras y **ninguna se reporta sola**:
+enseñando fotos a quien preguntó por la red —que molesta, y nadie avisa— y no
+enseñándolas a quien sí tenía el defecto delante —que no se nota nunca—.
+
+Contra lo primero está **el probador** de la pantalla de Catálogo visual: se
+teclea la frase y se ve la decisión con su motivo, sin que a nadie se le enseñe
+nada y sin ensuciar ninguna métrica. Un "no se activa" por *falta una función*
+está bien resuelto; uno por *ninguna ficha se parece* teniendo la ficha escrita
+significa que el síntoma está redactado con otras palabras que las que usa la
+gente, y eso se arregla escribiendo la frase real en el campo de frases.
+
+Contra lo segundo está la lista de huecos de arriba.
+
+Y como el resto del conocimiento del portal, **mientras es borrador no le
+contesta a nadie**. Para publicar hace falta al menos una foto del síntoma: sin
+ella la ficha no puede hacer la única pregunta que la justifica.
+
+### Lo que cuesta, y por qué acabó costando menos
+
+Añadir esto metía una consulta más al modelo de embeddings en dos sitios donde
+ya había otras: el chat y el formulario de ticket. Medido en esta máquina, un
+embedding cuesta **entre 74 y 579 ms** según la frase —mediana 311—, así que no
+es gratis.
+
+Dos cosas lo dejaron mejor de como estaba:
+
+- **El chat vectoriza una sola vez.** El mensaje se convierte en vector arriba y
+  ese mismo vector sirve al catálogo y al asistente de texto. Antes, un mensaje
+  que sonara a defecto visual y no tuviera foto se vectorizaba dos veces.
+- **Lo ya calculado se recuerda.** Al escribir la descripción de un ticket hay
+  tres bloques consultando por separado —sugerencias parecidas, respuesta del
+  asistente, catálogo visual— y los tres mandaban el mismo texto al modelo: casi
+  un segundo de CPU en cada pausa de escritura. Un embedding es una función pura
+  del texto y del modelo, así que recordarlo no cambia ninguna respuesta; el
+  segundo y el tercero pasaron a costar **cero**.
+
+Lo delicado de una caché así es la clave, y merece decirse: el mismo texto
+vectorizado *como pregunta* y *como documento* da vectores distintos —el modelo
+está entrenado con prefijos de tarea— y confundirlos devolvería el vector
+equivocado **sin que nada fallara**: la búsqueda encontraría peor, en silencio.
+La clave lleva el prefijo ya pegado y el nombre del modelo, y hay una prueba que
+lo comprueba.
+
+---
+
 ## Qué hace falta para que esto funcione
 
 **Cerrar los tickets contando qué se hizo.** El sistema es tan bueno como lo que
@@ -196,6 +435,10 @@ burocracia: es literalmente de dónde sale todo lo demás.
 **Escribir la documentación de TI.** Cada procedimiento que se escriba —cómo dar
 de alta un usuario de telefonía, dónde están las VLAN— entra en las respuestas del
 asistente automáticamente. No hay que hacer nada más que escribirlo.
+
+**Fotografiar lo que se repite.** Cuando una falla se reconoce mirándola, una
+foto en el catálogo visual resuelve en dos segundos lo que un párrafo no
+resuelve nunca. No hace falta fotografiarlo todo: solo lo que vuelve.
 
 Y una consecuencia agradable: **el asistente mejora solo**. Cada ticket bien
 cerrado lo hace un poco mejor, sin tocar código y sin pagar nada.

@@ -12,10 +12,10 @@ mande a alguien a desarmar una impresora sana.
 from typing import Optional
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import usuario_con_cupo_ia
 from app.core.db import get_db
 from app.models import Usuario
 from app.services.asistente_service import AsistenteService
@@ -25,6 +25,8 @@ router = APIRouter(prefix="/asistente", tags=["Asistente"])
 
 
 class PreguntaRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
     texto: str = Field(min_length=1, max_length=2000)
     categoria: Optional[str] = None
 
@@ -33,7 +35,7 @@ class PreguntaRequest(BaseModel):
 def preguntar(
     peticion: PreguntaRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(usuario_con_cupo_ia),
 ):
     """Responde con lo que la planta ya sabe, o dice que no sabe.
 
@@ -60,7 +62,7 @@ def preguntar(
 def buscar(
     peticion: PreguntaRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(usuario_con_cupo_ia),
 ):
     """Solo la búsqueda, sin redactar. Útil para ver qué encontraría."""
     pasajes = RecuperacionService.buscar(

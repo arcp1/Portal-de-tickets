@@ -161,3 +161,39 @@ def test_el_interruptor_apaga_sin_borrar_la_llave(cliente, monkeypatch):
 
     assert cliente.configurado is False
     assert cliente.responder_con_contexto("hola", EXTRACTOS) is None
+
+
+def test_una_respuesta_cortada_por_el_tope_no_se_devuelve(cliente, monkeypatch):
+    """`MAX_TOKENS` llega con un 200 y con medio texto dentro.
+
+    Es el mismo fallo que tenía el modelo local: al agotarse el presupuesto de
+    tokens, el proveedor se detiene donde iba —no donde terminaba— y devuelve
+    el trozo como si fuera la respuesta. Medio procedimiento con aspecto de
+    estar entero es peor que ninguno, porque le falta el final, que es donde
+    suelen ir las advertencias.
+
+    Aquí pesa más que en el local: a Gemini se le llama *porque* el local no
+    alcanzó, así que lo que conteste es lo que se publica.
+    """
+    responder(monkeypatch, {
+        "candidates": [{
+            "content": {"parts": [{"text": "1. Apague la impresora.\n2. Limpie la"}]},
+            "finishReason": "MAX_TOKENS",
+        }],
+        "usageMetadata": {"promptTokenCount": 320, "candidatesTokenCount": 400},
+    })
+    assert cliente.redactar("redacte el procedimiento") is None
+
+
+def test_una_respuesta_terminada_si_se_devuelve(cliente, monkeypatch):
+    """El contrapeso: con `STOP` la respuesta pasa igual que antes."""
+    responder(monkeypatch, {
+        "candidates": [{
+            "content": {"parts": [{"text": "Reinicie la cola de impresión."}]},
+            "finishReason": "STOP",
+        }],
+        "usageMetadata": {"promptTokenCount": 320, "candidatesTokenCount": 40},
+    })
+    resultado = cliente.redactar("redacte el procedimiento")
+    assert resultado is not None
+    assert resultado["respuesta"] == "Reinicie la cola de impresión."

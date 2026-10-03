@@ -95,7 +95,6 @@ class SolucionesService:
         minimo = minimo or settings.SOLUCION_GENERAL_MIN_TICKETS
 
         entradas = db.query(BaseConocimiento).filter(
-            BaseConocimiento.sitio_id == sitio_id,
             BaseConocimiento.embedding.isnot(None),
         ).all()
         if len(entradas) < minimo:

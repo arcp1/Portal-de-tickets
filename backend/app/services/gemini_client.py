@@ -21,8 +21,6 @@ llama sigue su camino sin el modelo. Un ticket jamás se queda sin crearse porqu
 un servicio de terceros tuvo un mal día.
 """
 
-import json
-import re
 import time
 from collections import deque
 from typing import List, Optional
@@ -73,13 +71,28 @@ class GeminiClient:
         """Si hay llave. Sin llave, el portal funciona igual, solo sin Gemini."""
         return bool(self.api_key) and settings.GEMINI_HABILITADO
 
+    def _cabeceras(self) -> dict:
+        """La llave va en cabecera, **nunca en la URL**.
+
+        Google acepta las dos formas, pero `?key=...` es una trampa: la URL
+        aparece en el mensaje de cualquier excepción de httpx, en las trazas,
+        en la salida capturada de las pruebas y en los registros de cualquier
+        proxy por el que pase. Se comprobó de la peor manera —una prueba que
+        se escapó a la red dejó la llave en claro en su log— y ese log podría
+        haber acabado en un CI o en un pegado.
+
+        En cabecera no viaja en el identificador del recurso, así que ni httpx
+        ni un proxy la registran al anotar la petición.
+        """
+        return {"x-goog-api-key": self.api_key}
+
     def disponible(self) -> bool:
         """Si Gemini contesta ahora mismo. Nunca levanta excepción."""
         if not self.configurado:
             return False
         try:
             with httpx.Client(timeout=5) as cliente:
-                respuesta = cliente.get(f"{BASE}?key={self.api_key}")
+                respuesta = cliente.get(BASE, headers=self._cabeceras())
                 return respuesta.status_code == 200
         except Exception:  # noqa: BLE001 - degradación deliberada
             return False
@@ -171,7 +184,8 @@ class GeminiClient:
         try:
             with httpx.Client(timeout=settings.GEMINI_TIMEOUT) as cliente:
                 respuesta = cliente.post(
-                    f"{BASE}/{self.modelo}:generateContent?key={self.api_key}",
+                    f"{BASE}/{self.modelo}:generateContent",
+                    headers=self._cabeceras(),
                     json={
                         "contents": [{"parts": [{"text": instruccion}]}],
                         "generationConfig": {
@@ -192,11 +206,28 @@ class GeminiClient:
             respuesta.raise_for_status()
             datos = respuesta.json()
 
-            texto = (datos.get("candidates", [{}])[0]
-                     .get("content", {})
+            candidato = datos.get("candidates", [{}])[0]
+            texto = (candidato.get("content", {})
                      .get("parts", [{}])[0]
                      .get("text", "") or "").strip()
             if not texto:
+                return None
+
+            # **El mismo cuidado que con el modelo local.**
+            #
+            # Al agotar `maxOutputTokens`, Google contesta 200 con el trozo que
+            # llevaba escrito y lo marca en `finishReason`. Sin mirarlo, medio
+            # procedimiento llega al usuario con aspecto de estar entero —y el
+            # final, que es donde suelen ir las advertencias, no llega—.
+            #
+            # Aquí importa más que en el local: Gemini es el que se llama
+            # *porque* el local no alcanzó, así que su respuesta es la que se
+            # va a publicar. Devolver None deja seguir a los extractos, que
+            # serán menos cómodos de leer pero están completos.
+            if candidato.get("finishReason") == "MAX_TOKENS":
+                logger.warning("Gemini: la respuesta salió cortada por el tope; "
+                               "se sigue sin ella",
+                               extra={"max_tokens": max_tokens})
                 return None
 
             self._latencias.append((time.monotonic() - inicio) * 1000.0)

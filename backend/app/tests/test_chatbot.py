@@ -424,3 +424,77 @@ def test_la_sesion_guarda_el_historial(client, ollama_activo, db_session):
     assert sesion.confianza == 0.9
     assert any(m["rol"] == "usuario" and m["texto"] == "sin internet en calidad"
                for m in sesion.mensajes)
+
+
+# ----------------------------------------------------------------------
+# El mensaje tiene tope, y el tope protege a los demás
+# ----------------------------------------------------------------------
+
+def test_un_mensaje_enorme_se_rechaza(client):
+    """Sin tope, un pegado bloquea la IA de toda la planta.
+
+    El mensaje va al modelo dos veces —a buscar en el conocimiento y a
+    clasificar— y la generación tiene aforo 1: mientras dura, nadie más tiene
+    asistente. Medido en esta planta, 20 000 caracteres llenan la ventana de
+    contexto de Ollama y cuestan **150 segundos**. Dos minutos y medio de IA
+    parada, con un solo pegado.
+
+    Y no compra nada: pasada esa ventana Ollama recorta en silencio, así que el
+    texto de más ni siquiera se lee.
+    """
+    respuesta = client.post(
+        "/api/chat/mensaje",
+        json={"mensaje": "no jala la impresora " * 2000},   # ~42 000 caracteres
+        headers=headers(client),
+    )
+    assert respuesta.status_code == 422, (
+        f"se aceptó un mensaje de 42 000 caracteres ({respuesta.status_code})"
+    )
+
+
+def test_un_mensaje_normal_pasa(client):
+    """El contrapeso: el tope no puede estorbar a quien describe una avería.
+
+    Sin esto, la prueba de arriba se cumpliría con un endpoint que rechazara
+    todo.
+    """
+    respuesta = client.post(
+        "/api/chat/mensaje",
+        json={"mensaje": "no jala la impresora del anden 2 y saca rayas negras"},
+        headers=headers(client),
+    )
+    assert respuesta.status_code == 200, respuesta.text
+
+
+def test_un_mensaje_vacio_se_rechaza(client):
+    """Un mensaje en blanco no tiene nada que clasificar y gastaría un turno
+    de la cola igual que uno de verdad."""
+    respuesta = client.post(
+        "/api/chat/mensaje", json={"mensaje": ""}, headers=headers(client),
+    )
+    assert respuesta.status_code == 422
+
+
+def test_el_timeout_de_clasificar_cubre_el_caso_de_cache_fria():
+    """El número no puede quedar por debajo de lo que la operación tarda.
+
+    Clasificar tarda ~2,9 s cuando la instrucción sigue en la caché de prompt
+    de Ollama, y **11,5 a 12,8 s** medidos cuando la llamada anterior llevaba
+    otra instrucción —una normalización de ticket, por ejemplo— y hay que
+    releer el prompt entero a ~17 tokens/s.
+
+    Con el timeout en 10 s ese segundo caso se pasaba **siempre**: la
+    clasificación devolvía None y el chat sacaba los desplegables. Desde fuera
+    se lee como «el bot no entiende», cuando en realidad no había llegado a
+    contestar — y el usuario pagaba la espera completa igual.
+
+    Esta prueba no mide nada: fija el suelo para que nadie lo baje sin haber
+    vuelto a medir.
+    """
+    from app.core.config import settings
+
+    assert settings.OLLAMA_TIMEOUT_CLASIFICACION >= 15, (
+        "el timeout de clasificación quedó por debajo del caso de caché fría "
+        "(11-13 s medidos): el chat degradará a desplegables en cada consulta "
+        "que siga a una normalización"
+    )

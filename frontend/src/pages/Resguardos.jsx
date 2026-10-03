@@ -2,17 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../api/client';
+import Folio from '../components/Folio';
 import { EsqueletoLista } from '../components/Cargando';
 import {
-  FileSignature, Plus, Download, RotateCcw, XCircle, AlertTriangle,
-  Check, X, User, Laptop, Search
+  Plus, Download, RotateCcw, XCircle, Check, X, User,
+  Laptop, Search
 } from 'lucide-react';
+import CapaModal from '../components/CapaModal';
+import Selector from '../components/Selector';
+import Formulario from '../components/Formulario';
+import Aviso from '../components/Aviso';
+import lista from '../lib/lista';
 
 const ESTADOS = {
   pendiente_firma: ['var(--status-espera-proveedor-text)', 'var(--status-espera-proveedor-bg)'],
   firmado: ['var(--status-resuelto-text)', 'var(--status-resuelto-bg)'],
   devuelto: ['var(--text-secondary)', 'var(--bg-tertiary)'],
-  cancelado: ['#D8000C', '#FFF0F0']
+  cancelado: ['var(--peligro)', 'var(--peligro-bg)']
 };
 
 /** Administración de resguardos: emitir, dar seguimiento y cerrar. */
@@ -32,7 +38,7 @@ const Resguardos = () => {
     setCargando(true);
     try {
       const ruta = filtro ? `/resguardos?estado=${filtro}` : '/resguardos';
-      setResguardos((await api.get(ruta)).data);
+      setResguardos(lista((await api.get(ruta)).data, 'los resguardos'));
       setAviso('');
     } catch (err) {
       setAviso(err.response?.data?.detail || t('resguardos.error_cargar'));
@@ -65,28 +71,22 @@ const Resguardos = () => {
   });
 
   return (
-    <div className="page-container animate-fade-in" style={{ maxWidth: '1050px' }}>
-      <h1 style={{ fontSize: '1.85rem', fontWeight: '700', marginBottom: '6px', color: 'var(--text-primary)' }}>
-        {t('resguardos.title')}
-      </h1>
-      <p style={{ color: 'var(--text-secondary)', marginBottom: '26px' }}>
-        {t('resguardos.subtitle')}
-      </p>
-
-      {aviso && (
-        <div className="animate-scale-in" style={{
-          display: 'flex', alignItems: 'center', gap: '10px',
-          background: 'var(--status-espera-proveedor-bg)',
-          color: 'var(--status-espera-proveedor-text)',
-          padding: '14px 18px', borderRadius: 'var(--radius-md)',
-          marginBottom: '18px', fontSize: '0.9rem'
-        }}>
-          <AlertTriangle size={18} /> {aviso}
+    <div className="page-container animate-fade-in">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">
+            {t('resguardos.title')}
+          </h1>
+          <p>
+              {t('resguardos.subtitle')}
+          </p>
         </div>
-      )}
+      </div>
 
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={() => setEmitiendo(true)} className="btn-primary"
+      <Aviso texto={aviso} />
+
+      <div className="barra-herramientas">
+        <button onClick={() => setEmitiendo(true)} className="btn-acento"
           style={{ padding: '10px 18px', fontSize: '0.9rem' }}>
           <Plus size={16} /> {t('resguardos.emitir')}
         </button>
@@ -100,14 +100,14 @@ const Resguardos = () => {
             placeholder={t('resguardos.buscar')} style={{ width: '100%', paddingLeft: '38px' }} />
         </div>
 
-        <select className="form-select" value={filtro} onChange={(e) => setFiltro(e.target.value)}
+        <Selector className="form-select" value={filtro} onChange={(e) => setFiltro(e.target.value)}
           style={{ maxWidth: '210px' }}>
           <option value="">{t('resguardos.todos')}</option>
           <option value="pendiente_firma">{t('resguardos.estado_pendiente_firma')}</option>
           <option value="firmado">{t('resguardos.estado_firmado')}</option>
           <option value="devuelto">{t('resguardos.estado_devuelto')}</option>
           <option value="cancelado">{t('resguardos.estado_cancelado')}</option>
-        </select>
+        </Selector>
       </div>
 
       {emitiendo && (
@@ -138,13 +138,8 @@ const Resguardos = () => {
               }}>
                 <div style={{ flex: 1, minWidth: '250px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ fontFamily: 'monospace', fontWeight: '600', fontSize: '0.9rem', color: 'var(--accent-primary)' }}>
-                      {r.folio}
-                    </span>
-                    <span style={{
-                      fontSize: '0.74rem', fontWeight: '600', padding: '3px 10px',
-                      borderRadius: 'var(--radius-full)', color, background: fondo
-                    }}>
+                    <Folio codigo={r.folio} />
+                    <span className="chip-dato" style={{ color, background: fondo }}>
                       {t(`resguardos.estado_${r.estado}`)}
                     </span>
                   </div>
@@ -188,7 +183,7 @@ const Resguardos = () => {
                   )}
                   {r.estado === 'pendiente_firma' && (
                     <button onClick={() => setAccion({ tipo: 'cancelar', resguardo: r })}
-                      className="btn-secondary" style={{ padding: '9px 13px', color: '#D8000C' }}
+                      className="btn-secondary btn-secondary--peligro" style={{ padding: '9px 13px' }}
                       title={t('resguardos.cancelar')}>
                       <XCircle size={15} />
                     </button>
@@ -225,8 +220,15 @@ const FormularioEmision = ({ onCerrar, onEmitido, onError }) => {
 
   useEffect(() => {
     // Solo se ofrecen equipos libres: uno asignado ya tiene resguardo vigente.
-    api.get('/equipos').then((r) => setEquipos(r.data.filter((e) => e.estado === 'disponible')));
-    api.get('/auth/usuarios').then((r) => setUsuarios(r.data)).catch(() => setUsuarios([]));
+    // `Array.isArray` antes de filtrar: una respuesta con el cuerpo
+    // equivocado hacia estallar el `.filter` dentro de la promesa, y sin
+    // `catch` eso queda como un rechazo sin atender — la lista se queda vacia
+    // sin que nadie sepa por que.
+    api.get('/equipos')
+      .then((r) => setEquipos(Array.isArray(r.data)
+        ? r.data.filter((e) => e.estado === 'disponible') : []))
+      .catch(() => setEquipos([]));
+    api.get('/auth/usuarios').then((r) => setUsuarios(lista(r.data, 'los usuarios'))).catch(() => setUsuarios([]));
   }, []);
 
   const enviar = async (e) => {
@@ -248,7 +250,7 @@ const FormularioEmision = ({ onCerrar, onEmitido, onError }) => {
   };
 
   return (
-    <form onSubmit={enviar} className="apple-card animate-scale-in"
+    <Formulario onSubmit={enviar} className="apple-card animate-scale-in"
       style={{ padding: '26px', marginBottom: '20px', border: '1px solid var(--accent-primary)' }}>
       <h3 style={{ fontSize: '1.05rem', fontWeight: '700', marginBottom: '18px', color: 'var(--text-primary)' }}>
         {t('resguardos.emitir_titulo')}
@@ -257,7 +259,7 @@ const FormularioEmision = ({ onCerrar, onEmitido, onError }) => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
         <div className="form-group">
           <label>{t('resguardos.equipo')}</label>
-          <select className="form-select" value={equipoId} required
+          <Selector className="form-select" value={equipoId} required
             onChange={(e) => setEquipoId(e.target.value)}>
             <option value="">{t('resguardos.elija_equipo')}</option>
             {equipos.map((e) => (
@@ -265,7 +267,7 @@ const FormularioEmision = ({ onCerrar, onEmitido, onError }) => {
                 {e.marca} {e.modelo} · {e.numero_serie || 'S/N'}
               </option>
             ))}
-          </select>
+          </Selector>
           {equipos.length === 0 && (
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '6px' }}>
               {t('resguardos.sin_equipos_libres')}
@@ -275,13 +277,18 @@ const FormularioEmision = ({ onCerrar, onEmitido, onError }) => {
 
         <div className="form-group">
           <label>{t('resguardos.resguardante')}</label>
-          <select className="form-select" value={usuarioId} required
+          <Selector className="form-select" value={usuarioId} required
             onChange={(e) => setUsuarioId(e.target.value)}>
             <option value="">{t('resguardos.elija_persona')}</option>
             {usuarios.map((u) => (
-              <option key={u.id} value={u.id}>{u.nombre} · {u.email}</option>
+              // En planta mucha gente no tiene correo: sin esto la opcion
+              // quedaba como "Juan Perez · " y no habia forma de distinguir
+              // dos personas con el mismo nombre.
+              <option key={u.id} value={u.id}>
+                {u.nombre}{(u.numero_empleado || u.email) ? ` · ${u.numero_empleado || u.email}` : ''}
+              </option>
             ))}
-          </select>
+          </Selector>
         </div>
       </div>
 
@@ -303,12 +310,12 @@ const FormularioEmision = ({ onCerrar, onEmitido, onError }) => {
         <button type="button" onClick={onCerrar} className="btn-secondary" style={{ padding: '10px 18px' }}>
           <X size={15} /> {t('temas.cancelar')}
         </button>
-        <button type="submit" className="btn-primary" disabled={enviando || !equipoId || !usuarioId}
+        <button type="submit" className="btn-acento" disabled={enviando || !equipoId || !usuarioId}
           style={{ padding: '10px 18px' }}>
           <Check size={15} /> {enviando ? t('temas.guardando') : t('resguardos.emitir')}
         </button>
       </div>
-    </form>
+    </Formulario>
   );
 };
 
@@ -344,12 +351,8 @@ const DialogoAccion = ({ accion, onCerrar, onListo, onError }) => {
   };
 
   return (
-    <div onClick={onCerrar} style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: '20px', zIndex: 1000
-    }}>
-      <form onClick={(e) => e.stopPropagation()} onSubmit={enviar}
+    <CapaModal onCerrar={onCerrar}>
+      <Formulario onClick={(e) => e.stopPropagation()} onSubmit={enviar}
         className="apple-card animate-scale-in" style={{ padding: '30px', maxWidth: '520px', width: '100%' }}>
         <h2 style={{ fontSize: '1.2rem', fontWeight: '700', marginBottom: '8px', color: 'var(--text-primary)' }}>
           {esDevolucion ? t('resguardos.devolver_titulo') : t('resguardos.cancelar_titulo')}
@@ -361,12 +364,12 @@ const DialogoAccion = ({ accion, onCerrar, onListo, onError }) => {
         {esDevolucion && (
           <div className="form-group">
             <label>{t('resguardos.estado_del_equipo')}</label>
-            <select className="form-select" value={estadoEquipo}
+            <Selector className="form-select" value={estadoEquipo}
               onChange={(e) => setEstadoEquipo(e.target.value)}>
               <option value="disponible">{t('resguardos.equipo_disponible')}</option>
               <option value="mantenimiento">{t('resguardos.equipo_mantenimiento')}</option>
               <option value="baja">{t('resguardos.equipo_baja')}</option>
-            </select>
+            </Selector>
           </div>
         )}
 
@@ -382,13 +385,13 @@ const DialogoAccion = ({ accion, onCerrar, onListo, onError }) => {
           <button type="button" onClick={onCerrar} className="btn-secondary" style={{ padding: '11px 20px' }}>
             {t('temas.cancelar')}
           </button>
-          <button type="submit" className="btn-primary" disabled={!valido || enviando}
+          <button type="submit" className="btn-acento" disabled={!valido || enviando}
             style={{ padding: '11px 20px' }}>
             <Check size={16} /> {enviando ? t('temas.guardando') : t('resguardos.confirmar')}
           </button>
         </div>
-      </form>
-    </div>
+      </Formulario>
+    </CapaModal>
   );
 };
 

@@ -15,14 +15,15 @@ separa un procedimiento de una sugerencia.
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy.orm import Session, defer
 
 from app.api.deps import get_current_admin
 from app.core.db import get_db
 from app.models import SolucionGeneral, Usuario
 from app.schemas.comunes import FechaUTC
 from app.services.auditoria_service import AuditoriaService
+from app.services.ollama_client import CATEGORIAS_VALIDAS
 from app.services.soluciones_service import (
     ARCHIVADA, BORRADOR, PUBLICADA, SolucionesService,
 )
@@ -48,28 +49,44 @@ class SolucionResponse(BaseModel):
     creado_en: Optional[FechaUTC] = None
     publicado_en: Optional[FechaUTC] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+
+def _categoria_conocida(valor: Optional[str]) -> Optional[str]:
+    # En blanco es «general» y vale; una inventada no casaba con ningún
+    # ticket y el procedimiento no se le ofrecía a nadie.
+    if valor and valor not in CATEGORIAS_VALIDAS:
+        raise ValueError("no es una categoría conocida")
+    return valor
 
 
 class EditarSolucion(BaseModel):
-    titulo: Optional[str] = Field(default=None, max_length=200)
-    contenido: Optional[str] = None
-    descartado: Optional[str] = None
+    # Los mismos mínimos que al crear. Un título o contenido en blanco se
+    # convertía en nulo sobre una columna obligatoria y la base lo rechazaba.
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    titulo: Optional[str] = Field(default=None, min_length=5, max_length=200)
+    contenido: Optional[str] = Field(default=None, min_length=20, max_length=20000)
+    descartado: Optional[str] = Field(default=None, max_length=5000)
     categoria: Optional[str] = None
+
+    _categoria = field_validator("categoria")(_categoria_conocida)
 
 
 class CrearSolucion(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
     titulo: str = Field(min_length=5, max_length=200)
-    contenido: str = Field(min_length=20)
+    contenido: str = Field(min_length=20, max_length=20000)
     categoria: Optional[str] = None
-    descartado: Optional[str] = None
+    descartado: Optional[str] = Field(default=None, max_length=5000)
+
+    _categoria = field_validator("categoria")(_categoria_conocida)
 
 
 def _buscar(db: Session, solucion_id: int, admin: Usuario) -> SolucionGeneral:
     solucion = db.query(SolucionGeneral).filter(
         SolucionGeneral.id == solucion_id,
-        SolucionGeneral.sitio_id == admin.sitio_id,
     ).first()
     if not solucion:
         raise HTTPException(status_code=404, detail="Solución no encontrada")
@@ -82,7 +99,8 @@ def listar(
     db: Session = Depends(get_db),
     admin: Usuario = Depends(get_current_admin),
 ):
-    consulta = db.query(SolucionGeneral).filter(SolucionGeneral.sitio_id == admin.sitio_id)
+    # El listado no enseña el vector: no se trae (768 números por fila).
+    consulta = (db.query(SolucionGeneral).options(defer(SolucionGeneral.embedding)))
     if estado:
         consulta = consulta.filter(SolucionGeneral.estado == estado)
     return consulta.order_by(SolucionGeneral.tickets_origen.desc(),
@@ -129,8 +147,7 @@ def proponer(
                 "detalle": "Todavía no hay ningún problema que se repita lo suficiente."}
 
     # No se vuelve a redactar lo que ya tiene borrador o publicación.
-    existentes = {s.titulo for s in db.query(SolucionGeneral.titulo).filter(
-        SolucionGeneral.sitio_id == admin.sitio_id).all()}
+    existentes = {s.titulo for s in db.query(SolucionGeneral.titulo).all()}
 
     borradores = []
     for grupo in grupos:
@@ -155,7 +172,7 @@ def crear(
     solucion = SolucionGeneral(
         sitio_id=admin.sitio_id,
         titulo=datos.titulo.strip(),
-        categoria=datos.categoria,
+        categoria=datos.categoria or None,
         contenido=datos.contenido.strip(),
         descartado=(datos.descartado or "").strip() or None,
         estado=BORRADOR,

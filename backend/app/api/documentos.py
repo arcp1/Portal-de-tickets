@@ -20,7 +20,9 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin, get_current_user
+from app.core.archivos import contenido_coincide
 from app.core.config import settings
+from app.core import plantas
 from app.core.db import get_db
 from app.core.logging import logger
 from app.models import DocumentoUsuario, Resguardo, Usuario
@@ -59,8 +61,15 @@ def listar_de_usuario(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    if current_user.rol != "admin" and current_user.id != usuario_id:
-        raise HTTPException(status_code=403, detail="No autorizado para este expediente")
+    # TI es global: ve el expediente de cualquiera. Los demás, solo el suyo.
+    duenio = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    propio = current_user.id == usuario_id
+    de_su_planta = (
+        duenio is not None
+        and current_user.rol == "admin"
+    )
+    if not (propio or de_su_planta):
+        raise HTTPException(status_code=404, detail="Expediente no encontrado")
 
     filas = (
         db.query(DocumentoUsuario)
@@ -91,10 +100,9 @@ async def subir(
         )
 
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
-    if not usuario:
+    # 404 también si es de otra planta: un 403 confirmaba que el id existe.
+    if not usuario or usuario.eliminado_en:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    if usuario.sitio_id != admin.sitio_id:
-        raise HTTPException(status_code=403, detail="El usuario pertenece a otro sitio")
 
     if resguardo_id is not None:
         resguardo = db.query(Resguardo).filter(Resguardo.id == resguardo_id).first()
@@ -116,11 +124,13 @@ async def subir(
     contenido = await archivo.read(limite + 1)
     if len(contenido) > limite:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"El archivo supera {settings.DOCUMENTOS_MAX_MB} MB.",
         )
     if not contenido:
         raise HTTPException(status_code=422, detail="El archivo está vacío.")
+    if not contenido_coincide(contenido, mime):
+        raise HTTPException(status_code=422, detail="El contenido del archivo no corresponde a su tipo.")
 
     vence = None
     if vigente_hasta:
@@ -165,8 +175,12 @@ def descargar(
     documento = db.query(DocumentoUsuario).filter(DocumentoUsuario.id == documento_id).first()
     if not documento:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
-    if current_user.rol != "admin" and documento.usuario_id != current_user.id:
-        raise HTTPException(status_code=403, detail="No autorizado para este documento")
+    # Un documento del expediente puede ser una identificacion escaneada o un
+    # contrato: el rol de admin no alcanza si es de otra planta.
+    propio = documento.usuario_id == current_user.id
+    de_su_planta = current_user.rol == "admin"  # TI es global
+    if not (propio or de_su_planta):
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
 
     ruta = _carpeta() / documento.nombre_guardado
     if not ruta.exists():
@@ -188,17 +202,19 @@ def borrar(
 ):
     """Solo TI. Una persona no puede quitar de su expediente lo que firmó."""
     documento = db.query(DocumentoUsuario).filter(DocumentoUsuario.id == documento_id).first()
+    # 404 también si es de otra planta: un 403 confirmaba que el id existe.
     if not documento:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
-    if documento.sitio_id != admin.sitio_id:
-        raise HTTPException(status_code=403, detail="El documento pertenece a otro sitio")
 
+    # Primero la fila y después el archivo: si el commit fallara con el
+    # archivo ya borrado, quedaría una fila que apunta a nada. Al revés, lo
+    # peor es un archivo huérfano en disco.
+    archivo = _carpeta() / documento.nombre_guardado
+    db.delete(documento)
+    db.commit()
     try:
-        (_carpeta() / documento.nombre_guardado).unlink(missing_ok=True)
+        archivo.unlink(missing_ok=True)
     except OSError as exc:
         logger.warning("No se pudo borrar el archivo en disco",
                        extra={"documento_id": documento_id, "error": str(exc)})
-
-    db.delete(documento)
-    db.commit()
     return None

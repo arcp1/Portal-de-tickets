@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.core.logging import logger
 from app.models import Equipo, MovimientoEquipo, Resguardo, Sitio, Usuario
+from app.services.folios import siguiente_folio
 
 # Estados del ciclo de vida.
 BORRADOR = "borrador"
@@ -58,12 +59,9 @@ def generar_folio(db: Session, sitio_id: int) -> str:
     sitio = db.query(Sitio).filter(Sitio.id == sitio_id).first()
     clave = sitio.clave if sitio else "PLANT"
     anio = datetime.utcnow().strftime("%Y")
-    # Se cuenta por sitio y año para que el folio sea legible y no un UUID.
-    consecutivo = db.query(Resguardo).filter(
-        Resguardo.sitio_id == sitio_id,
-        Resguardo.folio.like(f"RES-{clave}-{anio}-%"),
-    ).count() + 1
-    return f"RES-{clave}-{anio}-{consecutivo:04d}"
+    # Por sitio y año para que el folio sea legible y no un UUID. Desde el
+    # mayor de la serie, no desde el conteo: ver `services/folios.py`.
+    return siguiente_folio(db, Resguardo, f"RES-{clave}-{anio}-")
 
 
 class ResguardoService:

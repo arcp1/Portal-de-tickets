@@ -129,18 +129,26 @@ class AsistenteService:
         sitio_id: int,
         categoria: Optional[str] = None,
         permitir_gemini: bool = True,
+        pasajes: Optional[List[Pasaje]] = None,
     ) -> dict:
         """Contesta apoyado en el conocimiento de la planta.
 
         Siempre devuelve un dict con la misma forma. `origen` dice quién redactó
         —o si nadie lo hizo—, y `fuentes` trae de dónde salió cada cosa para que
         se pueda comprobar en pantalla.
+
+        ``pasajes`` deja entrar una búsqueda ya hecha. Lo usa el endpoint del
+        grafo, que recupera primero para poder encender el nodo del
+        conocimiento antes de que el modelo empiece a redactar. Sin esto, la
+        búsqueda se repetiría aquí dentro: otra vectorización y otro barrido de
+        pgvector por consulta, para llegar al mismo resultado.
         """
         pregunta = (pregunta or "").strip()
         if not pregunta:
             return AsistenteService._vacio("pregunta_vacia", [])
 
-        pasajes = RecuperacionService.buscar(db, pregunta, sitio_id, categoria=categoria)
+        if pasajes is None:
+            pasajes = RecuperacionService.buscar(db, pregunta, sitio_id, categoria=categoria)
 
         # --- Nivel 4: no hay de dónde ---
         if not pasajes:
@@ -319,6 +327,40 @@ class AsistenteService:
         plano = "".join(c for c in plano if not unicodedata.combining(c))
         crudas = [p for p in re.findall(r"[a-z0-9]{5,}", plano) if p not in VACIAS]
         return {p[:5] for p in crudas}
+
+    @staticmethod
+    def anclaje_en_texto(candidato: str, original: str) -> float:
+        """Qué fracción del vocabulario de `candidato` sale de `original`.
+
+        Es `_anclaje` contra un texto suelto en vez de contra pasajes
+        recuperados. La usa la normalización de descripciones, que tiene el
+        mismo problema —un modelo chico reescribiendo puede meter cosas que
+        nadie dijo— pero una sola fuente contra la que comparar.
+
+        **Lo que detecta y lo que no, medido.** Contra reescrituras reales de
+        qwen2.5:3b:
+
+            reescritura fiel .......... 0,67
+            reescritura correcta ...... 0,57
+            inventa una frase ......... 0,50   <-- NO se separa de las buenas
+            inventa el tema entero .... 0,00
+
+        O sea: atrapa que el modelo se vaya a otro asunto, y **no** atrapa que
+        cuele una frase plausible dentro de un texto por lo demás correcto —
+        "el técnico de TI no pudo conectar la etiquetadora" cuando nadie
+        mencionó ningún técnico—. Los 7 puntos entre 0,50 y 0,57 no dan para
+        poner un corte: cualquier umbral ahí estaría ajustado a dos ejemplos y
+        tiraría reescrituras buenas.
+
+        Por eso el corte va bajo, donde hay hueco de verdad, y la defensa
+        contra el caso sutil es otra: **la descripción original nunca se pisa**
+        —se guarda aparte, se muestra primero en el ticket y se indexa siempre—
+        así que lo que el usuario escribió sigue estando ahí para comprobarlo.
+        """
+        palabras = AsistenteService._palabras(candidato)
+        if not palabras:
+            return 0.0
+        return len(palabras & AsistenteService._palabras(original)) / len(palabras)
 
     @staticmethod
     def _anclaje(respuesta: str, pasajes: List[Pasaje]) -> float:

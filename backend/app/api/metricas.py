@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -12,11 +14,11 @@ router = APIRouter(prefix="/metricas", tags=["Métricas"])
 @router.get("")
 def resumen_completo(
     dias: int = Query(30, ge=1, le=365),
+    sitio_id: Optional[int] = Query(None, ge=1, le=2**31 - 1),
     db: Session = Depends(get_db),
     admin: Usuario = Depends(get_current_admin),
 ):
-    """Tablero del admin. Solo su sitio."""
-    sitio_id = admin.sitio_id
+    """Tablero de TI: todas las plantas juntas, o una con `sitio_id`."""
     return {
         "tickets": MetricasService.resumen(db, sitio_id, dias=dias),
         "base_conocimiento": MetricasService.base_conocimiento(db, sitio_id),

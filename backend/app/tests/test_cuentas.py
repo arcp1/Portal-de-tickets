@@ -12,9 +12,7 @@ import pytest
 from app.core.config import settings
 from app.core.limitador import limitador_login
 from app.models import Usuario
-from app.services.cuentas_service import (
-    ACTIVA, PENDIENTE, CuentasService, ErrorCuenta, normalizar_codigo, validar_password,
-)
+from app.services.cuentas_service import PENDIENTE, normalizar_codigo, validar_password
 
 
 def token(client, identificador="admin@test.com", password="Secret123!"):
@@ -190,7 +188,8 @@ def test_se_activa_con_la_fecha_de_ingreso(client):
     crear_usuario(client, numero="20510", fecha_ingreso="2021-03-15")
 
     r = client.post("/api/auth/activar", json={
-        "identificador": "20510", "fecha_ingreso": "2021-03-15",
+        "identificador": "20510", "nombre_completo": "Persona Nueva",
+        "fecha_ingreso": "2021-03-15",
         "password": "MiClaveSegura1"})
 
     assert r.status_code == 200
@@ -200,7 +199,8 @@ def test_la_fecha_se_acepta_en_formato_mexicano(client):
     crear_usuario(client, numero="20511", fecha_ingreso="2021-03-15")
 
     r = client.post("/api/auth/activar", json={
-        "identificador": "20511", "fecha_ingreso": "15/03/2021",
+        "identificador": "20511", "nombre_completo": "Persona Nueva",
+        "fecha_ingreso": "15/03/2021",
         "password": "MiClaveSegura1"})
     assert r.status_code == 200
 
@@ -248,7 +248,8 @@ def test_se_activa_con_la_fecha_de_nacimiento(client):
     crear_usuario(client, numero="20520", fecha_nacimiento="1966-06-09")
 
     r = client.post("/api/auth/activar", json={
-        "identificador": "20520", "fecha_nacimiento": "09/06/1966",
+        "identificador": "20520", "nombre_completo": "Persona Nueva",
+        "fecha_nacimiento": "09/06/1966",
         "password": "MiClaveSegura1"})
 
     assert r.status_code == 200
@@ -274,7 +275,13 @@ def test_no_se_puede_activar_con_la_fecha_de_otro_campo(client):
 
 
 def test_el_estado_dice_que_datos_pedir(client):
-    """Para no pedirle en pantalla un dato que esa cuenta no tiene."""
+    """La pantalla pide siempre lo mismo, tenga lo que tenga la cuenta.
+
+    Antes adaptaba los campos a cada quien, y eso era la fuga: la lista
+    devuelta describia que datos hay registrados de esa persona. Se cambio por
+    una lista fija; quien no tenga esos datos falla al final, sin que la
+    pantalla haya dicho nada de el por el camino.
+    """
     crear_usuario(client, numero="20523", fecha_nacimiento="1966-06-09")
     crear_usuario(client, numero="20524", fecha_ingreso="2021-03-15")
 
@@ -283,16 +290,21 @@ def test_el_estado_dice_que_datos_pedir(client):
     con_ingreso = client.post("/api/auth/estado-cuenta",
                               json={"identificador": "20524"}).json()
 
-    assert con_nacimiento["datos_verificacion"] == ["fecha_nacimiento"]
-    assert con_ingreso["datos_verificacion"] == ["fecha_ingreso"]
+    assert con_nacimiento == con_ingreso
 
 
 def test_sin_ningun_dato_no_hay_verificacion(client):
     crear_usuario(client, numero="20525")
     estado = client.post("/api/auth/estado-cuenta", json={"identificador": "20525"}).json()
 
-    assert estado["acepta_verificacion"] is False
-    assert estado["datos_verificacion"] == []
+    # La pantalla ofrece la via igual que a todos —no delata que esta cuenta no
+    # tiene datos—, pero intentarla no lleva a ningun lado: hace falta codigo.
+    assert estado["datos_verificacion"] == [
+        "nombre_completo", "numero_epp", "fecha_nacimiento"]
+    assert client.post("/api/auth/activar", json={
+        "identificador": "20525", "nombre_completo": "Persona Nueva",
+        "numero_epp": "0421", "fecha_nacimiento": "1966-06-09",
+        "password": "MiClaveSegura1"}).status_code == 400
 
 
 # ----------------------------------------------------------------------
@@ -308,7 +320,11 @@ def test_con_epp_y_cumpleanos_se_piden_los_dos(client):
     estado = client.post("/api/auth/estado-cuenta",
                          json={"identificador": "20540"}).json()
 
-    assert estado["datos_verificacion"] == ["numero_epp", "fecha_nacimiento"]
+    # La lista es fija. Devolver los factores reales delataba que tiene
+    # registrado cada cuenta: una con solo nombre respondia uno y una completa
+    # tres, y esa diferencia ya es un dato sobre esa persona.
+    assert estado["datos_verificacion"] == [
+        "nombre_completo", "numero_epp", "fecha_nacimiento"]
 
 
 def test_acertando_los_dos_se_activa(client):
@@ -316,7 +332,8 @@ def test_acertando_los_dos_se_activa(client):
                   fecha_nacimiento="1966-06-09")
 
     r = client.post("/api/auth/activar", json={
-        "identificador": "20541", "numero_epp": "0421",
+        "identificador": "20541", "nombre_completo": "Persona Nueva",
+        "numero_epp": "0421",
         "fecha_nacimiento": "09/06/1966", "password": "MiClaveSegura1"})
 
     assert r.status_code == 200
@@ -344,7 +361,8 @@ def test_el_epp_se_acepta_con_o_sin_ceros(client):
                   fecha_nacimiento="1966-06-09")
 
     r = client.post("/api/auth/activar", json={
-        "identificador": "20543", "numero_epp": "421",
+        "identificador": "20543", "nombre_completo": "Persona Nueva",
+        "numero_epp": "421",
         "fecha_nacimiento": "1966-06-09", "password": "MiClaveSegura1"})
 
     assert r.status_code == 200
@@ -366,12 +384,13 @@ def test_la_fecha_de_ingreso_nunca_se_pide_como_segundo_factor(client):
     crear_usuario(client, numero="20545", fecha_nacimiento="1966-06-09",
                   fecha_ingreso="2021-03-15")
 
-    estado = client.post("/api/auth/estado-cuenta",
-                         json={"identificador": "20545"}).json()
-
-    assert estado["datos_verificacion"] == ["fecha_nacimiento"]
+    # Se comprueba contra lo que el backend exige de verdad, no contra lo que
+    # la pantalla muestra: eso ahora es una lista fija para todos.
+    filas = client.get("/api/admin/usuarios?buscar=20545", headers=cab(client)).json()
+    assert filas[0]["datos_verificacion"] == ["fecha_nacimiento"]
     assert client.post("/api/auth/activar", json={
-        "identificador": "20545", "fecha_nacimiento": "1966-06-09",
+        "identificador": "20545", "nombre_completo": "Persona Nueva",
+        "fecha_nacimiento": "1966-06-09",
         "password": "MiClaveSegura1"}).status_code == 200
 
 
@@ -381,10 +400,14 @@ def test_con_un_solo_factor_se_pide_uno(client):
 
     estado = client.post("/api/auth/estado-cuenta",
                          json={"identificador": "20546"}).json()
-    assert estado["datos_verificacion"] == ["numero_epp"]
+    # Se piden siempre los mismos tres, tenga lo que tenga la cuenta.
+    assert estado["datos_verificacion"] == [
+        "nombre_completo", "numero_epp", "fecha_nacimiento"]
 
+    # Y se activa con lo que si tiene registrado: nombre y EPP.
     assert client.post("/api/auth/activar", json={
-        "identificador": "20546", "numero_epp": "0421",
+        "identificador": "20546", "nombre_completo": "Persona Nueva",
+        "numero_epp": "0421",
         "password": "MiClaveSegura1"}).status_code == 200
 
 
@@ -395,7 +418,8 @@ def test_se_puede_exigir_un_solo_factor_por_configuracion(client, monkeypatch):
                   fecha_nacimiento="1966-06-09")
 
     r = client.post("/api/auth/activar", json={
-        "identificador": "20547", "numero_epp": "0421",
+        "identificador": "20547", "nombre_completo": "Persona Nueva",
+        "numero_epp": "0421",
         "password": "MiClaveSegura1"})
 
     assert r.status_code == 200
@@ -410,6 +434,8 @@ def test_el_panel_dice_quien_quedo_con_un_solo_factor(client):
     filas = client.get("/api/admin/usuarios?buscar=2054", headers=cab(client)).json()
     por_numero = {u["numero_empleado"]: u for u in filas}
 
+    # El nombre no aparece: no es un secreto, y contarlo escondería justo las
+    # cuentas débiles que esta columna existe para señalar.
     assert por_numero["20548"]["datos_verificacion"] == ["fecha_nacimiento"]
     assert len(por_numero["20549"]["datos_verificacion"]) == 2
 
@@ -525,9 +551,18 @@ def _id_de(client, numero):
 
 
 def test_el_estado_no_delata_a_nadie(client):
+    """La respuesta es identica exista la cuenta, no exista, o este activa.
+
+    Antes se distinguian: una cuenta pendiente contestaba "activar" con sus
+    factores y las demas "iniciar_sesion". Con numeros del 1 al 600, recorrer
+    el rango devolvia el padron entero.
+    """
     inexistente = client.post("/api/auth/estado-cuenta", json={"identificador": "99999"}).json()
     activo = client.post("/api/auth/estado-cuenta", json={"identificador": "1001"}).json()
-    assert inexistente["accion"] == activo["accion"] == "iniciar_sesion"
+    crear_usuario(client, numero="20599", numero_epp="0421", fecha_nacimiento="1980-01-01")
+    pendiente = client.post("/api/auth/estado-cuenta", json={"identificador": "20599"}).json()
+
+    assert inexistente == activo == pendiente
 
 
 # ----------------------------------------------------------------------
@@ -633,8 +668,11 @@ def test_desactivar_impide_entrar(client):
     client.patch(f"/api/admin/usuarios/{creado['usuario_id']}",
                  json={"activo": False}, headers=cab(client))
 
+    # 401 y no 400: el login responde lo mismo para "no existe", "contrasena
+    # incorrecta", "sin activar" y "dada de baja". Distinguirlos convertia la
+    # pantalla de entrada en una forma de averiguar quien trabaja aqui.
     assert client.post("/api/auth/login", json={
-        "email": "20501", "password": "MiClaveSegura1"}).status_code == 400
+        "email": "20501", "password": "MiClaveSegura1"}).status_code == 401
 
 
 def test_no_se_duplica_el_numero_al_editar(client):
@@ -649,3 +687,59 @@ def test_se_registra_el_ultimo_acceso(client, db_session):
     admin = db_session.query(Usuario).filter(Usuario.numero_empleado == "1001").first()
     db_session.refresh(admin)
     assert admin.ultimo_acceso is not None
+
+
+# ----------------------------------------------------------------------
+# Corregir el número de empleado (2026-10-02)
+# ----------------------------------------------------------------------
+
+def test_se_corrige_el_numero_de_una_cuenta_sin_activar(client, db_session):
+    """Un número mal tecleado en el alta solo se arreglaba borrando la cuenta.
+    El código ya entregado sigue sirviendo con el número corregido."""
+    from app.models import Auditoria
+
+    creado = crear_usuario(client, numero="20599").json()
+    r = client.patch(f"/api/admin/usuarios/{creado['usuario_id']}",
+                     json={"numero_empleado": "20509"}, headers=cab(client))
+    assert r.status_code == 200, r.text
+
+    entrada = db_session.query(Auditoria).filter_by(accion="usuario.numero_corregido").one()
+    assert entrada.detalle == {"antes": "20599", "despues": "20509"}
+
+    r = client.post("/api/auth/activar", json={
+        "identificador": "20509", "codigo": creado["codigo"], "password": "UnaClaveLarga2026"})
+    assert r.status_code == 200, r.text
+
+
+def test_no_se_corrige_el_numero_de_una_cuenta_activa(client, db_session):
+    """Ya entra con él: cambiarlo la dejaría fuera con la contraseña en la mano."""
+    usuario = db_session.query(Usuario).filter_by(email="user@test.com").one()
+    r = client.patch(f"/api/admin/usuarios/{usuario.id}",
+                     json={"numero_empleado": "1099"}, headers=cab(client))
+    assert r.status_code == 422
+    assert "no se ha activado" in r.json()["detail"]
+    db_session.refresh(usuario)
+    assert usuario.numero_empleado == "1002"
+
+
+def test_mandar_el_mismo_numero_de_una_cuenta_activa_no_es_un_cambio(client, db_session):
+    usuario = db_session.query(Usuario).filter_by(email="user@test.com").one()
+    r = client.patch(f"/api/admin/usuarios/{usuario.id}",
+                     json={"numero_empleado": "1002"}, headers=cab(client))
+    assert r.status_code == 200
+
+
+def test_el_numero_provisional_se_sustituye_aunque_la_cuenta_este_activa(client, db_session):
+    usuario = db_session.query(Usuario).filter_by(email="user@test.com").one()
+    usuario.numero_empleado = "TMP-00002"
+    db_session.commit()
+    r = client.patch(f"/api/admin/usuarios/{usuario.id}",
+                     json={"numero_empleado": "1002"}, headers=cab(client))
+    assert r.status_code == 200, r.text
+
+
+def test_corregir_a_un_numero_ocupado_choca(client):
+    creado = crear_usuario(client, numero="20598").json()
+    r = client.patch(f"/api/admin/usuarios/{creado['usuario_id']}",
+                     json={"numero_empleado": "1002"}, headers=cab(client))
+    assert r.status_code == 409

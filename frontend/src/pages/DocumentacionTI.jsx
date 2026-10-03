@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../api/client';
+import Confirmacion from '../components/Confirmacion';
 import { EsqueletoLista } from '../components/Cargando';
+import Selector from '../components/Selector';
+import Formulario from '../components/Formulario';
+import EstadoVacio from '../components/EstadoVacio';
+import Aviso from '../components/Aviso';
 import {
-  BookOpen, Plus, Search, Pencil, Trash2, Check, X, EyeOff,
-  AlertTriangle, Sparkles, ChevronDown, ChevronRight
+  Plus, Search, Pencil, Trash2, Check, X, EyeOff, Sparkles,
+  ChevronDown, ChevronRight
 } from 'lucide-react';
+import lista from '../lib/lista';
 
 const CATEGORIAS = [
   'procedimiento', 'red', 'inventario_logico', 'proveedor', 'credenciales', 'otro'
@@ -32,17 +38,19 @@ const DocumentacionTI = () => {
   const [editando, setEditando] = useState(null);
   const [abierto, setAbierto] = useState(null);
   const [aviso, setAviso] = useState('');
+  // El documento que espera el "¿seguro?". null = no hay pregunta abierta.
+  const [porBorrar, setPorBorrar] = useState(null);
 
   const cargar = async () => {
     setCargando(true);
     try {
       if (porSignificado && busqueda.trim().length >= 3) {
-        setDocumentos((await api.post('/documentacion/buscar', { texto: busqueda.trim() })).data);
+        setDocumentos(lista((await api.post('/documentacion/buscar', { texto: busqueda.trim() })).data, 'los documentos'));
       } else {
         const params = new URLSearchParams();
         if (categoria) params.set('categoria', categoria);
         if (busqueda) params.set('buscar', busqueda);
-        setDocumentos((await api.get(`/documentacion?${params}`)).data);
+        setDocumentos(lista((await api.get(`/documentacion?${params}`)).data, 'los documentos'));
       }
       setAviso('');
     } catch (err) {
@@ -70,7 +78,7 @@ const DocumentacionTI = () => {
   };
 
   const borrar = async (d) => {
-    if (!window.confirm(t('docti.confirmar_borrar', { titulo: d.titulo }))) return;
+    setPorBorrar(null);
     try {
       await api.delete(`/documentacion/${d.id}`);
       cargar();
@@ -84,28 +92,22 @@ const DocumentacionTI = () => {
   }) : '';
 
   return (
-    <div className="page-container animate-fade-in" style={{ maxWidth: '1020px' }}>
-      <h1 style={{ fontSize: '1.85rem', fontWeight: '700', marginBottom: '6px', color: 'var(--text-primary)' }}>
-        {t('docti.title')}
-      </h1>
-      <p style={{ color: 'var(--text-secondary)', marginBottom: '26px' }}>
-        {t('docti.subtitle')}
-      </p>
-
-      {aviso && (
-        <div className="animate-scale-in" style={{
-          display: 'flex', alignItems: 'center', gap: '10px',
-          background: 'var(--status-espera-proveedor-bg)',
-          color: 'var(--status-espera-proveedor-text)',
-          padding: '14px 18px', borderRadius: 'var(--radius-md)',
-          marginBottom: '18px', fontSize: '0.9rem'
-        }}>
-          <AlertTriangle size={18} /> {aviso}
+    <div className="page-container animate-fade-in">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">
+            {t('docti.title')}
+          </h1>
+          <p>
+              {t('docti.subtitle')}
+          </p>
         </div>
-      )}
+      </div>
 
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={() => { setCreando(true); setEditando(null); }} className="btn-primary"
+      <Aviso texto={aviso} />
+
+      <div className="barra-herramientas">
+        <button onClick={() => { setCreando(true); setEditando(null); }} className="btn-acento"
           style={{ padding: '10px 18px', fontSize: '0.9rem' }}>
           <Plus size={16} /> {t('docti.nuevo')}
         </button>
@@ -120,42 +122,38 @@ const DocumentacionTI = () => {
             style={{ width: '100%', paddingLeft: '38px' }} />
         </div>
 
-        <select className="form-select" value={categoria} onChange={(e) => setCategoria(e.target.value)}
+        {/* **El interruptor va aquí y no debajo.** No es un filtro de la
+            página: es el modo del propio buscador —le cambia el marcador de
+            posición al campo y apaga el selector de categoría que tiene al
+            lado—. Suelto bajo la banda se leía como una opción sin dueño, y
+            había que adivinar a qué de lo de arriba afectaba. */}
+        <label className="interruptor">
+          <input type="checkbox" checked={porSignificado}
+            onChange={(e) => setPorSignificado(e.target.checked)} />
+          <Sparkles size={14} color="var(--accent-primary)" />
+          {t('docti.por_significado')}
+        </label>
+
+        <Selector className="form-select" value={categoria} onChange={(e) => setCategoria(e.target.value)}
           disabled={porSignificado} style={{ maxWidth: '210px' }}>
           <option value="">{t('docti.todas')}</option>
           {CATEGORIAS.map((c) => <option key={c} value={c}>{t(`docti.cat_${c}`)}</option>)}
-        </select>
+        </Selector>
       </div>
 
-      {/* La búsqueda por significado encuentra el procedimiento aunque no se
-          recuerde cómo se titulaba. */}
-      <label style={{
-        display: 'inline-flex', alignItems: 'center', gap: '8px',
-        fontSize: '0.85rem', color: 'var(--text-secondary)',
-        cursor: 'pointer', marginBottom: '20px'
-      }}>
-        <input type="checkbox" checked={porSignificado}
-          onChange={(e) => setPorSignificado(e.target.checked)}
-          style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
-        <Sparkles size={14} color="var(--accent-primary)" />
-        {t('docti.por_significado')}
-      </label>
-
       {creando && (
-        <Formulario onGuardar={(d) => guardar(d)} onCancelar={() => setCreando(false)} />
+        <EditorDocumento onGuardar={(d) => guardar(d)} onCancelar={() => setCreando(false)} />
       )}
 
       {cargando ? (
         <EsqueletoLista filas={3} />
       ) : documentos.length === 0 ? (
-        <div className="apple-card" style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
-          {busqueda ? t('docti.sin_resultados') : t('docti.vacio')}
-        </div>
+        <EstadoVacio texto={busqueda ? t('docti.sin_resultados') : t('docti.vacio')} />
       ) : (
         <div className="lista-escalonada" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {documentos.map((d) => (
             editando === d.id ? (
-              <Formulario key={d.id} documento={d}
+              <EditorDocumento key={d.id} documento={d}
                 onGuardar={(datos) => guardar(datos, d.id)}
                 onCancelar={() => setEditando(null)} />
             ) : (
@@ -171,21 +169,11 @@ const DocumentacionTI = () => {
                       {abierto === d.id
                         ? <ChevronDown size={16} color="var(--text-muted)" />
                         : <ChevronRight size={16} color="var(--text-muted)" />}
-                      <span style={{
-                        fontSize: '0.72rem', fontWeight: '600', padding: '3px 10px',
-                        borderRadius: 'var(--radius-full)',
-                        color: 'var(--accent-primary)', background: 'rgba(0,122,255,0.10)'
-                      }}>
+                      <span className="chip-dato" style={{ color: 'var(--accent-primary)', background: 'var(--acento-bg)' }}>
                         {t(`docti.cat_${d.categoria}`)}
                       </span>
                       {d.sensible && (
-                        <span style={{
-                          display: 'inline-flex', alignItems: 'center', gap: '5px',
-                          fontSize: '0.72rem', fontWeight: '600', padding: '3px 10px',
-                          borderRadius: 'var(--radius-full)',
-                          color: 'var(--status-espera-proveedor-text)',
-                          background: 'var(--status-espera-proveedor-bg)'
-                        }}>
+                        <span className="chip-dato" style={{ color: 'var(--status-espera-proveedor-text)', background: 'var(--status-espera-proveedor-bg)' }}>
                           <EyeOff size={11} /> {t('docti.sensible')}
                         </span>
                       )}
@@ -205,8 +193,8 @@ const DocumentacionTI = () => {
                       className="btn-secondary" style={{ padding: '8px 12px' }}>
                       <Pencil size={15} />
                     </button>
-                    <button onClick={() => borrar(d)} className="btn-secondary"
-                      style={{ padding: '8px 12px', color: '#D8000C' }}>
+                    <button onClick={() => setPorBorrar(d)} className="btn-secondary btn-secondary--peligro"
+                      style={{ padding: '8px 12px' }}>
                       <Trash2 size={15} />
                     </button>
                   </div>
@@ -218,7 +206,7 @@ const DocumentacionTI = () => {
                       whiteSpace: 'pre-wrap', fontSize: '0.9rem', lineHeight: 1.65,
                       color: 'var(--text-primary)', background: 'var(--bg-tertiary)',
                       padding: '16px 18px', borderRadius: 'var(--radius-md)',
-                      fontFamily: d.categoria === 'red' ? 'monospace' : 'inherit'
+                      fontFamily: d.categoria === 'red' ? 'var(--font-codigo)' : 'inherit'
                     }}>
                       {d.contenido}
                     </div>
@@ -233,12 +221,23 @@ const DocumentacionTI = () => {
           ))}
         </div>
       )}
+
+      {porBorrar && (
+        <Confirmacion
+          titulo={porBorrar.titulo}
+          mensaje={t('docti.confirmar_borrar', { titulo: porBorrar.titulo })}
+          textoConfirmar={t('comun.eliminar')}
+          tono="peligro"
+          onConfirmar={() => borrar(porBorrar)}
+          onCancelar={() => setPorBorrar(null)}
+        />
+      )}
     </div>
   );
 };
 
 /* ================================================================ */
-const Formulario = ({ documento, onGuardar, onCancelar }) => {
+const EditorDocumento = ({ documento, onGuardar, onCancelar }) => {
   const { t } = useTranslation();
   const [categoria, setCategoria] = useState(documento?.categoria || 'procedimiento');
   const [titulo, setTitulo] = useState(documento?.titulo || '');
@@ -249,7 +248,7 @@ const Formulario = ({ documento, onGuardar, onCancelar }) => {
   const valido = titulo.trim().length >= 4 && contenido.trim().length >= 10;
 
   return (
-    <form className="apple-card animate-scale-in"
+    <Formulario className="apple-card animate-scale-in"
       style={{ padding: '26px', marginBottom: '16px', border: '1px solid var(--accent-primary)' }}
       onSubmit={(e) => {
         e.preventDefault();
@@ -262,9 +261,9 @@ const Formulario = ({ documento, onGuardar, onCancelar }) => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px' }}>
         <div className="form-group">
           <label>{t('docti.categoria')}</label>
-          <select className="form-select" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
+          <Selector className="form-select" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
             {CATEGORIAS.map((c) => <option key={c} value={c}>{t(`docti.cat_${c}`)}</option>)}
-          </select>
+          </Selector>
         </div>
         <div className="form-group">
           <label>{t('docti.etiquetas')}</label>
@@ -285,7 +284,7 @@ const Formulario = ({ documento, onGuardar, onCancelar }) => {
         <label>{t('docti.contenido')}</label>
         <textarea className="form-textarea" rows={12} required value={contenido}
           placeholder={t('docti.contenido_ejemplo')}
-          style={{ fontFamily: categoria === 'red' ? 'monospace' : 'inherit', fontSize: '0.9rem' }}
+          style={{ fontFamily: categoria === 'red' ? 'var(--font-codigo)' : 'inherit', fontSize: '0.9rem' }}
           onChange={(e) => setContenido(e.target.value)} />
       </div>
 
@@ -301,11 +300,11 @@ const Formulario = ({ documento, onGuardar, onCancelar }) => {
         <button type="button" onClick={onCancelar} className="btn-secondary" style={{ padding: '10px 18px' }}>
           <X size={15} /> {t('temas.cancelar')}
         </button>
-        <button type="submit" className="btn-primary" disabled={!valido} style={{ padding: '10px 18px' }}>
+        <button type="submit" className="btn-acento" disabled={!valido} style={{ padding: '10px 18px' }}>
           <Check size={15} /> {t('temas.guardar')}
         </button>
       </div>
-    </form>
+    </Formulario>
   );
 };
 

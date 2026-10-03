@@ -11,13 +11,15 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_admin, get_current_user
+from app.core import plantas
 from app.core.db import get_db
 from app.core.logging import logger
 from app.models import (
-    DocumentoUsuario, Equipo, MovimientoEquipo, Resguardo, Sitio, Ticket, Usuario,
+    ESTADOS_TERMINADOS, DocumentoUsuario, Equipo, MovimientoEquipo, Resguardo, Sitio, Ticket,
+    Usuario,
 )
 from app.schemas.resguardo import (
     CancelacionRequest, DevolucionRequest, ExpedienteResponse, FirmaRequest,
@@ -38,7 +40,27 @@ RESGUARDO_CANCELADO = "resguardo.cancelado"
 
 
 def _visible(resguardo: Resguardo, usuario: Usuario) -> bool:
-    return usuario.rol == "admin" or resguardo.usuario_id == usuario.id
+    """Su propio resguardo, o cualquiera de la planta que administra.
+
+    El rol de admin no cruza de sitio: el listado ya filtra por `sitio_id` y el
+    detalle tiene que respetar la misma frontera, o el filtro no sirve de nada.
+    """
+    if resguardo.usuario_id == usuario.id:
+        return True
+    return usuario.rol == "admin" and plantas.alcanza(usuario, resguardo.sitio_id)
+
+
+def _con_personas(consulta):
+    """El resguardante, quien lo emitió, quien lo recibió de vuelta y el
+    equipo, en la misma consulta. `ResguardoResponse` pinta los cuatro: sin
+    esto eran tres consultas más por fila del listado (medido: 6 con uno, 18
+    con cinco)."""
+    return consulta.options(
+        joinedload(Resguardo.usuario).joinedload(Usuario.sitio),
+        joinedload(Resguardo.emisor).joinedload(Usuario.sitio),
+        joinedload(Resguardo.receptor).joinedload(Usuario.sitio),
+        joinedload(Resguardo.equipo),
+    )
 
 
 def _obtener(db: Session, resguardo_id: int, usuario: Usuario) -> Resguardo:
@@ -64,10 +86,10 @@ def listar(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    consulta = db.query(Resguardo)
+    consulta = _con_personas(db.query(Resguardo))
 
     if current_user.rol == "admin":
-        consulta = consulta.filter(Resguardo.sitio_id == current_user.sitio_id)
+        # TI es global: los de todas las plantas.
         if usuario_id:
             consulta = consulta.filter(Resguardo.usuario_id == usuario_id)
     else:
@@ -89,7 +111,7 @@ def mis_pendientes(
 ):
     """Lo que la persona tiene por firmar. Alimenta el aviso del portal."""
     return (
-        db.query(Resguardo)
+        _con_personas(db.query(Resguardo))
         .filter(Resguardo.usuario_id == current_user.id, Resguardo.estado == PENDIENTE_FIRMA)
         .order_by(Resguardo.creado_en.desc())
         .all()
@@ -104,10 +126,9 @@ def emitir(
     admin: Usuario = Depends(get_current_admin),
 ):
     equipo = db.query(Equipo).filter(Equipo.id == datos.equipo_id).first()
-    if not equipo:
+    # 404 también si es de otra planta: un 403 confirmaba que el id existe.
+    if not equipo or not plantas.alcanza(admin, equipo.sitio_id):
         raise HTTPException(status_code=404, detail="Equipo no encontrado")
-    if equipo.sitio_id != admin.sitio_id:
-        raise HTTPException(status_code=403, detail="El equipo pertenece a otro sitio")
     if equipo.estado == "baja":
         raise HTTPException(status_code=422, detail="No se puede resguardar un equipo dado de baja")
 
@@ -177,7 +198,7 @@ def devolver(
     admin: Usuario = Depends(get_current_admin),
 ):
     resguardo = db.query(Resguardo).filter(Resguardo.id == resguardo_id).first()
-    if not resguardo:
+    if not resguardo or not plantas.alcanza(admin, resguardo.sitio_id):
         raise HTTPException(status_code=404, detail="Resguardo no encontrado")
 
     try:
@@ -202,7 +223,7 @@ def cancelar(
     admin: Usuario = Depends(get_current_admin),
 ):
     resguardo = db.query(Resguardo).filter(Resguardo.id == resguardo_id).first()
-    if not resguardo:
+    if not resguardo or not plantas.alcanza(admin, resguardo.sitio_id):
         raise HTTPException(status_code=404, detail="Resguardo no encontrado")
 
     try:
@@ -309,10 +330,9 @@ def expediente_de(
     admin: Usuario = Depends(get_current_admin),
 ):
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
-    if not usuario:
+    # 404 también si es de otra planta: un 403 confirmaba que el id existe.
+    if not usuario or usuario.eliminado_en:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    if usuario.sitio_id != admin.sitio_id:
-        raise HTTPException(status_code=403, detail="El usuario pertenece a otro sitio")
     return _armar_expediente(db, usuario)
 
 
@@ -332,11 +352,24 @@ def movimientos_del_equipo(
     `asignado_a` dice dónde está hoy; esto dice dónde estuvo. Es lo que se pide
     cuando un equipo se pierde y hay que reconstruir quién lo tuvo.
     """
+    # **El rol de admin no cruza de sitio.** Esta comprobación miraba solo el
+    # rol, así que un admin de otra planta podía leer por dónde pasó un equipo
+    # ajeno con solo tener el id a mano — y esto no es una ficha técnica: dice
+    # **quién tuvo el equipo y cuándo**, o sea nombres de gente de otra planta.
+    #
+    # Es la misma regla que ya aplican los adjuntos de tickets, los documentos
+    # del expediente y el detalle de resguardo; aquí faltaba. Y el mismo 404
+    # para «no existe» y «es de otra planta», que un 403 confirma que el equipo
+    # existe.
     equipo = db.query(Equipo).filter(Equipo.id == equipo_id).first()
-    if not equipo:
+    propio = equipo is not None and equipo.asignado_a == current_user.id
+    de_su_planta = (
+        equipo is not None
+        and current_user.rol == "admin"
+        and plantas.alcanza(current_user, equipo.sitio_id)
+    )
+    if not (propio or de_su_planta):
         raise HTTPException(status_code=404, detail="Equipo no encontrado")
-    if current_user.rol != "admin" and equipo.asignado_a != current_user.id:
-        raise HTTPException(status_code=403, detail="No autorizado para este equipo")
 
     return (
         db.query(MovimientoEquipo)
@@ -360,10 +393,9 @@ def carta_no_adeudo(
     adeudo" a alguien que no ha devuelto su laptop sería firmar algo falso.
     """
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
-    if not usuario:
+    # 404 también si es de otra planta: un 403 confirmaba que el id existe.
+    if not usuario or usuario.eliminado_en:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    if usuario.sitio_id != admin.sitio_id:
-        raise HTTPException(status_code=403, detail="El usuario pertenece a otro sitio")
 
     equipos = db.query(Equipo).filter(Equipo.asignado_a == usuario.id).all()
     resguardos = (
@@ -374,7 +406,7 @@ def carta_no_adeudo(
     tickets = (
         db.query(Ticket)
         .filter(Ticket.usuario_id == usuario.id,
-                Ticket.estado.notin_(["resuelto", "cerrado"]))
+                Ticket.estado.notin_(ESTADOS_TERMINADOS))
         .all()
     )
     sitio = db.query(Sitio).filter(Sitio.id == usuario.sitio_id).first()

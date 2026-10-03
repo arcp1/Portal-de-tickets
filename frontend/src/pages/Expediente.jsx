@@ -2,20 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../api/client';
+import forma from '../lib/forma';
 import { useAuth } from '../context/AuthContext';
-import Cargando, { EsqueletoLista } from '../components/Cargando';
+import { EsqueletoLista } from '../components/Cargando';
 import FirmaResguardo from '../components/FirmaResguardo';
 import SubirDocumento from '../components/SubirDocumento';
+import EstadoVacio from '../components/EstadoVacio';
 import {
-  Laptop, FileSignature, FileText, Download, AlertTriangle,
-  CheckCircle2, Clock, User, Upload
+  Laptop, FileSignature, FileText, Download, AlertTriangle, CheckCircle2,
+  Clock, Upload
 } from 'lucide-react';
 
 const ESTADOS = {
   pendiente_firma: ['var(--status-espera-proveedor-text)', 'var(--status-espera-proveedor-bg)'],
   firmado: ['var(--status-resuelto-text)', 'var(--status-resuelto-bg)'],
   devuelto: ['var(--text-secondary)', 'var(--bg-tertiary)'],
-  cancelado: ['#D8000C', '#FFF0F0'],
+  cancelado: ['var(--peligro)', 'var(--peligro-bg)'],
   borrador: ['var(--text-secondary)', 'var(--bg-tertiary)']
 };
 
@@ -39,13 +41,25 @@ const Expediente = () => {
   const esPropio = !usuarioId;
 
   const cargar = async () => {
+    // Una URL editada a mano no es una persona: sin esto el API contestaba
+    // con su validación y el nombre técnico del parámetro.
+    if (!esPropio && (!/^[1-9]\d{0,9}$/.test(usuarioId) || Number(usuarioId) > 2147483647)) {
+      setExpediente(null);
+      setError(t('expediente.no_encontrado'));
+      setCargando(false);
+      return;
+    }
     setCargando(true);
     try {
       const ruta = esPropio ? '/expediente/mio' : `/expediente/${usuarioId}`;
       setExpediente((await api.get(ruta)).data);
       setError('');
     } catch (err) {
-      setError(err.response?.data?.detail || t('expediente.error_cargar'));
+      // El mismo texto que una URL mal escrita: "no existe" se dice igual
+      // venga del API o de la validación de aquí arriba.
+      setError(err.response?.status === 404
+        ? t('expediente.no_encontrado')
+        : err.response?.data?.detail || t('expediente.error_cargar'));
     } finally {
       setCargando(false);
     }
@@ -76,14 +90,16 @@ const Expediente = () => {
   }) : '—';
 
   if (cargando) {
-    return <div className="page-container" style={{ maxWidth: '1000px' }}><EsqueletoLista filas={3} /></div>;
+    return <div className="page-container"><EsqueletoLista filas={3} /></div>;
   }
 
-  if (error && !expediente) {
+  // `error && !expediente` solo cubría el fallo de red. Un cuerpo con otra
+  // forma pasaba de largo y `resguardos.filter` reventaba el render.
+  if (error || !forma(expediente, ['usuario', 'equipos_a_cargo', 'resguardos', 'documentos'], 'el expediente')) {
     return (
-      <div className="page-container" style={{ maxWidth: '1000px', textAlign: 'center', padding: '60px' }}>
+      <div className="page-container" style={{ textAlign: 'center', padding: '60px' }}>
         <AlertTriangle size={40} color="var(--text-muted)" style={{ margin: '0 auto 16px' }} />
-        <div style={{ color: 'var(--text-secondary)' }}>{error}</div>
+        <div style={{ color: 'var(--text-secondary)' }}>{error || t('expediente.error_cargar')}</div>
       </div>
     );
   }
@@ -92,15 +108,20 @@ const Expediente = () => {
   const pendientes = resguardos.filter((r) => r.estado === 'pendiente_firma');
 
   return (
-    <div className="page-container animate-fade-in" style={{ maxWidth: '1000px' }}>
-      <h1 style={{ fontSize: '1.85rem', fontWeight: '700', marginBottom: '6px', color: 'var(--text-primary)' }}>
-        {esPropio ? t('expediente.mi_titulo') : usuario.nombre}
-      </h1>
-      <p style={{ color: 'var(--text-secondary)', marginBottom: '28px' }}>
-        {esPropio
-          ? t('expediente.mi_subtitulo')
-          : `${usuario.email}${usuario.area ? ' · ' + usuario.area : ''}`}
-      </p>
+    <div className="page-container animate-fade-in">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">
+            {esPropio ? t('expediente.mi_titulo') : usuario.nombre}
+          </h1>
+          <p>
+            {esPropio
+              ? t('expediente.mi_subtitulo')
+              // El correo es opcional en planta: sin esto la cabecera decía "null".
+            : [usuario.numero_empleado || usuario.email, usuario.area].filter(Boolean).join(' · ')}
+          </p>
+        </div>
+      </div>
 
       {/* Lo que urge: firmar */}
       {pendientes.length > 0 && (
@@ -113,7 +134,7 @@ const Expediente = () => {
         }}>
           <FileSignature size={20} style={{ flexShrink: 0, marginTop: '1px' }} />
           <div style={{ flex: 1 }}>
-            <strong>{t('expediente.tiene_pendientes', { n: pendientes.length })}</strong>
+            <strong>{t('expediente.tiene_pendientes', { count: pendientes.length })}</strong>
             <div style={{ fontSize: '0.88rem', marginTop: '4px', opacity: 0.9 }}>
               {esPropio ? t('expediente.firme_para_constancia') : t('expediente.pendiente_de_usuario')}
             </div>
@@ -123,7 +144,9 @@ const Expediente = () => {
 
       {/* Equipos a cargo */}
       <Seccion icono={<Laptop size={19} color="var(--accent-primary)" />}
-        titulo={t('expediente.equipos')} conteo={equipos.length}>
+        /* "A mi cargo" solo es verdad en el propio: TI mirando el de otra
+           persona leía que los equipos de ella eran suyos. */
+        titulo={esPropio ? t('expediente.equipos') : t('expediente.equipos_ajeno')} conteo={equipos.length}>
         {equipos.length === 0 ? (
           <Vacio texto={t('expediente.sin_equipos')} />
         ) : (
@@ -167,13 +190,10 @@ const Expediente = () => {
                   <div style={{ flex: 1, minWidth: '220px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
                       <span style={{
-                        fontFamily: 'monospace', fontWeight: '600', fontSize: '0.86rem',
+                        fontFamily: 'var(--font-codigo)', fontWeight: '600', fontSize: '0.86rem',
                         color: 'var(--accent-primary)'
                       }}>{r.folio}</span>
-                      <span style={{
-                        fontSize: '0.74rem', fontWeight: '600', padding: '3px 10px',
-                        borderRadius: 'var(--radius-full)', color, background: fondo
-                      }}>
+                      <span className="chip-dato" style={{ color, background: fondo }}>
                         {t(`resguardos.estado_${r.estado}`)}
                       </span>
                     </div>
@@ -226,10 +246,10 @@ const Expediente = () => {
               <button key={d.id} onClick={() => abrirDocumento(d)} style={{
                 display: 'flex', alignItems: 'center', gap: '14px', textAlign: 'left',
                 padding: '14px 16px', background: 'var(--bg-secondary)', cursor: 'pointer',
-                border: `1px solid ${d.vencido ? '#FFD6D6' : 'var(--border-color)'}`,
+                border: `1px solid ${d.vencido ? 'var(--peligro-bg)' : 'var(--border-color)'}`,
                 borderRadius: 'var(--radius-md)', width: '100%'
               }}>
-                <FileText size={20} color={d.vencido ? '#D8000C' : 'var(--text-secondary)'} style={{ flexShrink: 0 }} />
+                <FileText size={20} color={d.vencido ? 'var(--peligro)' : 'var(--text-secondary)'} style={{ flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '0.92rem' }}>
                     {d.titulo}
@@ -240,10 +260,7 @@ const Expediente = () => {
                   </div>
                 </div>
                 {d.vencido && (
-                  <span style={{
-                    fontSize: '0.74rem', fontWeight: '600', padding: '3px 10px',
-                    borderRadius: 'var(--radius-full)', color: '#D8000C', background: '#FFF0F0'
-                  }}>
+                  <span className="chip-dato" style={{ color: 'var(--peligro)', background: 'var(--peligro-bg)' }}>
                     {t('expediente.vencido')}
                   </span>
                 )}
@@ -298,10 +315,6 @@ const Seccion = ({ icono, titulo, conteo, children, accion }) => (
   </div>
 );
 
-const Vacio = ({ texto }) => (
-  <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-    {texto}
-  </div>
-);
+const Vacio = ({ texto }) => <EstadoVacio texto={texto} />;
 
 export default Expediente;

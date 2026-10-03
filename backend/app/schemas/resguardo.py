@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.auth import UserResponse
 from app.schemas.comunes import FechaUTC
@@ -16,8 +16,7 @@ class EquipoResumen(BaseModel):
     ubicacion: Optional[str] = None
     estado: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ResguardoCreate(BaseModel):
@@ -70,8 +69,7 @@ class ResguardoResponse(BaseModel):
     devuelto_en: Optional[FechaUTC] = None
     creado_en: FechaUTC
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MovimientoResponse(BaseModel):
@@ -85,8 +83,7 @@ class MovimientoResponse(BaseModel):
     nota: Optional[str] = None
     creado_en: FechaUTC
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # --- Documentos del expediente ---
@@ -110,8 +107,7 @@ class DocumentoResponse(BaseModel):
     # Calculado: un documento con vigencia pasada.
     vencido: bool = False
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ExpedienteResponse(BaseModel):

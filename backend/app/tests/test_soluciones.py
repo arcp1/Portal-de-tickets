@@ -7,7 +7,6 @@ Dos cosas se prueban aquí, y la segunda importa más que la primera:
      Un borrador sin revisar no aparece en ninguna búsqueda.
 """
 
-import pytest
 
 from app.core.config import settings
 from app.models import BaseConocimiento, SolucionGeneral

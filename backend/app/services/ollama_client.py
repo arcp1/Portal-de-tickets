@@ -11,18 +11,44 @@ que se levante, se atienda o se cierre un ticket.
 
 import json
 import re
+import threading
 import time
-from collections import deque
+from collections import OrderedDict, deque
 from typing import List, Optional
 
 import httpx
 
 from app.core.config import settings
 from app.core.logging import logger
+from app.services import cola_ia
 
 # Las mismas seis del dropdown. El modelo clasifica dentro de esta lista o no
 # clasifica: nunca inventa una categoría nueva.
 CATEGORIAS_VALIDAS = ("impresora", "red", "equipo", "software", "accesos", "otro")
+
+
+def normalizar_categoria(categoria):
+    """La categoría en su forma canónica, o `None` si no es una de las seis.
+
+    Vive junto a la lista que valida, no en un módulo aparte: quien añada una
+    categoría a `CATEGORIAS_VALIDAS` tiene que ver esto en la misma pantalla.
+
+    **Por qué hace falta.** `categoria` llega de parámetros de consulta y de
+    cuerpos de petición sin que nadie la valide, y los filtros se escribían con
+    `ILIKE`. En `ILIKE`, `%` y `_` son comodines: pedir la categoría `%`
+    desactivaba el filtro sin decirlo, y `imp%` casaba con «impresora».
+
+    Devolver `None` y no lanzar es deliberado: quien llama decide qué significa
+    una categoría que no existe, y **no significa lo mismo en todas partes**.
+    En una búsqueda ordenada por parecido, lo sensato es buscar en todas —
+    devuelve de más, nunca de menos—. En una lista sin orden de relevancia,
+    como los pasos de un checklist, buscar en todas enseñaría los pasos de otro
+    problema, así que ahí lo correcto es no devolver nada.
+    """
+    if not categoria:
+        return None
+    limpia = str(categoria).strip().lower()
+    return limpia if limpia in CATEGORIAS_VALIDAS else None
 
 # Vocabulario real de la planta. Es un atajo determinista antes del modelo:
 # cuando el usuario usa una de estas palabras, la categoría es inequívoca y no
@@ -42,6 +68,12 @@ VOCABULARIO_PLANTA = {
         "wifi", "wi-fi", "internet", "red", "conexion", "conexión", "cable de red",
         "ethernet", "switch", "router", "vpn", "ip", "dns", "lento el internet",
         "sin señal", "sin senal", "access point", "nodo", "rack",
+        # Anadidos midiendo: "se cae la senal en embarques" no llevaba ninguna
+        # palabra de la tabla y se iba al modelo, que en esta maquina cuesta
+        # 9-10 s. Todos inequivocos en un contexto de soporte de TI.
+        # "enlace" se descarto: en software es un hipervinculo.
+        "señal", "senal", "cobertura", "antena", "lan", "wlan",
+        "se desconecta", "sin internet", "sin acceso a la red",
     ),
     "equipo": (
         "laptop", "computadora", "compu", "pc", "monitor", "pantalla", "teclado",
@@ -49,12 +81,31 @@ VOCABULARIO_PLANTA = {
         "cargador", "docking", "escaner", "escáner", "scanner", "no enciende",
         "se apaga", "pantalla azul", "handheld", "terminal portatil",
         "terminal portátil", "lectora",
+        # Lo mismo: "la terminal del comedor no lee el gafete" y "se reinicia
+        # sola" no coincidian con nada. La frase del gafete la atrapa
+        # "terminal", que es el lector.
+        #
+        # **"gafete" NO entra**, y merece la pena dejar dicho por que: se anadio
+        # y una prueba que ya existia lo tumbo. "El gafete no me abre la puerta
+        # del almacen" es control de acceso fisico, no un equipo de TI. El valor
+        # de esta tabla es que sus terminos son inequivocos; en cuanto entra uno
+        # que no lo es, el atajo empieza a mandar incidencias a la cola
+        # equivocada sin que nadie lo revise. Por lo mismo se quedaron fuera
+        # "se congela" (¿la aplicacion o el equipo?) y "enlace".
+        "terminal", "checador", "no reinicia", "se reinicia",
+        "no prende", "no responde el equipo", "se traba el equipo",
     ),
     "software": (
         "sap", "erp", "excel", "office", "outlook", "word", "programa",
         "aplicacion", "aplicación", "sistema", "licencia", "actualizacion",
         "actualización", "windows", "navegador", "chrome", "edge", "mes",
         "scada", "error de sistema",
+        # "no me carga el tablero" y "se traba al generar el reporte" tampoco
+        # coincidian. Son cosas que solo existen dentro de una aplicacion.
+        # "no carga" se descarto: en español es tanto "no se carga la pantalla"
+        # como "no se carga la bateria", que son dos categorias distintas.
+        "tablero", "reporte", "modulo", "módulo", "captura", "formulario",
+        "no guarda", "se cierra solo",
     ),
     "accesos": (
         "contraseña", "contrasena", "password", "usuario bloqueado", "cuenta",
@@ -64,34 +115,83 @@ VOCABULARIO_PLANTA = {
     ),
 }
 
+# Los prompts de sistema son **cortos a propósito, y no por estilo**.
+#
+# Medido en esta máquina: generar la respuesta va a ~29 tokens/s y leer el
+# prompt **entre 11 y 50**, según acierte o no la caché de Ollama. En una
+# consulta corta eso significa que el prompt cuesta más que la respuesta: el de
+# clasificación tenía 277 tokens para producir 18.
+#
+# Lo que decide el precio es si la llamada anterior uso el mismo prompt:
+#
+#     misma instruccion seguida ..... leer a ~50 tok/s -> ~2 s
+#     alternando con otra ........... leer a ~11 tok/s -> ~9 s
+#
+# Se probo darle a Ollama varias ranuras (`OLLAMA_NUM_PARALLEL`) para que cada
+# prompt conservara la suya caliente. **No cambio nada**, medido; ver la nota
+# en docker-compose.yml. Asi que lo unico que queda bajo control aqui es que el
+# prompt sea corto.
+#
+# Regla al editarlos: cada línea que se añade aquí se paga en **cada consulta**
+# que no acierte la caché. Lo que se pueda comprobar en código —que la
+# categoría esté en la lista, que la confianza esté entre 0 y 1— se comprueba
+# en código, que es gratis y no se le olvida al modelo. Y ojo: **acortarlos de
+# mas tambien se paga.** Una version de 25 tokens acerto 0 de 4 casos contra
+# 4 de 4 de la actual, y encima fue mas lenta.
 PROMPT_CLASIFICACION = (
-    "Eres un clasificador de incidencias de soporte técnico de una planta industrial.\n"
-    "Clasifica el mensaje del usuario en EXACTAMENTE una de estas categorías:\n"
-    "- impresora: impresoras, etiquetadoras, tóner, ribbon, atascos de papel\n"
-    "- red: wifi, cable de red, sin internet, lentitud de red, VPN\n"
-    "- equipo: laptop, PC, monitor, teclado, hardware que falla\n"
-    "- software: sistema ERP, aplicaciones, errores de programa, licencias\n"
-    "- accesos: contraseñas, cuentas, permisos, correo, bloqueos de sesión\n"
-    "- otro: cualquier cosa que no encaje claramente en las anteriores\n\n"
-    "Responde SOLO con un objeto JSON, sin texto alrededor:\n"
-    '{"categoria": "<una de la lista>", "confianza": <número entre 0 y 1>}\n\n'
-    "La confianza debe reflejar qué tan seguro estás. Si el mensaje es vago, "
-    "ambiguo o no describe un problema concreto, usa una confianza baja (menor a 0.5). "
-    "No inventes información que el usuario no dio."
+    "Clasifica la incidencia de soporte en una categoría:\n"
+    "impresora, red, equipo, software, accesos, otro.\n"
+    'Responde solo JSON: {"categoria": "...", "confianza": 0.0-1.0}\n'
+    "Si el mensaje es vago, confianza menor a 0.5."
 )
 
 PROMPT_NORMALIZACION = (
-    "Eres un asistente de soporte técnico. Reescribe el reporte del usuario "
-    "en una descripción clara para un técnico de TI.\n"
-    "Reglas estrictas:\n"
-    "- Máximo 2-3 oraciones.\n"
-    "- NO inventes información que el usuario no dio.\n"
-    "- Si algo no está claro, dilo explícitamente en lugar de suponerlo.\n"
-    "- Conserva datos concretos: número de equipo, área, mensajes de error.\n"
-    "- Tono neutro y técnico.\n"
-    "- Responde en el mismo idioma en que escribió el usuario.\n"
-    "Devuelve solo la descripción reescrita, sin introducción ni comentarios."
+    "Reescribe el reporte para un técnico de TI, en 2 o 3 oraciones.\n"
+    "No inventes nada. Conserva equipo, área y mensajes de error.\n"
+    "Mismo idioma del usuario. Solo la descripción, sin comentarios."
 )
+
+
+def _opciones(**extra) -> dict:
+    """Las opciones de una llamada al modelo de **texto**.
+
+    Existe para un solo motivo: que `num_thread` viaje en todas y no se quede
+    en una. Repartir entre los ocho núcleos —que es lo que hace Ollama por su
+    cuenta— resulta seis veces más lento para leer el prompt que usar cuatro en
+    esta máquina; el porqué y los números están en `OLLAMA_HILOS_TEXTO`.
+
+    Los embeddings **no** pasan por aquí: ahí el reparto por defecto gana.
+    """
+    return {"num_thread": settings.OLLAMA_HILOS_TEXTO, **extra}
+
+
+def _instruir(instruccion: str, texto: str) -> str:
+    """Pega las instrucciones delante del texto, en un solo `prompt`.
+
+    **Existe por una diferencia medida, no por gusto.** Ollama admite mandar
+    las instrucciones en un campo `system` aparte, que es lo que hacia este
+    modulo. Medido aqui, alternando las tres operaciones del portal:
+
+        con `system`   leer 90 tokens -> 9,8 s   (la cache no acerto nunca)
+        sin `system`   leer 41 tokens -> 0,0 s   (acierto limpio)
+
+    Con las instrucciones dentro del `prompt`, el principio del texto es
+    identico en cada llamada y llama.cpp puede reutilizar lo que ya tenia
+    leido. Mandandolas en `system` volvia a leerlo todo cada vez, sin excepcion.
+
+    **No garantiza un acierto**: si entre dos llamadas iguales se cuela otra con
+    una instruccion distinta, la caché se pierde igual y se vuelve a los ~9 s.
+    Lo que este cambio quita es el caso en que fallaba *siempre*.
+
+    Esa diferencia era la que hacia que la normalizacion y la clasificacion se
+    pasaran de sus diez segundos de timeout y fallaran **en cada ticket**, en
+    silencio, desde siempre.
+
+    Corolario para quien edite esto: **la instruccion va primero y el texto
+    variable despues**. Al reves no hay prefijo comun que cachear y se vuelve a
+    pagar la lectura entera.
+    """
+    return f"{instruccion}\n\n{texto}"
 
 
 class OllamaClient:
@@ -108,6 +208,49 @@ class OllamaClient:
                            "normalizacion": deque(maxlen=self.MUESTRAS_LATENCIA),
                            "clasificacion": deque(maxlen=self.MUESTRAS_LATENCIA),
                            "asistencia": deque(maxlen=self.MUESTRAS_LATENCIA)}
+        # Vectores ya calculados, los más recientes al final. Con candado
+        # porque el servidor atiende en varios hilos y un `OrderedDict` no es
+        # seguro entre ellos.
+        self._vectores = OrderedDict()
+        self._candado_vectores = threading.Lock()
+
+    # ------------------------------------------------------------------
+    # Caché de vectores
+    # ------------------------------------------------------------------
+    def _recordado(self, clave):
+        """El vector de esa clave, si se calculó hace poco.
+
+        Devuelve una **copia**: el que llama puede hacer lo que quiera con la
+        lista sin que eso corrompa lo guardado para el siguiente.
+        """
+        if settings.EMBEDDING_CACHE_MAX <= 0:
+            return None
+        with self._candado_vectores:
+            vector = self._vectores.get(clave)
+            if vector is None:
+                return None
+            # Recién usado, al final: lo que se cae es lo más viejo.
+            self._vectores.move_to_end(clave)
+            return list(vector)
+
+    def _recordar(self, clave, vector: List[float]) -> None:
+        if settings.EMBEDDING_CACHE_MAX <= 0:
+            return
+        with self._candado_vectores:
+            self._vectores[clave] = list(vector)
+            self._vectores.move_to_end(clave)
+            while len(self._vectores) > settings.EMBEDDING_CACHE_MAX:
+                self._vectores.popitem(last=False)
+
+    def olvidar_vectores(self) -> None:
+        """Vacía la caché. La usan las pruebas para no heredar estado.
+
+        Es el mismo cuidado que ya se tiene con los limitadores de intentos:
+        un objeto de módulo vive mientras viva el proceso, y sin limpiarlo el
+        resultado de una prueba depende de las que corrieron antes.
+        """
+        with self._candado_vectores:
+            self._vectores.clear()
 
     def _registrar(self, operacion: str, inicio: float):
         """Anota cuánto tardó una llamada.
@@ -131,20 +274,49 @@ class OllamaClient:
     # ------------------------------------------------------------------
     # Disponibilidad
     # ------------------------------------------------------------------
-    def disponible(self) -> bool:
-        """True si Ollama contesta. Nunca levanta excepción."""
+    def modelos(self) -> Optional[List[str]]:
+        """Qué modelos tiene descargados. None si no contesta."""
         if not settings.IA_HABILITADA:
-            return False
+            return None
         try:
             with httpx.Client(timeout=2.0) as cliente:
                 respuesta = cliente.get(self.host + "/api/tags")
-                return respuesta.status_code == 200
+                if respuesta.status_code != 200:
+                    return None
+                return [m.get("name", "") for m in respuesta.json().get("models", [])]
         except Exception as exc:  # noqa: BLE001 - degradación deliberada
             logger.warning(
                 "Ollama no disponible",
                 extra={"host": self.host, "error": str(exc)},
             )
+            return None
+
+    def faltan_modelos(self) -> List[str]:
+        """Los modelos configurados que Ollama no tiene descargados."""
+        descargados = self.modelos()
+        if descargados is None:
+            return []
+        # Ollama devuelve "qwen2.5:3b"; la configuración puede traerlo sin la
+        # etiqueta, así que se compara por el nombre base.
+        base = {n.split(":")[0] for n in descargados}
+        return [
+            m for m in (settings.OLLAMA_MODELO_EMBEDDING, settings.OLLAMA_MODELO_TEXTO)
+            if m.split(":")[0] not in base
+        ]
+
+    def disponible(self) -> bool:
+        """True si Ollama contesta **y tiene con qué trabajar**.
+
+        Antes bastaba con que el servicio respondiera. Eso daba una luz verde
+        engañosa: un Ollama recién levantado contesta perfectamente y no tiene
+        ningún modelo descargado, así que no genera embeddings, la búsqueda no
+        encuentra nada, el asistente responde "sin fundamento" y Gemini —que
+        solo entra cuando Ollama no alcanza— no llega a entrar nunca. Todo el
+        sistema de IA muerto, y el tablero en verde. Pasó exactamente así.
+        """
+        if not settings.IA_HABILITADA:
             return False
+        return self.modelos() is not None and not self.faltan_modelos()
 
     # ------------------------------------------------------------------
     # Embeddings
@@ -162,6 +334,13 @@ class OllamaClient:
         Ojo al cambiar esto: los vectores ya guardados se generaron con el
         criterio anterior. Hay que correr `reindexar_kb.py` para que la base
         quede consistente.
+
+        **Se recuerda lo ya calculado.** La misma frase se vectoriza varias
+        veces en la misma pantalla —al escribir un ticket consultan por
+        separado las sugerencias parecidas, la respuesta del asistente y el
+        catálogo visual— y cada una costaba sus ~80 ms de CPU. Un embedding es
+        una función pura del texto y del modelo, así que recordarlo no cambia
+        ninguna respuesta: solo quita trabajo repetido. Ver `EMBEDDING_CACHE_MAX`.
         """
         if not settings.IA_HABILITADA:
             return None
@@ -172,19 +351,37 @@ class OllamaClient:
             prefijo = "search_query: " if tarea == "consulta" else "search_document: "
             texto = prefijo + texto
 
+        # **La clave se arma después del prefijo, y eso no es un detalle.** El
+        # mismo texto vectorizado como consulta y como documento da vectores
+        # distintos —nomic está entrenado con esos prefijos— y confundirlos
+        # devolvería el vector equivocado sin que nada fallara: la búsqueda
+        # simplemente encontraría peor, en silencio. Con el prefijo ya pegado,
+        # las dos formas son dos claves distintas. El modelo entra también,
+        # para que cambiarlo no reutilice vectores del anterior.
+        clave = (settings.OLLAMA_MODELO_EMBEDDING, texto)
+        recordado = self._recordado(clave)
+        if recordado is not None:
+            return recordado
+
         inicio = time.monotonic()
         try:
-            with httpx.Client(timeout=settings.OLLAMA_TIMEOUT_EMBEDDING) as cliente:
-                respuesta = cliente.post(
-                    self.host + "/api/embeddings",
-                    json={
-                        "model": settings.OLLAMA_MODELO_EMBEDDING,
-                        "prompt": texto,
-                        "keep_alive": settings.OLLAMA_KEEP_ALIVE,
-                    },
-                )
-                respuesta.raise_for_status()
-                vector = respuesta.json().get("embedding")
+            # Compuerta de embeddings, separada de la de generación: una
+            # búsqueda por similitud no tiene por qué esperar detrás de una
+            # redacción de cuatro segundos. Ver app/services/cola_ia.py.
+            with cola_ia.embeddings.turno() as hay_turno:
+                if not hay_turno:
+                    return None
+                with httpx.Client(timeout=settings.OLLAMA_TIMEOUT_EMBEDDING) as cliente:
+                    respuesta = cliente.post(
+                        self.host + "/api/embeddings",
+                        json={
+                            "model": settings.OLLAMA_MODELO_EMBEDDING,
+                            "prompt": texto,
+                            "keep_alive": settings.OLLAMA_KEEP_ALIVE,
+                        },
+                    )
+                    respuesta.raise_for_status()
+                    vector = respuesta.json().get("embedding")
             self._registrar("embedding", inicio)
 
             if not isinstance(vector, list) or not vector:
@@ -193,6 +390,10 @@ class OllamaClient:
                     extra={"modelo": settings.OLLAMA_MODELO_EMBEDDING},
                 )
                 return None
+
+            # Solo se recuerdan los aciertos. Guardar un `None` convertiría un
+            # fallo momentáneo de Ollama en un fallo permanente para esa frase.
+            self._recordar(clave, vector)
             return vector
 
         except httpx.TimeoutException:
@@ -223,20 +424,30 @@ class OllamaClient:
 
         inicio = time.monotonic()
         try:
-            with httpx.Client(timeout=settings.OLLAMA_TIMEOUT_NORMALIZACION) as cliente:
-                respuesta = cliente.post(
-                    self.host + "/api/generate",
-                    json={
-                        "model": settings.OLLAMA_MODELO_TEXTO,
-                        "system": PROMPT_NORMALIZACION,
-                        "prompt": texto,
-                        "stream": False,
-                        "keep_alive": settings.OLLAMA_KEEP_ALIVE,
-                        "options": {"num_predict": 300, "temperature": 0.2},
-                    },
-                )
-                respuesta.raise_for_status()
-                normalizada = (respuesta.json().get("response") or "").strip()
+            with cola_ia.generacion.turno() as hay_turno:
+                if not hay_turno:
+                    # Sin turno se guarda la descripción original tal cual, que
+                    # es lo que ya pasaba cuando Ollama no contestaba. El
+                    # ticket se levanta igual.
+                    return None
+                with httpx.Client(timeout=settings.OLLAMA_TIMEOUT_NORMALIZACION) as cliente:
+                    respuesta = cliente.post(
+                        self.host + "/api/generate",
+                        json={
+                            "model": settings.OLLAMA_MODELO_TEXTO,
+                            # Las instrucciones van **dentro del `prompt`**, no
+                            # en el campo `system`. Ver la nota de `_instruir`.
+                            "prompt": _instruir(PROMPT_NORMALIZACION, texto),
+                            "stream": False,
+                            "keep_alive": settings.OLLAMA_KEEP_ALIVE,
+                            # 150 y no 300: la instruccion pide 2-3 oraciones y
+                            # lo medido son ~22 tokens. 300 no acotaba nada
+                            # util, solo dejaba sitio para irse por las ramas.
+                            "options": _opciones(num_predict=150, temperature=0.2),
+                        },
+                    )
+                    respuesta.raise_for_status()
+                    normalizada = (respuesta.json().get("response") or "").strip()
             self._registrar("normalizacion", inicio)
 
             if not normalizada:
@@ -297,21 +508,27 @@ class OllamaClient:
 
         inicio = time.monotonic()
         try:
-            with httpx.Client(timeout=settings.OLLAMA_TIMEOUT_CLASIFICACION) as cliente:
-                respuesta = cliente.post(
-                    self.host + "/api/generate",
-                    json={
-                        "model": settings.OLLAMA_MODELO_TEXTO,
-                        "system": PROMPT_CLASIFICACION,
-                        "prompt": texto,
-                        "stream": False,
-                        "keep_alive": settings.OLLAMA_KEEP_ALIVE,
-                        "format": "json",
-                        "options": {"num_predict": 120, "temperature": 0.0},
-                    },
-                )
-                respuesta.raise_for_status()
-                crudo = (respuesta.json().get("response") or "").strip()
+            with cola_ia.generacion.turno() as hay_turno:
+                if not hay_turno:
+                    # Sin turno se piden los dropdowns, igual que cuando el
+                    # modelo no está seguro. El usuario elige y sigue.
+                    return None
+                with httpx.Client(timeout=settings.OLLAMA_TIMEOUT_CLASIFICACION) as cliente:
+                    respuesta = cliente.post(
+                        self.host + "/api/generate",
+                        json={
+                            "model": settings.OLLAMA_MODELO_TEXTO,
+                            "prompt": _instruir(PROMPT_CLASIFICACION, texto),
+                            "stream": False,
+                            "keep_alive": settings.OLLAMA_KEEP_ALIVE,
+                            "format": "json",
+                            # 40 y no 120: la respuesta es un JSON de una linea
+                            # y lo medido son 18 tokens.
+                            "options": _opciones(num_predict=40, temperature=0.0),
+                        },
+                    )
+                    respuesta.raise_for_status()
+                    crudo = (respuesta.json().get("response") or "").strip()
             self._registrar("clasificacion", inicio)
 
             return self._parsear_clasificacion(crudo)
@@ -373,20 +590,48 @@ class OllamaClient:
 
         inicio = time.monotonic()
         try:
-            with httpx.Client(timeout=timeout or settings.OLLAMA_TIMEOUT_ASISTENCIA) as cliente:
-                respuesta = cliente.post(
-                    self.host + "/api/generate",
-                    json={
-                        "model": settings.OLLAMA_MODELO_TEXTO,
-                        "prompt": instruccion,
-                        "stream": False,
-                        "keep_alive": settings.OLLAMA_KEEP_ALIVE,
-                        "options": {"num_predict": num_predict, "temperature": 0.1},
-                    },
-                )
-                respuesta.raise_for_status()
-                texto = (respuesta.json().get("response") or "").strip()
+            with cola_ia.generacion.turno() as hay_turno:
+                if not hay_turno:
+                    # Sin turno el asistente entrega los extractos tal cual:
+                    # menos cómodo de leer, exactamente igual de cierto.
+                    return None
+                with httpx.Client(timeout=timeout or settings.OLLAMA_TIMEOUT_ASISTENCIA) as cliente:
+                    respuesta = cliente.post(
+                        self.host + "/api/generate",
+                        json={
+                            "model": settings.OLLAMA_MODELO_TEXTO,
+                            "prompt": instruccion,
+                            "stream": False,
+                            "keep_alive": settings.OLLAMA_KEEP_ALIVE,
+                            "options": _opciones(num_predict=num_predict, temperature=0.1),
+                        },
+                    )
+                    respuesta.raise_for_status()
+                    cuerpo = respuesta.json()
+                    texto = (cuerpo.get("response") or "").strip()
             self._registrar("asistencia", inicio)
+            if cuerpo.get("done_reason") == "length":
+                # **Una respuesta cortada no se entrega.**
+                #
+                # Al chocar con `num_predict` el modelo se detiene donde iba,
+                # no donde terminaba, y Ollama devuelve el trozo con un 200
+                # como si fuera la respuesta entera. Medido con el tope real de
+                # producción (400) y una pregunta corriente, el corte cayó en
+                # «1. **Limpie la pantalla y la» — media instrucción sobre un
+                # equipo físico, con aspecto de estar completa.
+                #
+                # Recortar hasta el último paso entero sería peor: quedaría un
+                # procedimiento que se lee terminado y al que le falta el final,
+                # que es justo donde suelen ir las advertencias. Devolver None
+                # deja seguir a la cascada —Gemini, y si no los extractos tal
+                # cual—, que es lo que ya hace este cliente cuando no alcanza.
+                logger.warning(
+                    "El modelo local se quedó sin espacio y la respuesta salió "
+                    "cortada; se sigue sin ella",
+                    extra={"num_predict": num_predict,
+                           "generados": cuerpo.get("eval_count")},
+                )
+                return None
             return texto or None
         except Exception as exc:  # noqa: BLE001 - degradación deliberada
             logger.warning("No se pudo redactar con el modelo local; se sigue sin él",
@@ -407,21 +652,37 @@ class OllamaClient:
 
         inicio = time.monotonic()
         try:
-            with httpx.Client(timeout=timeout or settings.OLLAMA_TIMEOUT_ASISTENCIA) as cliente:
-                respuesta = cliente.post(
-                    self.host + "/api/generate",
-                    json={
-                        "model": settings.OLLAMA_MODELO_TEXTO,
-                        "prompt": instruccion,
-                        "stream": False,
-                        "format": "json",
-                        "keep_alive": settings.OLLAMA_KEEP_ALIVE,
-                        "options": {"num_predict": num_predict, "temperature": 0.0},
-                    },
-                )
-                respuesta.raise_for_status()
-                crudo = (respuesta.json().get("response") or "").strip()
+            with cola_ia.generacion.turno() as hay_turno:
+                if not hay_turno:
+                    return None
+                with httpx.Client(timeout=timeout or settings.OLLAMA_TIMEOUT_ASISTENCIA) as cliente:
+                    respuesta = cliente.post(
+                        self.host + "/api/generate",
+                        json={
+                            "model": settings.OLLAMA_MODELO_TEXTO,
+                            "prompt": instruccion,
+                            "stream": False,
+                            "format": "json",
+                            "keep_alive": settings.OLLAMA_KEEP_ALIVE,
+                            "options": _opciones(num_predict=num_predict, temperature=0.0),
+                        },
+                    )
+                    respuesta.raise_for_status()
+                    cuerpo = respuesta.json()
+                    crudo = (cuerpo.get("response") or "").strip()
             self._registrar("asistencia", inicio)
+            if cuerpo.get("done_reason") == "length":
+                # Un JSON cortado casi siempre falla al parsear más abajo, pero
+                # no siempre: el rescate por expresión regular puede pescar un
+                # objeto anidado que sí cierra y devolverlo como si fuera la
+                # respuesta. Cortarlo aquí evita ese caso.
+                logger.warning(
+                    "El modelo local se quedó sin espacio y el JSON salió "
+                    "cortado; se sigue sin él",
+                    extra={"num_predict": num_predict,
+                           "generados": cuerpo.get("eval_count")},
+                )
+                return None
         except Exception as exc:  # noqa: BLE001 - degradación deliberada
             logger.warning("No se pudo consultar al modelo; se sigue sin él",
                            extra={"error": str(exc)})

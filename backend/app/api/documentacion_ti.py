@@ -11,10 +11,10 @@ normal no necesita y que no conviene que circule.
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from app.api.deps import get_current_admin
 from app.core.db import get_db
@@ -41,18 +41,24 @@ DOC_BORRADO = "docti.borrado"
 
 
 class DocumentoTICreate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
     categoria: str
     titulo: str = Field(min_length=4, max_length=200)
-    contenido: str = Field(min_length=10)
-    etiquetas: Optional[str] = None
+    contenido: str = Field(min_length=10, max_length=50000)
+    etiquetas: Optional[str] = Field(default=None, max_length=300)
     sensible: bool = False
 
 
 class DocumentoTIUpdate(BaseModel):
+    # Los mismos mínimos que al crear: editar dejaba el título o el contenido
+    # en blanco, y el documento quedaba en la lista sin nada que abrir.
+    model_config = ConfigDict(str_strip_whitespace=True)
+
     categoria: Optional[str] = None
-    titulo: Optional[str] = None
-    contenido: Optional[str] = None
-    etiquetas: Optional[str] = None
+    titulo: Optional[str] = Field(default=None, min_length=4, max_length=200)
+    contenido: Optional[str] = Field(default=None, min_length=10, max_length=50000)
+    etiquetas: Optional[str] = Field(default=None, max_length=300)
     sensible: Optional[bool] = None
 
 
@@ -68,18 +74,19 @@ class DocumentoTIResponse(BaseModel):
     autor_nombre: Optional[str] = None
     editor_nombre: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BusquedaRequest(BaseModel):
-    texto: str = Field(min_length=3)
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    texto: str = Field(min_length=3, max_length=2000)
 
 
 def _validar_categoria(categoria: str):
     if categoria not in CATEGORIAS:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Categoría inválida. Se acepta: " + ", ".join(CATEGORIAS),
         )
 
@@ -112,7 +119,8 @@ def listar(
     admin: Usuario = Depends(get_current_admin),
 ):
     """Listado con búsqueda por texto. Para búsqueda por significado, `/buscar`."""
-    consulta = db.query(DocumentoTI).filter(DocumentoTI.sitio_id == admin.sitio_id)
+    # El listado no enseña el vector: no se trae (768 números por fila).
+    consulta = (db.query(DocumentoTI).options(defer(DocumentoTI.embedding)))
 
     if categoria:
         consulta = consulta.filter(DocumentoTI.categoria == categoria)
@@ -146,8 +154,7 @@ def buscar_por_significado(
         patron = f"%{peticion.texto.strip()}%"
         filas = (
             db.query(DocumentoTI)
-            .filter(DocumentoTI.sitio_id == admin.sitio_id,
-                    or_(DocumentoTI.titulo.ilike(patron),
+            .filter(or_(DocumentoTI.titulo.ilike(patron),
                         DocumentoTI.contenido.ilike(patron),
                         DocumentoTI.etiquetas.ilike(patron)))
             .limit(10).all()
@@ -157,8 +164,7 @@ def buscar_por_significado(
     try:
         filas = (
             db.query(DocumentoTI)
-            .filter(DocumentoTI.sitio_id == admin.sitio_id,
-                    DocumentoTI.embedding.isnot(None))
+            .filter(DocumentoTI.embedding.isnot(None))
             .order_by(DocumentoTI.embedding.cosine_distance(vector))
             .limit(8).all()
         )
@@ -212,7 +218,6 @@ def editar(
 ):
     documento = db.query(DocumentoTI).filter(
         DocumentoTI.id == documento_id,
-        DocumentoTI.sitio_id == admin.sitio_id,
     ).first()
     if not documento:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
@@ -259,7 +264,6 @@ def borrar(
 ):
     documento = db.query(DocumentoTI).filter(
         DocumentoTI.id == documento_id,
-        DocumentoTI.sitio_id == admin.sitio_id,
     ).first()
     if not documento:
         raise HTTPException(status_code=404, detail="Documento no encontrado")

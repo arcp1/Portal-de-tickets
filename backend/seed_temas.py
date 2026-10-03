@@ -12,6 +12,7 @@ Uso:
     python seed_temas.py
 """
 
+import os
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -71,7 +72,7 @@ PASOS = [
     ("red", "¿Otras personas de su área también están sin red?",
      "Si es toda el área, probablemente sea el switch de piso: repórtelo indicando el área completa.", False),
     ("red", "Si usa Wi-Fi: ¿está conectado a la red de planta y no a otra?",
-     "Revise el ícono de Wi-Fi y confirme el nombre de la red.", True),
+     "Revise el ícono de Wi-Fi: la red de la planta es «CGR_QUERETARO_OFFICE».", True),
     ("red", "¿Intentó desconectar el cable, esperar 10 segundos y volver a conectarlo?",
      "Esto obliga al equipo a pedir una dirección de red nueva.", True),
     ("red", "¿El problema es que no abre una página o que no abre ninguna?",
@@ -179,9 +180,11 @@ CONOCIMIENTO = [
 def sembrar():
     db: Session = SessionLocal()
     try:
-        sitio = db.query(Sitio).filter(Sitio.clave == "QRO").first()
+        # La misma planta que crea seed.py, con la misma variable.
+        clave = (os.getenv("SEED_SITIO_CLAVE") or "QRO").strip().upper()
+        sitio = db.query(Sitio).filter(Sitio.clave == clave).first()
         if not sitio:
-            print("No existe el sitio QRO. Corre primero seed.py")
+            print(f"No existe el sitio {clave}. Corre primero seed.py")
             return
 
         # --- Checklists ---

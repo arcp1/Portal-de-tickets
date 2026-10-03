@@ -116,6 +116,36 @@ def test_avisa_de_quien_no_podra_activarse_solo(client):
     assert "activación asistida" in datos["filas"][0]["aviso"]
 
 
+def test_un_alta_de_administrador_se_avisa(client):
+    """La previa existe para mirar antes de escribir, y esta es la unica fila
+    del archivo que reparte poder: un administrador ve el expediente de toda
+    la planta, da de baja cuentas y restablece contrasenas. Un archivo de RH
+    con la columna de perfil mal traida los creaba en silencio, contados entre
+    las "validas" y sin nada que los distinguiera.
+    """
+    csv = ("numero_empleado,nombre,rol\n"
+           "30801,Persona Normal,usuario\n"
+           "30802,Cuenta Con Rol Admin,admin\n")
+    datos = subir(client, csv).json()
+
+    normal, elevada = datos["filas"]
+    assert normal["rol"] == "usuario"
+    assert "ADMINISTRADOR" not in (normal["aviso"] or "")
+
+    assert elevada["rol"] == "admin"
+    assert "ADMINISTRADOR" in elevada["aviso"]
+
+
+def test_un_rol_inventado_no_crea_nada_raro(client):
+    """Lo que no sea admin o usuario cae en usuario, sin inventar un tercer
+    perfil que despues nadie sabria interpretar."""
+    csv = "numero_empleado,nombre,rol\n30803,Rol Inventado,jefe-supremo\n"
+    datos = subir(client, csv).json()
+
+    assert datos["filas"][0]["rol"] == "usuario"
+    assert "ADMINISTRADOR" not in (datos["filas"][0]["aviso"] or "")
+
+
 def test_rechaza_un_archivo_vacio(client):
     r = client.post("/api/admin/importacion/analizar",
                     files={"archivo": ("vacio.csv", io.BytesIO(b""), "text/csv")},
@@ -262,8 +292,12 @@ def test_con_verificacion_se_activa_con_epp_y_cumpleanos(client):
     subir(client, CSV_BUENO, ruta="/api/admin/importacion/importar",
           modo_activacion="verificacion")
 
+    # El nombre va sin acentos a proposito: es como lo teclea la gente, y la
+    # comparacion los normaliza. Exigir "Pérez" con tilde dejaria fuera a media
+    # planta.
     r = client.post("/api/auth/activar", json={
-        "identificador": "30001", "numero_epp": "0421",
+        "identificador": "30001", "nombre_completo": "juan perez",
+        "numero_epp": "0421",
         "fecha_nacimiento": "1978-04-23", "password": "MiClaveDePlanta1"})
     assert r.status_code == 200
 
@@ -400,3 +434,15 @@ def test_los_codigos_se_pueden_repartir_por_area(client):
     assert "AAAA-BBBB" in solo_produccion
     assert "CCCC-DDDD" not in solo_produccion
     assert ImportacionService.areas_de(filas) == ["Calidad", "Producción"]
+
+
+def test_un_archivo_con_demasiadas_filas_se_rechaza_entero(client, monkeypatch):
+    """Cada alta cifra su código con bcrypt: sin tope, un CSV de 5 MB eran
+    horas de servidor ocupado en una sola petición."""
+    monkeypatch.setattr(settings, "IMPORTACION_MAX_FILAS", 2)
+    r = subir(client, CSV_BUENO)
+    assert r.status_code == 200
+    cuerpo = r.json()
+    assert cuerpo["ok"] is False
+    assert "Divídalo" in cuerpo["error"]
+    assert cuerpo["filas"] == []

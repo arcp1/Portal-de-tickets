@@ -14,11 +14,14 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.core import plantas
 from app.api.deps import get_current_user
+from app.core.archivos import contenido_coincide
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.logging import logger
 from app.models import Ticket, TicketAdjunto, Usuario
+from app.api.tickets import no_admite_cambios_de_quien_reporta
 from app.schemas.ticket import AdjuntoResponse
 
 router = APIRouter(prefix="/tickets", tags=["Adjuntos"])
@@ -43,11 +46,20 @@ def _carpeta() -> Path:
 
 
 def _ticket_accesible(db: Session, ticket_id: int, usuario: Usuario) -> Ticket:
+    """El ticket propio, o cualquiera si se es de TI (alcance global).
+
+    Una persona de planta no ve los adjuntos de tickets ajenos aunque sean de
+    su misma planta: son fotos y PDF de otra persona.
+    """
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
-    if not ticket:
+    propio = ticket is not None and ticket.usuario_id == usuario.id
+    de_ti = (
+        ticket is not None
+        and usuario.rol == "admin"
+        and plantas.alcanza(usuario, ticket.sitio_id)
+    )
+    if not (propio or de_ti):
         raise HTTPException(status_code=404, detail="Ticket no encontrado")
-    if usuario.rol != "admin" and ticket.usuario_id != usuario.id:
-        raise HTTPException(status_code=403, detail="No autorizado para este ticket")
     return ticket
 
 
@@ -60,11 +72,12 @@ async def subir_adjunto(
     current_user: Usuario = Depends(get_current_user),
 ):
     ticket = _ticket_accesible(db, ticket_id, current_user)
+    no_admite_cambios_de_quien_reporta(ticket, current_user)
 
     cuantos = db.query(TicketAdjunto).filter(TicketAdjunto.ticket_id == ticket.id).count()
     if cuantos >= settings.ADJUNTOS_MAX_POR_TICKET:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Máximo {settings.ADJUNTOS_MAX_POR_TICKET} archivos por ticket.",
         )
 
@@ -77,7 +90,7 @@ async def subir_adjunto(
             tipo = adivinado
         else:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Tipo de archivo no permitido. Se aceptan imágenes, PDF y texto.",
             )
 
@@ -87,11 +100,16 @@ async def subir_adjunto(
     contenido = await archivo.read(limite + 1)
     if len(contenido) > limite:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"El archivo supera {settings.ADJUNTOS_MAX_MB} MB.",
         )
     if not contenido:
         raise HTTPException(status_code=422, detail="El archivo está vacío.")
+    if not contenido_coincide(contenido, tipo):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="El contenido del archivo no corresponde a su tipo.",
+        )
 
     # Nombre generado: el del usuario nunca toca el sistema de archivos.
     nombre_guardado = f"{uuid.uuid4().hex}{TIPOS_PERMITIDOS[tipo]}"
@@ -167,7 +185,8 @@ def borrar_adjunto(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    _ticket_accesible(db, ticket_id, current_user)
+    ticket = _ticket_accesible(db, ticket_id, current_user)
+    no_admite_cambios_de_quien_reporta(ticket, current_user)
     adjunto = db.query(TicketAdjunto).filter(
         TicketAdjunto.id == adjunto_id,
         TicketAdjunto.ticket_id == ticket_id,
@@ -179,15 +198,16 @@ def borrar_adjunto(
     if current_user.rol != "admin" and adjunto.subido_por != current_user.id:
         raise HTTPException(status_code=403, detail="Solo quien lo subió puede borrarlo.")
 
+    # Primero la fila y después el archivo: si el commit fallara con el
+    # archivo ya borrado, el ticket enseñaría un adjunto que no abre.
     ruta = _carpeta() / adjunto.nombre_guardado
+    db.delete(adjunto)
+    db.commit()
     try:
         ruta.unlink(missing_ok=True)
     except OSError as exc:
-        # Si el archivo no se puede borrar, la fila se va igual: dejarla sería
-        # mostrar un adjunto que el usuario ya pidió quitar.
+        # La fila ya se fue: lo que el usuario pidió quitar ya no se ve. El
+        # archivo huérfano solo ocupa sitio.
         logger.warning("No se pudo borrar el archivo en disco",
                        extra={"ruta": str(ruta), "error": str(exc)})
-
-    db.delete(adjunto)
-    db.commit()
     return None

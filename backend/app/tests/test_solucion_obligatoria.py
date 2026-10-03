@@ -4,6 +4,8 @@ Sin este campo no se puede indexar nada en la base de conocimiento, así que la
 Fase 2 completa se apoya en esta validación.
 """
 
+import pytest
+
 SOLUCION_VALIDA = "Se reinstaló el driver de la impresora y se reinició el spooler de impresión."
 
 
@@ -181,26 +183,42 @@ def test_al_usuario_se_le_niega_el_cierre_antes_de_pedirle_la_solucion(client):
     assert response.status_code == 403
 
 
-def test_el_dueno_conserva_los_demas_campos(client):
-    """La restricción es sobre el cierre, no sobre el ticket entero."""
+def test_el_dueno_no_cambia_la_prioridad(client):
+    """Regla de negocio desde 2026-09-30: la prioridad la decide Soporte.
+
+    Antes esta prueba fijaba lo contrario —"la restricción es sobre el cierre,
+    no sobre el ticket entero"— y el dueño podía subir la suya a crítica."""
     headers = headers_de(client, "user@test.com")
     ticket_id = crear_ticket(client, headers)
 
-    response = client.patch(f"/api/tickets/{ticket_id}", json={"prioridad": "alta"}, headers=headers)
+    response = client.patch(f"/api/tickets/{ticket_id}", json={"prioridad": "critica"}, headers=headers)
 
-    assert response.status_code == 200
-    assert response.json()["prioridad"] == "alta"
+    assert response.status_code == 403
+    assert "comentario" in response.json()["detail"]
+    assert client.get(f"/api/tickets/{ticket_id}", headers=headers).json()["prioridad"] == "media"
 
 
-def test_el_dueno_puede_mover_a_estados_intermedios(client):
-    """Solo resuelto y cerrado quedan reservados al equipo de TI."""
+@pytest.mark.parametrize("estado", ["en_proceso", "espera_proveedor", "abierto"])
+def test_el_dueno_no_mueve_su_ticket_de_estado(client, estado):
+    """Tampoco a los intermedios: "en proceso" dice que alguien de TI lo está
+    atendiendo, y eso solo lo puede decir TI."""
     headers = headers_de(client, "user@test.com")
     ticket_id = crear_ticket(client, headers)
 
-    response = client.patch(f"/api/tickets/{ticket_id}", json={"estado": "en_proceso"}, headers=headers)
+    response = client.patch(f"/api/tickets/{ticket_id}", json={"estado": estado}, headers=headers)
 
-    assert response.status_code == 200
-    assert response.json()["estado"] == "en_proceso"
+    assert response.status_code == 403
+
+
+def test_el_dueno_sigue_comentando(client):
+    """Lo que sí conserva: seguir su ticket y añadir lo que sepa."""
+    headers = headers_de(client, "user@test.com")
+    ticket_id = crear_ticket(client, headers)
+
+    response = client.post(f"/api/tickets/{ticket_id}/comments",
+                           json={"comentario": "Sigue fallando después de reiniciar."}, headers=headers)
+
+    assert response.status_code == 201
 
 
 def test_el_admin_cierra_el_ticket_de_otro(client):

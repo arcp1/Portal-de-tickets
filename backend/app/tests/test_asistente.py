@@ -471,3 +471,75 @@ def test_sin_nada_se_dice_que_levante_ticket(db_session, monkeypatch):
     salida = AsistenteService.responder(db_session, "algo nunca visto", 1)
 
     assert salida["siguiente_paso"] == "levantar_ticket"
+
+
+# ----------------------------------------------------------------------
+# La categoría del filtro llega sin validar desde el cuerpo de la petición
+# ----------------------------------------------------------------------
+
+def test_la_categoria_se_normaliza_antes_de_filtrar():
+    """Mayúsculas y espacios no deberían cambiar lo que se busca.
+
+    `categoria` viaja en el cuerpo de la petición y nadie la valida por el
+    camino. Si el filtro fuera sensible a la forma exacta, «Impresora» y
+    «impresora» buscarían en sitios distintos sin que nada lo dijera.
+    """
+    from app.services.recuperacion_service import RecuperacionService
+
+    assert RecuperacionService._categoria_util("impresora") == "impresora"
+    assert RecuperacionService._categoria_util("Impresora") == "impresora"
+    assert RecuperacionService._categoria_util("  RED  ") == "red"
+
+
+def test_los_comodines_de_like_no_pasan_como_categoria():
+    """La regresión que hay que impedir.
+
+    El filtro se aplicaba con `ILIKE`, donde `%` y `_` son comodines. Pedir la
+    categoría `%` **desactivaba el filtro en silencio** y `imp%` casaba con
+    «impresora» sin que nadie lo hubiera pedido. Ninguna de las dos es una
+    categoría, así que ninguna debe filtrar.
+    """
+    from app.services.recuperacion_service import RecuperacionService
+
+    for comodin in ("%", "imp%", "_mpresora", "%%"):
+        assert RecuperacionService._categoria_util(comodin) is None, (
+            f"«{comodin}» se aceptó como categoría; volvió el filtro con comodines"
+        )
+
+
+def test_una_categoria_inventada_busca_en_todas_y_no_en_ninguna():
+    """Lo que estaba mal no era que fallara, es cómo fallaba.
+
+    Con una categoría que no existe, el filtro no casaba con nada y la búsqueda
+    volvía vacía. El asistente entonces contesta «de esto no tenemos nada
+    escrito», que suena a respuesta y es falso: sí hay, solo que el filtro lo
+    tapó. Ignorar la categoría devuelve de más, nunca de menos, y el orden por
+    parecido ya coloca lo que toca.
+    """
+    from app.services.recuperacion_service import RecuperacionService
+
+    assert RecuperacionService._categoria_util("inventada") is None
+    assert RecuperacionService._categoria_util("") is None
+    assert RecuperacionService._categoria_util(None) is None
+
+
+# ----------------------------------------------------------------------
+# El mismo cuidado en los otros seis filtros de categoría
+# ----------------------------------------------------------------------
+
+def test_el_normalizador_de_categorias_es_uno_solo():
+    """La lista y quien la valida viven juntas, y todo el mundo usa la misma.
+
+    Había seis filtros de categoría escritos con `ILIKE`, cada uno por su
+    cuenta. Con un normalizador compartido, añadir una categoría a
+    `CATEGORIAS_VALIDAS` la habilita en todos a la vez; con seis copias, en
+    ninguno o en los que alguien se acuerde.
+    """
+    from app.services.ollama_client import CATEGORIAS_VALIDAS, normalizar_categoria
+
+    for cat in CATEGORIAS_VALIDAS:
+        assert normalizar_categoria(cat) == cat
+        assert normalizar_categoria(cat.upper()) == cat
+    for basura in ("%", "_", "imp%", "%%", "inventada", "", None, 7):
+        assert normalizar_categoria(basura) is None
+

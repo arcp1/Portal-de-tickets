@@ -34,16 +34,17 @@ import csv
 import io
 import unicodedata
 from datetime import datetime, timedelta
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.logging import logger
 from app.core.security import get_password_hash
-from app.models import Usuario
+from app.models import Sitio, Usuario
 from app.services.cuentas_service import (
-    PENDIENTE, dominio_valido, generar_codigo, normalizar_codigo, normalizar_epp,
+    NUMERO_EMPLEADO_INVALIDO, PENDIENTE, dominio_valido, generar_codigo, normalizar_codigo,
+    normalizar_epp, numero_empleado_valido,
 )
 
 # Encabezados que se aceptan para cada campo. Las listas de RH nunca vienen
@@ -338,6 +339,25 @@ def _decodificar(contenido: bytes) -> str:
     return contenido.decode("utf-8", errors="replace")
 
 
+# Caracteres con los que Excel y LibreOffice interpretan la celda como formula.
+_ARRANQUES_DE_FORMULA = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _neutro(valor) -> str:
+    """Deja una celda que ninguna hoja de calculo va a ejecutar.
+
+    El nombre y el area salen del archivo que manda RH y acaban en un CSV que
+    los supervisores abren en Excel para repartir los codigos. Un nombre como
+    `=HYPERLINK("http://...")` o `=cmd|'/c calc'!A1` se ejecuta al abrirlo: la
+    hoja no distingue un dato de una formula. Anteponer un apostrofo la obliga
+    a tratarlo como texto, que es lo que siempre fue.
+    """
+    texto = "" if valor is None else str(valor)
+    if texto.startswith(_ARRANQUES_DE_FORMULA):
+        return "'" + texto
+    return texto
+
+
 class ImportacionService:
 
     @staticmethod
@@ -396,6 +416,13 @@ class ImportacionService:
         for indice, columnas in enumerate(lector, start=2):
             if not any((c or "").strip() for c in columnas):
                 continue  # línea en blanco
+            if len(filas) >= settings.IMPORTACION_MAX_FILAS:
+                return {
+                    "ok": False,
+                    "error": (f"El archivo trae más de {settings.IMPORTACION_MAX_FILAS} "
+                              "personas. Divídalo en varios archivos e impórtelos por partes."),
+                    "filas": [],
+                }
 
             fila = FilaImportacion(indice)
 
@@ -418,6 +445,8 @@ class ImportacionService:
                 fila.error = "Sin número de empleado."
             elif len(fila.numero_empleado) > 20:
                 fila.error = "El número de empleado excede 20 caracteres."
+            elif not numero_empleado_valido(fila.numero_empleado):
+                fila.error = f"El número de empleado {NUMERO_EMPLEADO_INVALIDO}."
             elif not fila.nombre or len(fila.nombre) < 3:
                 fila.error = "Nombre vacío o demasiado corto."
             elif fila.numero_empleado in existentes_num:
@@ -435,8 +464,18 @@ class ImportacionService:
                 vistos_num.add(fila.numero_empleado)
                 if fila.email:
                     vistos_email.add(fila.email)
+                # **Un alta de administrador se avisa.** La vista previa existe
+                # para mirar antes de escribir, y esta es la única fila del
+                # archivo que reparte poder: quien entre así puede ver el
+                # expediente de toda la planta, dar de baja cuentas y
+                # restablecer contraseñas. Un archivo de RH con la columna
+                # "perfil" mal traída creaba administradores en silencio y el
+                # resumen los contaba como "válidas" sin decir nada más.
+                if fila.rol == "admin":
+                    fila.aviso = "Se creará como ADMINISTRADOR, con acceso a todo el portal."
                 if not fila.email:
-                    fila.aviso = "Sin correo: no recibirá avisos."
+                    fila.aviso = ((fila.aviso + " ") if fila.aviso else "") + \
+                        "Sin correo: no recibirá avisos."
                 factores = sum(1 for v in (fila.numero_epp, fila.fecha_nacimiento,
                                            fila.fecha_ingreso) if v)
                 if factores == 0:
@@ -516,11 +555,14 @@ class ImportacionService:
         )
 
         creadas = []
+        planta = db.get(Sitio, sitio_id)
         try:
             for f in validas:
                 codigo = generar_codigo() if modo_activacion == "codigo" else None
+                # TI no tiene planta: su alcance es global (ver core/plantas).
+                es_ti = f["rol"] == "admin"
                 usuario = Usuario(
-                    sitio_id=sitio_id,
+                    sitio_id=None if es_ti else sitio_id,
                     numero_empleado=f["numero_empleado"],
                     nombre=f["nombre"],
                     email=f["email"],
@@ -539,6 +581,8 @@ class ImportacionService:
                     codigo_expira=vence,
                     creado_en=ahora,
                 )
+                if not es_ti:
+                    usuario.plantas = [planta]
                 db.add(usuario)
                 creadas.append({**f, "codigo": codigo})
 
@@ -579,8 +623,12 @@ class ImportacionService:
                 continue
             if area and (f.get("area") or "").strip().lower() != area.strip().lower():
                 continue
-            escritor.writerow([f["numero_empleado"], f["nombre"],
-                               f.get("area") or "", f["codigo"]])
+            escritor.writerow([
+                _neutro(f.get("numero_empleado")),
+                _neutro(f.get("nombre")),
+                _neutro(f.get("area")),
+                _neutro(f.get("codigo")),
+            ])
         return salida.getvalue()
 
     @staticmethod

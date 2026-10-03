@@ -129,12 +129,14 @@ def test_una_auto_resolucion_no_tiene_vencimiento(client):
 
 
 def test_subir_la_prioridad_adelanta_el_vencimiento(client):
+    """Quien reporta crea el ticket; subirle la prioridad es cosa de TI
+    (regla de negocio desde 2026-09-30)."""
     ticket = crear(client, cab(client), prioridad="baja").json()
     antes = ticket["vence_en"]
 
     despues = client.patch(
         f"/api/tickets/{ticket['id']}", json={"prioridad": "critica"},
-        headers=cab(client),
+        headers=cab(client, "admin@test.com"),
     ).json()
 
     assert despues["vence_en"] < antes
@@ -243,7 +245,9 @@ def test_no_se_ven_los_adjuntos_de_un_ticket_ajeno(client, tmp_path, monkeypatch
     ticket = crear(client, cab(client, "admin@test.com")).json()
 
     r = client.get(f"/api/tickets/{ticket['id']}/adjuntos", headers=cab(client, "user@test.com"))
-    assert r.status_code == 403
+    # 404 y no 403: un 403 confirma que el ticket existe. Para quien no tiene
+    # derecho a verlo, es como si no existiera.
+    assert r.status_code == 404
 
 
 def test_el_nombre_del_archivo_no_toca_el_disco(client, tmp_path, monkeypatch):

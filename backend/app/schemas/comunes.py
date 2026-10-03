@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from typing import Annotated
 
-from pydantic import PlainSerializer
+from pydantic import BaseModel, ConfigDict, PlainSerializer
 
 
 def _marcar_utc(valor: datetime) -> str:
@@ -24,3 +24,13 @@ def _marcar_utc(valor: datetime) -> str:
 
 #: Fecha que viaja al cliente con su zona explícita.
 FechaUTC = Annotated[datetime, PlainSerializer(_marcar_utc, return_type=str)]
+
+
+class PlantaBreve(BaseModel):
+    """Lo que se pinta de una planta en una etiqueta: clave y nombre."""
+    id: int
+    clave: str
+    nombre: str
+
+    model_config = ConfigDict(from_attributes=True)
+

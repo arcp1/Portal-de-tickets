@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.logging import logger
 from app.models import BaseConocimiento, TemaSugerido, Ticket
+from app.services.kb_service import titulo_de
 from app.services.ollama_client import ollama
 
 
@@ -75,7 +76,7 @@ class TemasService:
             # Primera vez que se ve algo así.
             tema = TemaSugerido(
                 sitio_id=ticket.sitio_id,
-                titulo=texto.strip()[:200],
+                titulo=titulo_de(texto, 200),
                 descripcion_ejemplo=texto.strip(),
                 categoria_sugerida="otro",
                 embedding=embedding,
@@ -121,7 +122,6 @@ class TemasService:
                 )
                 .join(BaseConocimiento, BaseConocimiento.ticket_origen_id == Ticket.id)
                 .filter(
-                    BaseConocimiento.sitio_id == tema.sitio_id,
                     BaseConocimiento.embedding.isnot(None),
                     Ticket.solucion.isnot(None),
                 )

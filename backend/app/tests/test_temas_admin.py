@@ -3,7 +3,6 @@
 Lo que el admin tiene que poder hacer sin tocar la base de datos.
 """
 
-import pytest
 
 from app.models import Checklist
 
@@ -169,3 +168,87 @@ def test_promover_un_tema_inexistente(client):
 
 def test_un_usuario_normal_no_ve_los_temas_detectados(client):
     assert client.get("/api/admin/temas-sugeridos", headers=cab(client, "user@test.com")).status_code == 403
+
+
+# ----------------------------------------------------------------------
+# La categoría se valida al escribir, no solo al filtrar
+# ----------------------------------------------------------------------
+
+def test_un_paso_con_categoria_de_fuera_del_vocabulario_se_rechaza(client):
+    """Guardar una categoría inventada crea una fila que nadie verá jamás.
+
+    Los filtros de categoría son de igualdad exacta —`ILIKE` interpretaba `%`
+    como comodín—, así que un «Impresoras» o un «Impresora» con mayúscula se
+    guardaría sin queja y no casaría nunca. La fila existe, no aparece en
+    ninguna pantalla, y no hay ningún error que buscar.
+
+    `/api/admin/pasos` ya lo comprobaba; `/api/checklists` no.
+    """
+    r = client.post("/api/checklists",
+                    json={"categoria": "Impresoras", "orden": 1,
+                          "pregunta_key": "prueba"},
+                    headers=cab(client))
+    assert r.status_code == 422, r.text
+
+
+def test_un_comodin_no_se_guarda_como_categoria_de_una_regla(client):
+    """En las reglas de negocio el daño de una categoría mala es mayor.
+
+    Una regla no se aplica «un poco»: decide el SLA del ticket y a quién se
+    escala. Guardada con una categoría que no existe no se dispara nunca, y eso
+    no se ve — los tickets salen con su trato por defecto y nadie relaciona una
+    cosa con la otra.
+    """
+    r = client.post("/api/reglas",
+                    json={"sitio_id": 1, "categoria": "impresora%",
+                          "condicion": "x", "accion": "escalar"},
+                    headers=cab(client))
+    assert r.status_code == 422, r.text
+
+
+def test_una_categoria_valida_en_mayusculas_se_guarda_normalizada(client):
+    """Que se valide no significa que se sea quisquilloso con la forma.
+
+    «IMPRESORA» es la misma categoría; lo que no puede es guardarse así, porque
+    entonces el filtro exacto no la encontraría.
+    """
+    r = client.post("/api/checklists",
+                    json={"categoria": "IMPRESORA", "orden": 1,
+                          "pregunta_key": "prueba_mayus"},
+                    headers=cab(client))
+    assert r.status_code == 201, r.text
+    assert r.json()["categoria"] == "impresora"
+
+
+# ----------------------------------------------------------------------
+# Borrar una entrada que ya trabajó
+# ----------------------------------------------------------------------
+
+def test_se_borra_una_entrada_aunque_ya_se_haya_sugerido(client, db_session):
+    """Cada sugerencia apunta a su entrada: la base rechazaba el borrado
+    justo de las entradas que más se usan."""
+    from app.models import BaseConocimiento, SugerenciaKB, Ticket, Usuario
+
+    usuario = db_session.query(Usuario).filter_by(email="user@test.com").one()
+    ticket = Ticket(sitio_id=1, usuario_id=usuario.id, folio="TICK-QRO-2026-9001",
+                    categoria="red", descripcion_original="Sin red", prioridad="media",
+                    estado="resuelto", solucion="Se cambió el cable de red del puesto.",
+                    indexado_kb=True)
+    db_session.add(ticket)
+    db_session.flush()
+    entrada = BaseConocimiento(sitio_id=1, titulo="Sin red en el puesto", categoria="red",
+                               contenido="Se cambió el cable de red del puesto.",
+                               ticket_origen_id=ticket.id)
+    db_session.add(entrada)
+    db_session.flush()
+    db_session.add(SugerenciaKB(kb_id=entrada.id, usuario_id=usuario.id, similitud=0.8,
+                                fue_util=True))
+    db_session.commit()
+
+    r = client.delete(f"/api/admin/kb/{entrada.id}", headers=cab(client))
+    assert r.status_code == 204, r.text
+    assert db_session.query(SugerenciaKB).count() == 0
+
+    # El ticket de origen vuelve a poder indexarse.
+    db_session.refresh(ticket)
+    assert ticket.indexado_kb is False

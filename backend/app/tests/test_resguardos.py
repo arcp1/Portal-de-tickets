@@ -411,7 +411,8 @@ def test_no_se_ve_el_expediente_documental_ajeno(client, usuario, tmp_path, monk
     admin = client.get("/api/auth/me", headers=cab(client)).json()
 
     r = client.get(f"/api/documentos/usuario/{admin['id']}", headers=cab(client, "user@test.com"))
-    assert r.status_code == 403
+    # 404 y no 403: no se confirma que ese expediente exista.
+    assert r.status_code == 404
 
 
 def test_un_tipo_de_documento_inventado_se_rechaza(client, usuario, tmp_path, monkeypatch):
@@ -429,3 +430,51 @@ def test_solo_ti_borra_documentos(client, usuario, tmp_path, monkeypatch):
     assert client.delete(f"/api/documentos/{doc['id']}",
                          headers=cab(client, "user@test.com")).status_code == 403
     assert client.delete(f"/api/documentos/{doc['id']}", headers=cab(client)).status_code == 204
+
+
+# ----------------------------------------------------------------------
+# El rol de admin no cruza de planta
+# ----------------------------------------------------------------------
+
+
+def test_el_historial_de_un_equipo_lo_ve_ti_y_no_una_persona_ajena(client, db_session, otra_planta):
+    """El historial dice **quién tuvo el equipo y cuándo**: nombres de personas.
+
+    TI es global y lo ve en cualquier planta. Una persona solo el de un equipo
+    que tenga ella; para lo demás, 404 —un 403 confirma que el equipo existe—.
+    """
+    ajeno = Equipo(sitio_id=otra_planta.id, tipo="activo", categoria="laptop", marca="Dell",
+                   modelo="Latitude 5440", numero_serie="OTRA-PLANTA-001",
+                   ubicacion="Planta ajena", estado="disponible")
+    db_session.add(ajeno)
+    db_session.commit()
+    db_session.refresh(ajeno)
+
+    ruta = f"/api/resguardos/equipo/{ajeno.id}/movimientos"
+    assert client.get(ruta, headers=cab(client)).status_code == 200
+    assert client.get(ruta, headers=cab(client, "user@test.com")).status_code == 404
+
+
+def test_el_historial_de_un_equipo_propio_si_se_ve(client, equipo):
+    """El contrapeso: sin esto, la comprobación de arriba se cumpliría con un
+    endpoint que no devolviera nada nunca."""
+    r = client.get(f"/api/resguardos/equipo/{equipo.id}/movimientos", headers=cab(client))
+    assert r.status_code == 200, r.text
+
+
+@pytest.mark.parametrize("ruta", ["/api/expediente/{id}", "/api/expediente/{id}/no-adeudo"])
+def test_el_expediente_de_otra_planta_lo_ve_ti(client, db_session, otra_planta, ruta):
+    """TI es global: el expediente de cualquier planta. Una persona, ninguno
+    ajeno —la ruta es de TI y se rechaza por rol, sin mirar el id—."""
+    from app.core.security import get_password_hash
+    from app.models import Usuario
+
+    ajena = Usuario(sitio_id=otra_planta.id, nombre="Persona de Monterrey",
+                    numero_empleado="7001", rol="usuario", activo=True, estado_cuenta="activa",
+                    password_hash=get_password_hash("Secret123!"))
+    db_session.add(ajena)
+    db_session.commit()
+    r = client.get(ruta.format(id=ajena.id), headers=cab(client))
+    assert r.status_code == 200, r.text
+    r = client.get(ruta.format(id=ajena.id), headers=cab(client, "user@test.com"))
+    assert r.status_code == 403

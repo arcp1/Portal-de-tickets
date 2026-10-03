@@ -8,11 +8,13 @@ escribir nada) y luego **importar**. Nadie debería cargar 300 filas a ciegas.
 """
 
 import json
+from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin
+from app.core import plantas
 from app.core.db import get_db
 from app.models import Usuario
 from app.services.auditoria_service import AuditoriaService
@@ -46,7 +48,7 @@ async def _leer(archivo: UploadFile) -> bytes:
     contenido = await archivo.read(limite + 1)
     if len(contenido) > limite:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"El archivo supera {MAX_MB} MB.",
         )
     if not contenido:
@@ -68,6 +70,7 @@ def plantilla(admin: Usuario = Depends(get_current_admin)):
 async def analizar(
     archivo: UploadFile = File(...),
     mapeo: str = Form(None),
+    sitio_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
     admin: Usuario = Depends(get_current_admin),
 ):
@@ -80,7 +83,8 @@ async def analizar(
     disponible— para que el admin diga qué columna es cuál y vuelva a analizar.
     """
     contenido = await _leer(archivo)
-    return ImportacionService.analizar(db, contenido, admin.sitio_id, _mapeo(mapeo))
+    sitio_id = plantas.planta_para(db, admin, sitio_id)
+    return ImportacionService.analizar(db, contenido, sitio_id, _mapeo(mapeo))
 
 
 @router.post("/importar")
@@ -90,6 +94,7 @@ async def importar(
     dato_verificacion: str = Form("fecha_nacimiento"),
     dias_ventana: int = Form(0),
     mapeo: str = Form(None),
+    sitio_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
     admin: Usuario = Depends(get_current_admin),
     peticion: Request = None,
@@ -109,8 +114,11 @@ async def importar(
         raise HTTPException(status_code=422, detail="Dato de verificación inválido.")
 
     contenido = await _leer(archivo)
+    # La planta en la que entran las personas importadas: la que se elija en
+    # la pantalla, o la única que haya.
+    sitio_id = plantas.planta_para(db, admin, sitio_id)
     resultado = ImportacionService.importar(
-        db, contenido, admin.sitio_id,
+        db, contenido, sitio_id,
         modo_activacion=modo_activacion,
         dato_verificacion=dato_verificacion,
         dias_ventana=dias_ventana or None,

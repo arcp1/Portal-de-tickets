@@ -1,5 +1,8 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Float, JSON
+from sqlalchemy import (
+    Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Float, JSON, Index, Table,
+    UniqueConstraint, text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from pgvector.sqlalchemy import Vector
@@ -11,7 +14,7 @@ JSONFlexible = JSON().with_variant(JSONB, "postgresql")
 class Sitio(Base):
     __tablename__ = "sitios"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     clave = Column(String(10), unique=True, index=True, nullable=False)
     nombre = Column(String(100), nullable=False)
     pais = Column(String(50), nullable=False, default="México")
@@ -22,11 +25,26 @@ class Sitio(Base):
     tickets = relationship("Ticket", back_populates="sitio")
     reglas = relationship("ReglaNegocio", back_populates="sitio")
 
+#: **Las plantas de cada persona.** Una persona de planta puede trabajar en una
+#: o en varias —quien cubre dos turnos en dos naves, un supervisor regional—, y
+#: ve los equipos y levanta tickets de todas las suyas. TI no aparece aquí: su
+#: alcance es global por rol, no por asignación (ver `app/core/plantas.py`).
+usuario_sitios = Table(
+    "usuario_sitios",
+    Base.metadata,
+    Column("usuario_id", Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), primary_key=True),
+    Column("sitio_id", Integer, ForeignKey("sitios.id"), primary_key=True),
+)
+
+
 class Usuario(Base):
     __tablename__ = "usuarios"
 
-    id = Column(Integer, primary_key=True, index=True)
-    sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=False)
+    id = Column(Integer, primary_key=True)
+    # La planta **principal**: la que se propone al levantar un ticket y la que
+    # dice la barra. Las demás están en `plantas`. Vacía para TI, que no tiene
+    # una: atiende a todas (migración 0025).
+    sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=True)
     # Identificador principal. En planta no todo el mundo tiene correo
     # corporativo —un operador de línea normalmente no— pero **todos** tienen
     # número de empleado. Hacer del correo la llave dejaría fuera a la mayoría.
@@ -66,18 +84,86 @@ class Usuario(Base):
     codigo_expira = Column(DateTime, nullable=True)
     # Se marca cuando TI restablece la contraseña: la temporal sirve una vez.
     debe_cambiar_password = Column(Boolean, default=False, nullable=False)
+    # Sube cada vez que hay que echar fuera a quien estuviera dentro: cambio de
+    # contraseña, restablecimiento, activación asistida. El número viaja dentro
+    # del token, así que subirlo invalida de golpe todo lo emitido antes. Sin
+    # esto, un token robado seguía sirviendo sus ocho horas aunque la persona
+    # cambiara la contraseña.
+    version_token = Column(Integer, default=1, nullable=False, server_default="1")
+    # Activaciones fallidas seguidas. A los cinco se cierra la via de los datos
+    # personales para esta cuenta y solo entra con un codigo de TI: es lo que
+    # convierte "adivinar un cumpleaños" en algo con probabilidad despreciable.
+    intentos_activacion = Column(Integer, default=0, nullable=False, server_default="0")
+    verificacion_bloqueada = Column(Boolean, default=False, nullable=False,
+                                    server_default=text("false"))
+    # **Eliminación definitiva: se marca, no se borra la fila.**
+    #
+    # Diecinueve columnas de otras tablas apuntan a `usuarios.id`, y once son
+    # `NOT NULL`: los tickets que levantó, los comentarios que escribió, los
+    # resguardos que firmó, los documentos que subió. Un `DELETE` de verdad
+    # obliga a elegir entre arrastrar todo eso o dejar la base rota, y las dos
+    # cosas contradicen lo que se pide de esta operación: que el historial
+    # quede intacto.
+    #
+    # Así que se vacía la cuenta —contraseña, código, correo, número de
+    # empleado, datos de verificación— y se marca aquí. Queda el nombre, que
+    # es lo que hace legible el historial: un ticket "reportado por" nadie no
+    # le sirve a quien lo lea dentro de un año. La persona desaparece de todas
+    # las listas y selectores, su número de empleado queda libre para otra
+    # alta, y no hay forma de volver a entrar con esa cuenta.
+    eliminado_en = Column(DateTime, nullable=True, index=True)
+    # **Si puede pedir prioridad alta o crítica al levantar un ticket.** Quien
+    # reporta indica la urgencia inicial —la conoce mejor que nadie—, pero es
+    # la única palanca que tiene sobre la cola de TI y se puede abusar de ella.
+    # TI la revoca desde Personas; con ella revocada, el ticket nace en
+    # "media" aunque se pida más (ver `create_ticket`). No toca a TI.
+    puede_usar_prioridad_alta = Column(Boolean, default=True, nullable=False,
+                                       server_default=text("true"))
+
     ultimo_acceso = Column(DateTime, nullable=True)
     creado_en = Column(DateTime, default=datetime.utcnow)
 
     sitio = relationship("Sitio", back_populates="usuarios")
+    plantas = relationship("Sitio", secondary=usuario_sitios, lazy="selectin",
+                           order_by="Sitio.nombre")
     tickets_creados = relationship("Ticket", foreign_keys="Ticket.usuario_id", back_populates="usuario")
     tickets_asignados = relationship("Ticket", foreign_keys="Ticket.asignado_a", back_populates="asignado_usuario")
     equipos = relationship("Equipo", back_populates="asignado_usuario")
 
+    @property
+    def sitio_nombre(self):
+        """La planta de esta persona, para decirla en pantalla.
+
+        Estaba escrita en las traducciones —"Planta Querétaro"—, así que quien
+        entrara desde otra planta leía la de Querétaro en la barra y en los
+        avisos. Sale de aquí para que la diga la base, no el frontend.
+        """
+        return self.sitio.nombre if self.sitio else None
+
+    @property
+    def es_ti_global(self) -> bool:
+        """TI atiende a todas las plantas: su alcance es por rol."""
+        return self.rol == "admin"
+
+    @property
+    def plantas_ids(self):
+        """Las plantas que alcanza esta persona, o None si alcanza todas (TI)."""
+        if self.es_ti_global:
+            return None
+        ids = {p.id for p in self.plantas}
+        if self.sitio_id:
+            ids.add(self.sitio_id)
+        return ids
+
+    @property
+    def plantas_resumen(self):
+        """Para la API: id, clave y nombre de cada planta de la persona."""
+        return [{"id": p.id, "clave": p.clave, "nombre": p.nombre} for p in self.plantas]
+
 class Equipo(Base):
     __tablename__ = "equipos"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=False)
     tipo = Column(String(20), nullable=False) # activo, pasivo, consumible
     categoria = Column(String(50), nullable=False)
@@ -99,7 +185,7 @@ class Equipo(Base):
 class Ticket(Base):
     __tablename__ = "tickets"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=False)
     folio = Column(String(30), unique=True, index=True, nullable=False)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
@@ -109,7 +195,7 @@ class Ticket(Base):
     descripcion_original = Column(Text, nullable=False)
     descripcion_normalizada = Column(Text, nullable=True)
     prioridad = Column(String(20), default="media") # baja, media, alta, critica
-    estado = Column(String(30), default="abierto") # abierto, en_proceso, espera_proveedor, resuelto, cerrado
+    estado = Column(String(30), default="abierto") # abierto, en_proceso, espera_proveedor, resuelto, cerrado, cancelado
     asignado_a = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     canal_resolucion = Column(String(30), nullable=True) # checklist, kb, ia, tecnico, proveedor
     # Obligatorio al pasar a resuelto/cerrado. Se valida en la API, no en la BD,
@@ -128,6 +214,26 @@ class Ticket(Base):
     # Se levantó cuando no había personal de TI. Sirve para no culpar al equipo
     # de un tiempo de respuesta que empezó a correr a las 2 de la mañana.
     fuera_horario = Column(Boolean, default=False, nullable=False)
+    # Cuándo lo retiró quien lo reportó. Va aparte de `resuelto_en` a
+    # propósito: un ticket cancelado no se resolvió, y mezclarlos inflaría el
+    # tiempo de resolución y la tasa de deflexión con incidencias que nadie
+    # atendió.
+    cancelado_en = Column(DateTime, nullable=True)
+    # Clave que manda el formulario en cada intento de envío: si la red se
+    # corta después de crear el ticket, el reintento devuelve este mismo en
+    # vez de crear otro. Única por persona, solo cuando viene (migración 0024).
+    clave_envio = Column(String(64), nullable=True)
+    # Encuesta al resolverse: de 1 a 5 estrellas y, si quiere, un comentario.
+    # La responde solo quien reportó, una vez (migración 0026).
+    satisfaccion = Column(Integer, nullable=True)
+    satisfaccion_comentario = Column(Text, nullable=True)
+    satisfaccion_en = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("ux_tickets_usuario_clave_envio", "usuario_id", "clave_envio", unique=True,
+              postgresql_where=text("clave_envio IS NOT NULL"),
+              sqlite_where=text("clave_envio IS NOT NULL")),
+    )
 
     sitio = relationship("Sitio", back_populates="tickets")
     usuario = relationship("Usuario", foreign_keys=[usuario_id], back_populates="tickets_creados")
@@ -136,10 +242,20 @@ class Ticket(Base):
     comentarios = relationship("TicketComentario", back_populates="ticket", cascade="all, delete-orphan")
     adjuntos = relationship("TicketAdjunto", back_populates="ticket", cascade="all, delete-orphan")
 
+#: Estados en los que un ticket ya no está en la cola de nadie. Cuentan para
+#: "tickets abiertos" de una persona, la carta de no adeudo y el historial
+#: de un equipo: cualquier cosa que no esté aquí es trabajo pendiente.
+ESTADOS_TERMINADOS = ("resuelto", "cerrado", "cancelado")
+#: Lo retiró quien lo reportó. No es una resolución: ver `Ticket.cancelado_en`.
+CANCELADO = "cancelado"
+#: Las que se pueden revocar a quien abusa de ellas (`puede_usar_prioridad_alta`).
+PRIORIDADES_ALTAS = ("alta", "critica")
+
+
 class TicketComentario(Base):
     __tablename__ = "ticket_comentarios"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=False)
     autor_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     comentario = Column(Text, nullable=False)
@@ -158,7 +274,7 @@ class TicketAdjunto(Base):
     """
     __tablename__ = "ticket_adjuntos"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=False)
     subido_por = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     nombre_original = Column(String(255), nullable=False)
@@ -184,8 +300,8 @@ class Resguardo(Base):
     """
     __tablename__ = "resguardos"
 
-    id = Column(Integer, primary_key=True, index=True)
-    folio = Column(String(30), unique=True, index=True, nullable=False)
+    id = Column(Integer, primary_key=True)
+    folio = Column(String(30), unique=True, nullable=False)
     sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=False, index=True)
     # Quien resguarda el equipo.
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
@@ -230,7 +346,7 @@ class MovimientoEquipo(Base):
     """
     __tablename__ = "movimientos_equipo"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     equipo_id = Column(Integer, ForeignKey("equipos.id"), nullable=False, index=True)
     # alta | asignacion | devolucion | mantenimiento | baja | traslado
     tipo = Column(String(20), nullable=False, index=True)
@@ -255,9 +371,10 @@ class DocumentoUsuario(Base):
     """
     __tablename__ = "documentos_usuario"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
-    sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=False)
+    # La planta principal de la persona; vacía si es de TI.
+    sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=True)
     # resguardo | responsiva | politica | contrato | identificacion | otro
     tipo = Column(String(30), nullable=False, index=True)
     titulo = Column(String(200), nullable=False)
@@ -281,8 +398,9 @@ class DocumentoUsuario(Base):
 class BaseConocimiento(Base):
     __tablename__ = "base_conocimiento"
 
-    id = Column(Integer, primary_key=True, index=True)
-    sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=False)
+    id = Column(Integer, primary_key=True)
+    # Planta de origen, o vacía si es general. El conocimiento se comparte entre plantas: TI es una sola.
+    sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=True)
     titulo = Column(String(150), nullable=False)
     contenido = Column(Text, nullable=False)
     categoria = Column(String(50), nullable=False)
@@ -303,7 +421,7 @@ class SugerenciaKB(Base):
     hasta que responde el botón de '¿te sirvió?'."""
     __tablename__ = "sugerencias_kb"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=True)
     kb_id = Column(Integer, ForeignKey("base_conocimiento.id"), nullable=False)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
@@ -323,7 +441,7 @@ class Checklist(Base):
     """
     __tablename__ = "checklists"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     categoria = Column(String(50), nullable=False)
     orden = Column(Integer, default=1)
     pregunta_key = Column(String(100), nullable=False)
@@ -346,7 +464,7 @@ class TemaSugerido(Base):
     """
     __tablename__ = "temas_sugeridos"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=False)
     titulo = Column(String(200), nullable=False)
     descripcion_ejemplo = Column(Text, nullable=False)
@@ -362,7 +480,7 @@ class TemaSugerido(Base):
 class ReglaNegocio(Base):
     __tablename__ = "reglas_negocio"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=False)
     categoria = Column(String(50), nullable=False)
     condicion = Column(String(100), nullable=False)
@@ -380,7 +498,7 @@ class ChatSesion(Base):
     """
     __tablename__ = "chat_sesiones"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=True)
     categoria_detectada = Column(String(50), nullable=True)
@@ -405,8 +523,9 @@ class SolucionGeneral(Base):
     """
     __tablename__ = "soluciones_generales"
 
-    id = Column(Integer, primary_key=True, index=True)
-    sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=False, index=True)
+    id = Column(Integer, primary_key=True)
+    # Planta de origen, o vacía si es general. El conocimiento se comparte entre plantas: TI es una sola.
+    sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=True, index=True)
     titulo = Column(String(200), nullable=False)
     categoria = Column(String(50), nullable=True)
     contenido = Column(Text, nullable=False)
@@ -437,8 +556,9 @@ class DocumentoTI(Base):
     """
     __tablename__ = "documentos_ti"
 
-    id = Column(Integer, primary_key=True, index=True)
-    sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=False, index=True)
+    id = Column(Integer, primary_key=True)
+    # Planta de origen, o vacía si es general. El conocimiento se comparte entre plantas: TI es una sola.
+    sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=True, index=True)
     # procedimiento | red | inventario_logico | proveedor | credenciales | otro
     categoria = Column(String(40), nullable=False, index=True)
     titulo = Column(String(200), nullable=False)
@@ -456,6 +576,131 @@ class DocumentoTI(Base):
     autor = relationship("Usuario", foreign_keys=[creado_por])
     editor = relationship("Usuario", foreign_keys=[actualizado_por])
 
+class FichaVisual(Base):
+    """Un problema que se reconoce mirándolo, con la foto de cómo se ve.
+
+    **Por qué no basta con la base de conocimiento.** Un ticket cuenta lo que
+    pasó y una solución general cuenta qué hacer; las dos están escritas en
+    prosa y las dos sirven cuando el problema se puede *nombrar*. Pero una copia
+    borrosa, una copia con sombra doble y una copia con una raya fina se
+    describen las tres igual —"sale mal"— y se arreglan de tres maneras
+    distintas. Ahí el texto no separa nada. La foto sí.
+
+    Así que el orden se invierte: en vez de contestar, el portal **enseña y
+    pregunta**. Muestra las fotos de los defectos que se parecen a lo que la
+    persona escribió y le deja señalar el suyo. Lo que devuelve después es la
+    solución atada a la foto que esa persona eligió, no la que el parecido de
+    texto creyó más probable.
+
+    **Ningún modelo mira las fotos.** La imagen no se interpreta: la etiqueta
+    quien la sube, que es quien estuvo delante de la impresora. Lo único que
+    hace el modelo es emparejar el texto del usuario con el texto que TI
+    escribió en `sintoma` y `frases`. Un modelo de visión aquí solo añadiría
+    una forma nueva de equivocarse sobre algo que ya estaba escrito.
+
+    `frases` es cómo lo dice la gente, y no es decoración: además de mejorar la
+    búsqueda, **es lo que enseña al disparador a reconocer problemas visuales
+    que nadie previó en el código**. Ver `visual_service.py`.
+    """
+    __tablename__ = "fichas_visuales"
+
+    id = Column(Integer, primary_key=True)
+    # Planta de origen, o vacía si es general. El conocimiento se comparte entre plantas: TI es una sola.
+    sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=True, index=True)
+    categoria = Column(String(50), nullable=True, index=True)
+    titulo = Column(String(200), nullable=False)
+    # Cómo se ve el defecto, descrito por TI. Es lo que se compara contra lo
+    # que escribe el usuario.
+    sintoma = Column(Text, nullable=False)
+    # Cómo lo dice la gente, separado por comas: "sale borroso", "se ve
+    # despintado", "queda tenue".
+    frases = Column(Text, nullable=True)
+    # Qué hacer cuando es ésta. Las fotos con rol "solucion" son los pasos que
+    # no se pueden explicar por escrito: dónde hay que picar.
+    solucion = Column(Text, nullable=False)
+    # Lo que ya se probó y no era, igual que en el resto del conocimiento.
+    descartado = Column(Text, nullable=True)
+
+    # borrador | publicada | archivada. Un borrador no se le enseña a nadie:
+    # sin embedding no aparece en ninguna búsqueda.
+    estado = Column(String(20), default="borrador", nullable=False, index=True)
+    embedding = Column(Vector(768), nullable=True)
+
+    # Las cuatro cuentan la historia completa de una ficha, y hacen falta las
+    # cuatro porque separan dos fallos que piden dos arreglos distintos:
+    #
+    #   mostrada  -> se ofreció
+    #   confirmada-> alguien dijo "sí, es ésta" mirando la foto
+    #   descartada-> dijo que no era ninguna de las que se le enseñaron
+    #   resuelta  -> además, la solución le funcionó
+    #
+    # `confirmada / mostrada` dice si la **foto** está bien elegida.
+    # `resuelta / confirmada` dice si la **solución** está bien escrita. Sin la
+    # última, una ficha puede lucir un 90 % de reconocimiento mientras manda a
+    # todo el mundo a hacer algo que no arregla nada.
+    veces_mostrada = Column(Integer, default=0, nullable=False)
+    veces_confirmada = Column(Integer, default=0, nullable=False)
+    veces_descartada = Column(Integer, default=0, nullable=False)
+    veces_resuelta = Column(Integer, default=0, nullable=False, server_default="0")
+
+    # De qué ticket salió, cuando salió de uno. Las fotos del problema ya
+    # existen —la gente las adjunta a sus tickets— y volver a pedirlas para
+    # documentar el mismo defecto es pedir dos veces un trabajo ya hecho.
+    ticket_origen_id = Column(Integer, ForeignKey("tickets.id"), nullable=True)
+
+    creado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    actualizado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    creado_en = Column(DateTime, default=datetime.utcnow)
+    actualizado_en = Column(DateTime, nullable=True)
+
+    autor = relationship("Usuario", foreign_keys=[creado_por])
+    editor = relationship("Usuario", foreign_keys=[actualizado_por])
+    imagenes = relationship(
+        "ImagenFicha",
+        back_populates="ficha",
+        cascade="all, delete-orphan",
+        order_by="ImagenFicha.orden",
+    )
+
+
+class ImagenFicha(Base):
+    """Una foto de una ficha visual: o el defecto, o dónde hay que picar.
+
+    `rol` es lo que separa las dos mitades de la pantalla, y las dos hacen
+    falta:
+
+      - **sintoma**  — cómo se ve el problema. Es la que se enseña para
+        preguntar "¿es esto lo que le pasa?".
+      - **solucion** — dónde está el botón, qué casilla hay que destildar, qué
+        palanca se levanta. Hay problemas que se arreglan con dos clics y
+        explicarlos por escrito cuesta un párrafo que nadie sigue; señalados
+        sobre la captura, cuestan una mirada.
+
+    El binario va a disco, como los adjuntos de tickets y los documentos del
+    expediente. La fila solo guarda dónde está y qué es.
+    """
+    __tablename__ = "imagenes_ficha"
+
+    id = Column(Integer, primary_key=True)
+    ficha_id = Column(Integer, ForeignKey("fichas_visuales.id"), nullable=False, index=True)
+    # sintoma | solucion
+    rol = Column(String(20), nullable=False, default="sintoma")
+    orden = Column(Integer, default=1, nullable=False)
+    # El pie de foto. En las de solución es el paso: "destilde 'Ahorro de
+    # tóner' y acepte".
+    pie = Column(String(300), nullable=True)
+
+    nombre_original = Column(String(255), nullable=False)
+    nombre_guardado = Column(String(255), nullable=False, unique=True)
+    tipo_mime = Column(String(100), nullable=False)
+    tamano_bytes = Column(Integer, nullable=False)
+    subido_por = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    creado_en = Column(DateTime, default=datetime.utcnow)
+
+    ficha = relationship("FichaVisual", back_populates="imagenes")
+    autor = relationship("Usuario")
+
+
 class Auditoria(Base):
     """Bitácora de acciones administrativas (spec §12).
 
@@ -468,7 +713,7 @@ class Auditoria(Base):
     """
     __tablename__ = "auditoria"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
     accion = Column(String(50), nullable=False, index=True)
     entidad = Column(String(50), nullable=False)
@@ -483,7 +728,7 @@ class Auditoria(Base):
 class ConsumoIA(Base):
     __tablename__ = "consumo_ia"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=True)
     tokens_entrada = Column(Integer, default=0)
@@ -491,3 +736,127 @@ class ConsumoIA(Base):
     modelo = Column(String(50), nullable=False)
     costo_estimado = Column(Float, default=0.0)
     creado_en = Column(DateTime, default=datetime.utcnow)
+
+class ConsultaAsistente(Base):
+    """Una fila por consulta al asistente: que se pregunto y que se encontro.
+
+    **Sin esto no se puede contestar la pregunta que de verdad importa: que le
+    estan preguntando al portal que no sabe contestar.** El resto de metricas
+    miden lo que si funciono —sugerencias utiles, tickets deflectados—; esta
+    tabla es la unica que guarda los fallos, y los fallos son los que dicen que
+    documentacion falta escribir.
+
+    `pregunta` se guarda entera y a proposito. Sin el texto se sabe que hubo
+    doce consultas sin respuesta y no sobre que, que no sirve para nada. Es
+    coherente con lo que el portal ya conserva —`tickets.descripcion_original`,
+    `temas_sugeridos.descripcion_ejemplo`, las conversaciones del chat— y solo
+    la ve un administrador, igual que la documentacion de TI.
+
+    No lleva embedding: no se busca por similitud aqui dentro. Es una bitacora,
+    no una fuente de conocimiento — si alguna vez contesta preguntas, estaria
+    respondiendo con preguntas de otros en vez de con soluciones revisadas.
+    """
+    __tablename__ = "consultas_asistente"
+
+    id = Column(Integer, primary_key=True)
+    # La planta de quien preguntó; vacía si fue alguien de TI.
+    sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    pregunta = Column(Text, nullable=False)
+    # La que traia el formulario, no una que adivine ningun modelo.
+    categoria = Column(String(50), nullable=True, index=True)
+
+    # Que se recupero. `mejor_similitud` en NULL significa que no se recupero
+    # nada: ni un pasaje paso el umbral.
+    pasajes = Column(Integer, default=0, nullable=False)
+    mejor_similitud = Column(Float, nullable=True)
+    # De donde salio el mejor pasaje: ticket | documento | solucion_general.
+    mejor_fuente = Column(String(30), nullable=True)
+
+    # directo | ollama | gemini | extractos | sin_fundamento
+    #
+    # Es la columna que se mira primero. `sin_fundamento` es un hueco de
+    # conocimiento; `extractos` es que se encontro algo pero ningun modelo pudo
+    # fundamentar una respuesta encima, que suele ser un pasaje que empareja de
+    # refilon. Los dos piden documentacion, por motivos distintos.
+    origen = Column(String(20), nullable=False, index=True)
+    duracion_ms = Column(Integer, nullable=True)
+    creado_en = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class Alerta(Base):
+    """Algo que TI tiene que mirar ya, aunque nadie haya abierto la pantalla.
+
+    La generan procesos en segundo plano —el vigilante del SLA, la telemetría
+    de los sensores— y salen en la campana del tablero de TI en vivo. Una por
+    cosa: el índice único de `(tipo, clave)` impide que el vigilante, que pasa
+    cada minuto, avise diez veces del mismo ticket (migración 0026).
+    """
+    __tablename__ = "alertas"
+    __table_args__ = (UniqueConstraint("tipo", "clave", name="uq_alertas_tipo_clave"),)
+
+    id = Column(Integer, primary_key=True)
+    # sla_por_vencer | sla_vencido | iot_umbral | iot_sin_senal
+    tipo = Column(String(30), nullable=False, index=True)
+    # Lo que la hace única: "ticket:12", "dispositivo:3:temperatura:2026-10-02T14".
+    clave = Column(String(120), nullable=False)
+    sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=True, index=True)
+    ticket_id = Column(Integer, ForeignKey("tickets.id", ondelete="CASCADE"), nullable=True)
+    dispositivo_id = Column(Integer, ForeignKey("dispositivos_iot.id", ondelete="CASCADE"), nullable=True)
+    titulo = Column(String(200), nullable=False)
+    detalle = Column(Text, nullable=True)
+    # Lo que la pantalla necesita para redactarla en el idioma de quien la lee
+    # (folio, minutos, valor y umbral...). `titulo` queda como texto de reserva.
+    datos = Column(JSON, nullable=True)
+    creado_en = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    atendida_en = Column(DateTime, nullable=True)
+    atendida_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+
+    sitio = relationship("Sitio")
+    ticket = relationship("Ticket")
+    dispositivo = relationship("DispositivoIoT")
+
+
+class DispositivoIoT(Base):
+    """Un ESP32 que manda telemetría por MQTT.
+
+    Se registra solo con su primer mensaje: su `clave` es el identificador que
+    lleva en el tema (`portal/<planta>/sensores/<clave>/telemetria`). TI le pone
+    después nombre, ubicación y umbrales desde Monitoreo ESP32 (migraciones 0026
+    y 0027).
+    """
+    __tablename__ = "dispositivos_iot"
+
+    id = Column(Integer, primary_key=True)
+    clave = Column(String(64), unique=True, nullable=False, index=True)
+    nombre = Column(String(100), nullable=True)
+    ubicacion = Column(String(100), nullable=True)
+    sitio_id = Column(Integer, ForeignKey("sitios.id"), nullable=True, index=True)
+    activo = Column(Boolean, default=True, nullable=False, server_default=text("true"))
+    ultimo_contacto = Column(DateTime, nullable=True)
+    creado_en = Column(DateTime, default=datetime.utcnow, nullable=False)
+    # Umbrales propios: {"temperatura": 30, "humedad": 60, "calidad_aire": 800}.
+    # Lo que falte se toma de IOT_*_MAX. Un cuarto de servidores no aguanta lo
+    # que aguanta una nave de producción.
+    umbrales = Column(JSON, nullable=True)
+
+    sitio = relationship("Sitio")
+
+
+class LecturaIoT(Base):
+    """Una lectura de un sensor. Se purgan las de más de `IOT_RETENCION_DIAS`."""
+    __tablename__ = "lecturas_iot"
+    __table_args__ = (
+        Index("ix_lecturas_iot_dispositivo_fecha", "dispositivo_id", "registrado_en"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    dispositivo_id = Column(Integer, ForeignKey("dispositivos_iot.id", ondelete="CASCADE"),
+                            nullable=False)
+    temperatura = Column(Float, nullable=True)
+    humedad = Column(Float, nullable=True)
+    calidad_aire = Column(Float, nullable=True)
+    # Lo demás que mande el firmware y que el portal todavía no interpreta.
+    extra = Column(JSON, nullable=True)
+    registrado_en = Column(DateTime, default=datetime.utcnow, nullable=False)
+

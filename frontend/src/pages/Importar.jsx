@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import api from '../api/client';
+import api, { ESPERA_SUBIDA } from '../api/client';
+import Selector from '../components/Selector';
+import { usePlantas, SelectorPlanta } from '../lib/plantas';
 import {
   Upload, Download, FileSpreadsheet, AlertTriangle, Check, X,
   KeyRound, ShieldCheck, ArrowRight, Columns3, Sparkles, Cake, CalendarDays, HardHat
@@ -16,6 +18,9 @@ const Importar = () => {
   const { t } = useTranslation();
 
   const [archivo, setArchivo] = useState(null);
+  // En qué planta entran las personas importadas. Con una sola, esa.
+  const [plantas] = usePlantas();
+  const [plantaId, setPlantaId] = useState(null);
   const [analisis, setAnalisis] = useState(null);
   const [resultado, setResultado] = useState(null);
   const [modo, setModo] = useState('codigo');
@@ -43,9 +48,11 @@ const Importar = () => {
     try {
       const datos = new FormData();
       datos.append('archivo', archivo);
+      if (plantaId) datos.append('sitio_id', String(plantaId));
       if (Object.keys(mapeoUsado).length) datos.append('mapeo', JSON.stringify(mapeoUsado));
       const res = await api.post('/admin/importacion/analizar', datos, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: ESPERA_SUBIDA
       });
       setAnalisis(res.data);
       // Si el modelo propuso un emparejamiento, se precarga para que el admin
@@ -68,10 +75,12 @@ const Importar = () => {
       const datos = new FormData();
       datos.append('archivo', archivo);
       datos.append('modo_activacion', modo);
+      if (plantaId) datos.append('sitio_id', String(plantaId));
       datos.append('dato_verificacion', datoVerificacion);
       if (Object.keys(mapeo).length) datos.append('mapeo', JSON.stringify(mapeo));
       const res = await api.post('/admin/importacion/importar', datos, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: ESPERA_SUBIDA
       });
       if (!res.data.importadas) {
         setError(res.data.error || t('importar.error_importar'));
@@ -87,14 +96,24 @@ const Importar = () => {
   };
 
   const descargarPlantilla = async () => {
-    const res = await api.get('/admin/importacion/plantilla', { responseType: 'blob' });
-    descargar(res.data, 'plantilla-personal.csv');
+    try {
+      const res = await api.get('/admin/importacion/plantilla', { responseType: 'blob' });
+      descargar(res.data, 'plantilla-personal.csv');
+    } catch (err) {
+      setError(err.response?.data?.detail || t('importar.error_descargar'));
+    }
   };
 
   const descargarCodigos = async (area = null) => {
-    const res = await api.post('/admin/importacion/codigos-csv', resultado.filas,
-      { responseType: 'blob', params: area ? { area } : {} });
-    descargar(res.data, area ? `codigos-${area}.csv` : 'codigos-activacion.csv');
+    try {
+      const res = await api.post('/admin/importacion/codigos-csv', resultado.filas,
+        { responseType: 'blob', params: area ? { area } : {} });
+      descargar(res.data, area ? `codigos-${area}.csv` : 'codigos-activacion.csv');
+    } catch (err) {
+      // Estos codigos salen una sola vez: si la descarga falla hay que
+      // enterarse en el momento, no al repartirlos.
+      setError(err.response?.data?.detail || t('importar.error_descargar'));
+    }
   };
 
   // Cuánta gente se quedaría sin poder activarse sola con el dato elegido.
@@ -116,18 +135,25 @@ const Importar = () => {
     const enlace = document.createElement('a');
     enlace.href = url;
     enlace.download = nombre;
+    // Firefox ignora el click en un enlace que no esta en el documento.
+    document.body.appendChild(enlace);
     enlace.click();
+    document.body.removeChild(enlace);
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
   return (
-    <div className="page-container animate-fade-in" style={{ maxWidth: '1000px' }}>
-      <h1 style={{ fontSize: '1.85rem', fontWeight: '700', marginBottom: '6px', color: 'var(--text-primary)' }}>
-        {t('importar.title')}
-      </h1>
-      <p style={{ color: 'var(--text-secondary)', marginBottom: '26px' }}>
-        {t('importar.subtitle')}
-      </p>
+    <div className="page-container animate-fade-in">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">
+            {t('importar.title')}
+          </h1>
+          <p>
+              {t('importar.subtitle')}
+          </p>
+        </div>
+      </div>
 
       {error && (
         <div className="animate-scale-in" style={{
@@ -147,7 +173,7 @@ const Importar = () => {
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
             <Check size={40} color="var(--status-resuelto-text)" style={{ margin: '0 auto 12px' }} />
             <h2 style={{ fontSize: '1.3rem', fontWeight: '700', color: 'var(--text-primary)' }}>
-              {t('importar.listo', { n: resultado.importadas })}
+              {t('importar.listo', { count: resultado.importadas })}
             </h2>
           </div>
 
@@ -160,7 +186,7 @@ const Importar = () => {
             }}>
               <strong>{t('importar.descargue_ahora')}</strong>
               <div style={{ marginTop: '6px' }}>{t('importar.codigos_unica_vez')}</div>
-              <button onClick={() => descargarCodigos()} className="btn-primary"
+              <button onClick={() => descargarCodigos()} className="btn-acento"
                 style={{ padding: '11px 20px', marginTop: '14px' }}>
                 <Download size={16} /> {t('importar.descargar_codigos')}
               </button>
@@ -205,6 +231,13 @@ const Importar = () => {
         <>
           {/* --- Paso 1: archivo --- */}
           <div className="apple-card" style={{ padding: '26px', marginBottom: '20px' }}>
+            {plantas.length > 1 && (
+              <div className="form-group" style={{ maxWidth: '360px' }}>
+                <label htmlFor="planta-importacion">{t('plantas.planta_importacion')}</label>
+                <SelectorPlanta id="planta-importacion" plantas={plantas} value={plantaId}
+                  onChange={setPlantaId} required />
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '14px', marginBottom: '18px', flexWrap: 'wrap' }}>
               <h2 style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
                 {t('importar.paso1')}
@@ -238,7 +271,7 @@ const Importar = () => {
             {/* La flecha de `() => analizar()` no sobra: sin ella llega el
                 evento del clic como si fuera el mapeo de columnas. */}
             {archivo && !analisis && (
-              <button onClick={() => analizar()} disabled={trabajando} className="btn-primary"
+              <button onClick={() => analizar()} disabled={trabajando} className="btn-acento"
                 style={{ padding: '12px 22px', marginTop: '18px' }}>
                 {trabajando ? t('importar.analizando') : (
                   <>{t('importar.analizar')} <ArrowRight size={16} /></>
@@ -274,7 +307,7 @@ const Importar = () => {
                 <Dato valor={analisis.validas} etiqueta={t('importar.se_importaran')}
                   color="var(--status-resuelto-text)" />
                 <Dato valor={analisis.con_error} etiqueta={t('importar.con_problema')}
-                  color={analisis.con_error ? '#D8000C' : undefined} />
+                  color={analisis.con_error ? 'var(--peligro)' : undefined} />
                 <Dato valor={analisis.sin_correo} etiqueta={t('importar.sin_correo')} />
                 <Dato valor={faltantes} etiqueta={t('importar.sin_fecha')}
                   color={faltantes ? 'var(--status-espera-proveedor-text)' : undefined} />
@@ -285,14 +318,14 @@ const Importar = () => {
 
               {analisis.con_error > 0 && (
                 <div style={{ marginBottom: '22px' }}>
-                  <h3 style={{ fontSize: '0.9rem', fontWeight: '600', color: '#D8000C', marginBottom: '10px' }}>
+                  <h3 style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--peligro)', marginBottom: '10px' }}>
                     {t('importar.filas_con_problema')}
                   </h3>
                   <div style={{ maxHeight: '190px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {analisis.filas.filter((f) => f.error).map((f) => (
                       <div key={f.fila} style={{
                         fontSize: '0.84rem', padding: '9px 12px',
-                        background: '#FFF0F0', borderRadius: 'var(--radius-sm)', color: '#8B0000'
+                        background: 'var(--peligro-bg)', borderRadius: 'var(--radius-sm)', color: 'var(--peligro)'
                       }}>
                         <strong>{t('importar.fila', { n: f.fila })}</strong> · {f.error}
                       </div>
@@ -300,6 +333,39 @@ const Importar = () => {
                   </div>
                   <div style={{ fontSize: '0.83rem', color: 'var(--text-muted)', marginTop: '10px' }}>
                     {t('importar.nota_errores')}
+                  </div>
+                </div>
+              )}
+
+              {/* **Las altas de administrador, a la vista.** La previa solo
+                  listaba las filas con error, así que un archivo de RH con la
+                  columna de perfil mal traída creaba administradores en
+                  silencio: el resumen las contaba entre las "válidas" y nadie
+                  las veía hasta que ya estaban dentro. Es la única fila del
+                  archivo que reparte poder; merece su propio bloque. */}
+              {(analisis.filas || []).some((f) => !f.error && f.rol === 'admin') && (
+                <div style={{ marginBottom: '22px' }}>
+                  <h3 style={{
+                    fontSize: '0.9rem', fontWeight: '600',
+                    color: 'var(--status-espera-proveedor-text)', marginBottom: '10px'
+                  }}>
+                    {t('importar.seran_admin')}
+                  </h3>
+                  <div style={{ maxHeight: '190px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {analisis.filas.filter((f) => !f.error && f.rol === 'admin').map((f) => (
+                      <div key={f.fila} style={{
+                        fontSize: '0.84rem', padding: '9px 12px',
+                        background: 'var(--status-espera-proveedor-bg)',
+                        borderRadius: 'var(--radius-sm)',
+                        color: 'var(--status-espera-proveedor-text)'
+                      }}>
+                        <strong>{t('importar.fila', { n: f.fila })}</strong> · {f.nombre}
+                        {f.numero_empleado ? ` · ${f.numero_empleado}` : ''}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: '0.83rem', color: 'var(--text-muted)', marginTop: '10px' }}>
+                    {t('importar.nota_admin')}
                   </div>
                 </div>
               )}
@@ -322,7 +388,7 @@ const Importar = () => {
                     titulo={t('importar.modo_verificacion')}
                     detalle={t('importar.modo_verificacion_detalle')}
                     aviso={faltantes > 0
-                      ? t('importar.faltan_fechas', { n: faltantes })
+                      ? t('importar.faltan_fechas', { count: faltantes })
                       : null}
                   />
 
@@ -364,10 +430,10 @@ const Importar = () => {
                   )}
 
                   <div style={{ display: 'flex', gap: '10px', marginTop: '22px', flexWrap: 'wrap' }}>
-                    <button onClick={importar} disabled={trabajando} className="btn-primary"
+                    <button onClick={importar} disabled={trabajando} className="btn-acento"
                       style={{ padding: '12px 24px' }}>
                       <Upload size={16} />
-                      {trabajando ? t('importar.importando') : t('importar.importar', { n: analisis.validas })}
+                      {trabajando ? t('importar.importando') : t('importar.importar', { count: analisis.validas })}
                     </button>
                     <button onClick={() => { setAnalisis(null); setArchivo(null); }}
                       className="btn-secondary" style={{ padding: '12px 20px' }}>
@@ -431,23 +497,23 @@ const MapeoColumnas = ({ analisis, mapeo, onCambiar, onConfirmar, trabajando }) 
             <label>
               {descripcion}
               {obligatorias.includes(campo) && (
-                <span style={{ color: '#D8000C', marginLeft: '4px' }}>*</span>
+                <span style={{ color: 'var(--peligro)', marginLeft: '4px' }}>*</span>
               )}
             </label>
-            <select className="form-select" style={{ width: '100%' }}
+            <Selector className="form-select" style={{ width: '100%' }}
               value={valorDe(campo)}
               onChange={(e) => onCambiar(campo, e.target.value)}>
               <option value="">{t('importar.mapeo_ninguna')}</option>
               {(analisis.encabezados || []).map((h) => (
                 <option key={h} value={h}>{h}</option>
               ))}
-            </select>
+            </Selector>
           </div>
         ))}
       </div>
 
       <button onClick={onConfirmar} disabled={!completo || trabajando}
-        className="btn-primary" style={{ padding: '12px 22px', marginTop: '20px' }}>
+        className="btn-acento" style={{ padding: '12px 22px', marginTop: '20px' }}>
         {trabajando ? t('importar.analizando') : (
           <>{t('importar.mapeo_confirmar')} <ArrowRight size={16} /></>
         )}
@@ -473,11 +539,7 @@ const Pastilla = ({ activa, onClick, icono, texto, faltan }) => (
   }}>
     {icono} {texto}
     {faltan > 0 && (
-      <span style={{
-        fontSize: '0.74rem', padding: '1px 7px', borderRadius: 'var(--radius-full)',
-        background: 'var(--status-espera-proveedor-bg)',
-        color: 'var(--status-espera-proveedor-text)'
-      }}>
+      <span className="chip-dato" style={{ background: 'var(--status-espera-proveedor-bg)', color: 'var(--status-espera-proveedor-text)' }}>
         −{faltan}
       </span>
     )}

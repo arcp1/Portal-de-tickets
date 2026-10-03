@@ -1,23 +1,64 @@
 """Base de conocimiento: indexación, búsqueda por similitud y utilidad.
 
-Dos invariantes:
+Tres invariantes:
 
 1. Solo se indexan tickets con solución escrita. Un ticket cerrado sin explicar
    cómo se resolvió no aporta nada y ensucia la búsqueda.
-2. Nada de aquí puede tumbar una petición. Si Ollama o pgvector fallan, la
+2. **Un ticket que el usuario resolvió solo no es conocimiento nuevo.** El
+   checklist que lo resolvió ya existe y la sugerencia de KB que lo resolvió ya
+   está indexada; volver a guardarlo duplica lo que ya había.
+3. Nada de aquí puede tumbar una petición. Si Ollama o pgvector fallan, la
    búsqueda devuelve vacío y el flujo sigue al siguiente nivel.
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.logging import logger
 from app.models import BaseConocimiento, SugerenciaKB, Ticket
 from app.services.horario_service import HorarioService
-from app.services.ollama_client import ollama
+from app.services.ollama_client import normalizar_categoria, ollama
+
+
+def titulo_de(texto: str, tope: int) -> str:
+    """Un título de a lo más `tope` caracteres, cortado entre palabras.
+
+    El título de lo que se indexa sale de la descripción, que es más larga que
+    la columna: cortado a pelo quedaba "…la foto del problema y el m" en la
+    lista de conocimiento. Se corta en el último espacio y el "…" avisa que
+    el texto sigue.
+    """
+    texto = " ".join((texto or "").split())
+    if len(texto) <= tope:
+        return texto
+    corte = texto[: tope - 1]
+    espacio = corte.rfind(" ")
+    if espacio > tope // 2:
+        corte = corte[:espacio]
+    return corte.rstrip(" ,;:.") + "…"
+
+
+#: Canales en los que el propio usuario declara haberse resuelto la incidencia.
+#:
+#: Vive aquí, en el servicio, y no en la ruta que crea tickets — que es donde
+#: estaba. **Esa es la corrección, no un detalle de organización.** La regla
+#: "esto no se indexa" la aplicaba el llamador, así que `reindexar_kb.py`, que
+#: llama por otro camino, no la conocía y sí los indexaba. Un ticket deflectado
+#: por checklist no trae descripción del problema —lleva el nombre de la
+#: categoría— y su "solución" dice literalmente que lo resolvió el checklist:
+#: indexarlo mete en la base de conocimiento una entrada titulada "Impresora /
+#: Etiquetadora" que no le contesta nada a nadie. Pasó exactamente así.
+#:
+#: Una regla que vive en quien llama es una regla que el siguiente que llame va
+#: a saltarse sin enterarse.
+# "visual" es el catálogo de fotos: la persona reconoció su defecto en una
+# imagen y siguió la solución atada a ella. No se indexa, por lo mismo que
+# los otros dos: la ficha ya está escrita y ya contesta.
+CANALES_AUTOSERVICIO = ("checklist", "kb", "visual")
 
 
 def solucion_es_valida(solucion: Optional[str]) -> bool:
@@ -32,8 +73,18 @@ def construir_texto_indexable(ticket: Ticket) -> str:
     falla debe encontrar el ticket aunque su síntoma se parezca más a lo que se
     probó y no era, que a la solución final.
     """
-    descripcion = ticket.descripcion_normalizada or ticket.descripcion_original
-    partes = [ticket.categoria, ticket.subcategoria, descripcion, ticket.solucion]
+    # **Las dos descripciones, no una u otra.**
+    #
+    # Antes la reescrita sustituia a la original, y eso apostaba la unica copia
+    # indexada a que el modelo no hubiera metido nada de su cosecha. Con la
+    # original dentro, aunque la reescritura invente una frase, lo que el
+    # usuario dijo de verdad sigue estando en el texto que se busca — y encima
+    # se recupera mejor, porque la gente pregunta con las palabras de la planta
+    # ("no jala") y no con las del modelo ("no funciona correctamente").
+    partes = [ticket.categoria, ticket.subcategoria, ticket.descripcion_original]
+    if ticket.descripcion_normalizada:
+        partes.append(ticket.descripcion_normalizada)
+    partes.append(ticket.solucion)
     if ticket.descartado and ticket.descartado.strip():
         partes.append("Se descartó: " + ticket.descartado.strip())
     return "\n".join(parte.strip() for parte in partes if parte and parte.strip())
@@ -54,6 +105,17 @@ class KBService:
         del ticket sigue siendo válido.
         """
         if ticket.indexado_kb:
+            return False
+
+        # El usuario se lo resolvió solo. La deflexión ya quedó contada al
+        # crear el ticket; lo que resolvió —el paso del checklist, la entrada
+        # de KB— ya estaba escrito antes. Aquí no hay conocimiento nuevo.
+        if ticket.canal_resolucion in CANALES_AUTOSERVICIO:
+            logger.info(
+                "Ticket resuelto por autoservicio: no se indexa",
+                extra={"ticket_id": ticket.id, "folio": ticket.folio,
+                       "canal": ticket.canal_resolucion},
+            )
             return False
 
         if not solucion_es_valida(ticket.solucion):
@@ -78,7 +140,7 @@ class KBService:
         try:
             entrada = BaseConocimiento(
                 sitio_id=ticket.sitio_id,
-                titulo=(ticket.descripcion_normalizada or ticket.descripcion_original)[:150],
+                titulo=titulo_de(ticket.descripcion_normalizada or ticket.descripcion_original, 150),
                 contenido=texto,
                 categoria=ticket.categoria,
                 tags=ticket.subcategoria,
@@ -136,11 +198,16 @@ class KBService:
                 BaseConocimiento,
                 BaseConocimiento.embedding.cosine_distance(embedding).label("distancia"),
             ).filter(
-                BaseConocimiento.sitio_id == sitio_id,
                 BaseConocimiento.embedding.isnot(None),
             )
-            if categoria:
-                consulta = consulta.filter(BaseConocimiento.categoria.ilike(categoria))
+            # Igual que en `RecuperacionService`: si la categoría no es una de
+            # las seis, se busca en todas. Esto va ordenado por parecido y con
+            # umbral, así que mirar de más no mete ruido —y una categoría
+            # inventada dejaba la lista vacía, que el usuario lee como «no hay
+            # nada escrito de esto» cuando sí lo hay.
+            categoria_util = normalizar_categoria(categoria)
+            if categoria_util:
+                consulta = consulta.filter(BaseConocimiento.categoria == categoria_util)
 
             # Fuera de horario se muestran mas sugerencias antes de rendirse:
             # no hay personal a quien escalar hasta el dia siguiente, asi que
@@ -251,23 +318,28 @@ class KBService:
     @staticmethod
     def metricas(db: Session, sitio_id: int) -> dict:
         """Tasa de utilidad = veces_util / veces_sugerida. Es lo que calibra el umbral."""
-        entradas = db.query(BaseConocimiento).filter(BaseConocimiento.sitio_id == sitio_id).all()
-
-        sugeridas = sum(entrada.veces_sugerida or 0 for entrada in entradas)
-        utiles = sum(entrada.veces_util or 0 for entrada in entradas)
+        # Agregado en la base: antes se traían las entradas enteras —cada una
+        # con su vector de 768 números— solo para sumar dos contadores. Con
+        # unas miles de entradas eran decenas de MB por cada vez que se abría
+        # la pantalla.
+        cuantas, sugeridas, utiles = db.query(
+            func.count(BaseConocimiento.id),
+            func.coalesce(func.sum(BaseConocimiento.veces_sugerida), 0),
+            func.coalesce(func.sum(BaseConocimiento.veces_util), 0),
+        ).one()
+        sugeridas, utiles = int(sugeridas), int(utiles)
 
         respondidas = (
             db.query(SugerenciaKB)
             .join(BaseConocimiento, SugerenciaKB.kb_id == BaseConocimiento.id)
             .filter(
-                BaseConocimiento.sitio_id == sitio_id,
                 SugerenciaKB.fue_util.isnot(None),
             )
             .count()
         )
 
         return {
-            "entradas_kb": len(entradas),
+            "entradas_kb": cuantas,
             "sugerencias_mostradas": sugeridas,
             "sugerencias_utiles": utiles,
             "sugerencias_respondidas": respondidas,
@@ -276,7 +348,6 @@ class KBService:
             "umbral_actual": settings.KB_UMBRAL_SIMILITUD,
             "tickets_pendientes_indexar": db.query(Ticket)
             .filter(
-                Ticket.sitio_id == sitio_id,
                 Ticket.estado.in_(["resuelto", "cerrado"]),
                 Ticket.indexado_kb.is_(False),
             )

@@ -5,7 +5,7 @@ bitácora que se puede modificar no sirve de bitácora.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -31,11 +31,8 @@ def listar(
     consulta = (
         db.query(Auditoria, Usuario)
         .join(Usuario, Auditoria.usuario_id == Usuario.id)
-        .filter(
-            Auditoria.creado_en >= desde,
-            # Un admin solo ve lo de su sitio.
-            Usuario.sitio_id == admin.sitio_id,
-        )
+        # TI es global: ve la bitácora de todas las plantas.
+        .filter(Auditoria.creado_en >= desde)
     )
     if accion:
         consulta = consulta.filter(Auditoria.accion == accion)
