@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin, get_current_user, usuario_con_cupo_ia
+from app.api.tickets import _ticket_visible
 from app.core.db import get_db
 from app.models import SugerenciaKB, Ticket, Usuario
 from app.schemas.kb import (
@@ -57,13 +58,22 @@ def buscar_similares(
     de conocimiento de otra planta: titulos y solucion completa. La planta la
     decide la sesion, no quien pregunta.
     """
+    # El ticket al que se atan las sugerencias que se muestren, solo si quien
+    # pregunta puede verlo. Se tomaba tal cual del cuerpo, y cualquiera podía
+    # colgarle registros a un ticket ajeno (auditoría de seguridad, 2026-10-03).
+    # Uno que no es suyo se ignora sin decir nada: un error confirmaría que existe.
+    ticket_id = peticion.ticket_id
+    if ticket_id is not None:
+        ticket = db.get(Ticket, ticket_id) if 0 < ticket_id < 2 ** 31 else None
+        if not ticket or not _ticket_visible(ticket, current_user):
+            ticket_id = None
     return KBService.buscar_similares(
         db=db,
         texto=peticion.texto,
         sitio_id=current_user.sitio_id,
         categoria=peticion.categoria,
         usuario_id=current_user.id,
-        ticket_id=peticion.ticket_id,
+        ticket_id=ticket_id,
     )
 
 

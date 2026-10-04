@@ -145,3 +145,33 @@ def test_tasa_de_utilidad_sin_sugerencias_es_nula(client):
 def test_metricas_solo_para_admin(client):
     headers = {"Authorization": f"Bearer {get_token(client, email='user@test.com')}"}
     assert client.get("/api/kb/metricas", headers=headers).status_code == 403
+
+
+def test_las_sugerencias_no_se_atan_a_un_ticket_ajeno(client, monkeypatch):
+    """`ticket_id` venía del cuerpo y se guardaba tal cual en cada sugerencia
+    mostrada: cualquiera colgaba registros del ticket de otra persona
+    (auditoría de seguridad, 2026-10-03). Ahora solo se ata a uno que pueda ver."""
+    from app.services.kb_service import KBService
+
+    vistos = []
+    monkeypatch.setattr(KBService, "buscar_similares",
+                        staticmethod(lambda **kw: vistos.append(kw["ticket_id"])
+                                     or {"resultados": [], "umbral_usado": 0.75}))
+
+    def ticket(email):
+        cab = {"Authorization": f"Bearer {get_token(client, email)}"}
+        r = client.post("/api/tickets", headers=cab, json={
+            "sitio_id": 1, "categoria": "red", "prioridad": "media",
+            "descripcion_original": "No hay red en la estación de trabajo cuatro"})
+        assert r.status_code == 201
+        return r.json()["id"]
+
+    del_admin = ticket("admin@test.com")
+    propio = ticket("user@test.com")
+    usuario = {"Authorization": f"Bearer {get_token(client, 'user@test.com')}"}
+    for ticket_id in (del_admin, propio, 999_999):
+        r = client.post("/api/ia/similares", headers=usuario,
+                        json={"texto": "no hay red en mi estación", "sitio_id": 1,
+                              "ticket_id": ticket_id})
+        assert r.status_code == 200
+    assert vistos == [None, propio, None]

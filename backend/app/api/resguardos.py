@@ -64,11 +64,12 @@ def _con_personas(consulta):
 
 
 def _obtener(db: Session, resguardo_id: int, usuario: Usuario) -> Resguardo:
+    """El resguardo, si esta persona puede verlo. Si no, el mismo 404 que si
+    no existiera: un 403 confirmaba que ese folio existe, y los ids son
+    consecutivos (auditoría de seguridad, 2026-10-03)."""
     resguardo = db.query(Resguardo).filter(Resguardo.id == resguardo_id).first()
-    if not resguardo:
+    if not resguardo or not _visible(resguardo, usuario):
         raise HTTPException(status_code=404, detail="Resguardo no encontrado")
-    if not _visible(resguardo, usuario):
-        raise HTTPException(status_code=403, detail="No autorizado para este resguardo")
     return resguardo
 
 

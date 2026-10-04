@@ -274,7 +274,11 @@ def test_no_se_ve_el_resguardo_de_otro(client, equipo, usuario):
     resguardo = emitir(client, equipo.id, admin["id"]).json()
 
     r = client.get(f"/api/resguardos/{resguardo['id']}", headers=cab(client, "user@test.com"))
-    assert r.status_code == 403
+    # 404, igual que uno que no existe: un 403 confirmaba que el folio existe.
+    assert r.status_code == 404
+    inexistente = client.get(f"/api/resguardos/{resguardo['id'] + 999}",
+                             headers=cab(client, "user@test.com"))
+    assert r.json() == inexistente.json()
 
 
 def test_los_pendientes_de_firma_del_usuario(client, equipo, usuario):
@@ -317,7 +321,7 @@ def test_no_se_descarga_el_pdf_de_otro(client, equipo, usuario):
     resguardo = emitir(client, equipo.id, admin["id"]).json()
 
     r = client.get(f"/api/resguardos/{resguardo['id']}/pdf", headers=cab(client, "user@test.com"))
-    assert r.status_code == 403
+    assert r.status_code == 404
 
 
 # ----------------------------------------------------------------------
