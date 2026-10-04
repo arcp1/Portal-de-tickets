@@ -35,7 +35,7 @@ de descompresión»). Se mira el tamaño en la cabecera, antes de decodificar.
 
 import io
 
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageOps, JpegImagePlugin, UnidentifiedImageError
 
 from app.core.config import settings
 
@@ -76,9 +76,19 @@ def sin_metadatos(contenido: bytes, tipo: str) -> bytes:
             if tipo == "image/jpeg":
                 girada = im.getexif().get(0x0112, 1) not in (1, None)
                 if girada:
+                    # Con las tablas de cuantización y el submuestreo del
+                    # original: la misma calidad y casi el mismo peso. Con una
+                    # calidad fija (95) una foto de 5,8 MB salía de 6,8 —medido
+                    # en la prueba de QA del 2026-10-03—.
+                    opciones = {"optimize": True, "icc_profile": icc, "comment": b""}
+                    tablas = getattr(im, "quantization", None)
+                    submuestreo = JpegImagePlugin.get_sampling(im)
+                    if tablas and submuestreo != -1:
+                        opciones.update(qtables=tablas, subsampling=submuestreo)
+                    else:
+                        opciones["quality"] = 95
                     derecha = ImageOps.exif_transpose(im)
-                    derecha.save(salida, "JPEG", quality=95, optimize=True,
-                                 icc_profile=icc, comment=b"")
+                    derecha.save(salida, "JPEG", **opciones)
                 else:
                     im.save(salida, "JPEG", quality="keep", optimize=True,
                             icc_profile=icc, comment=b"")
