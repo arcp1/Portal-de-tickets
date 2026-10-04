@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import api from '../api/client';
+import { olvidarTodo as olvidarImagenes } from '../lib/blobs';
 
 const AuthContext = createContext();
 
@@ -127,6 +128,8 @@ export const AuthProvider = ({ children }) => {
     }
     localStorage.removeItem('portal_tickets_token');
     localStorage.removeItem('portal_tickets_user');
+    // Las imágenes descargadas eran de esta cuenta (lib/blobs.js).
+    olvidarImagenes();
     setUser(null);
   };
 

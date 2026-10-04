@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import api, { ESPERA_SUBIDA } from '../api/client';
 import Confirmacion from './Confirmacion';
 import ImagenApi from './ImagenApi';
+import { urlDe } from '../lib/blobs';
 import { Paperclip, Upload, Trash2, FileText, AlertTriangle } from 'lucide-react';
 
 /**
@@ -97,11 +98,10 @@ const AdjuntosTicket = ({ ticketId, adjuntos = [], onCambio, puedeSubir = true }
    */
   const abrir = async (adjunto) => {
     try {
-      const res = await api.get(`/tickets/${ticketId}/adjuntos/${adjunto.id}`, { responseType: 'blob' });
-      const objeto = URL.createObjectURL(res.data);
+      // La misma descarga que la miniatura (lib/blobs.js): abrir una foto de
+      // 7 MB no la vuelve a bajar. El caché revoca la URL cuando toca.
+      const objeto = await urlDe(`/tickets/${ticketId}/adjuntos/${adjunto.id}`);
       window.open(objeto, '_blank', 'noopener,noreferrer');
-      // Se libera después de que el navegador alcanzó a abrirlo.
-      setTimeout(() => URL.revokeObjectURL(objeto), 60000);
     } catch (err) {
       setError(t('adjuntos.error_abrir'));
     }

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import api from '../api/client';
+import { urlDe } from '../lib/blobs';
 import { AlertTriangle } from 'lucide-react';
 
 /**
@@ -31,23 +31,16 @@ const ImagenApi = ({
 
   useEffect(() => {
     let cancelado = false;
-    let creada = null;
     setUrl(null);
     setFallo(false);
 
-    api.get(ruta, { responseType: 'blob' })
-      .then((res) => {
-        if (cancelado) return;
-        creada = URL.createObjectURL(res.data);
-        setUrl(creada);
-      })
+    // Del caché compartido (lib/blobs.js): una descarga por imagen aunque el
+    // componente se vuelva a montar, y el caché es quien revoca las URL.
+    urlDe(ruta)
+      .then((creada) => { if (!cancelado) setUrl(creada); })
       .catch(() => { if (!cancelado) setFallo(true); });
 
-    return () => {
-      cancelado = true;
-      // Sin esto el navegador retiene el blob mientras viva la pestaña.
-      if (creada) URL.revokeObjectURL(creada);
-    };
+    return () => { cancelado = true; };
   }, [ruta]);
 
   const marco = { width: ancho, height: alto, ...estilo };
