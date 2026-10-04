@@ -406,10 +406,14 @@ const Dashboard = () => {
                   {ticket.descripcion_original}
                 </div>
 
+                {/* `wrap`: con fecha y comentarios, a 360 px el renglón no
+                    cabía y empujaba la página 13 px a la derecha (prueba de QA
+                    del 2026-10-03). */}
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '16px',
+                  flexWrap: 'wrap',
+                  gap: '4px 16px',
                   fontSize: '0.85rem',
                   color: 'var(--text-muted)'
                 }}>

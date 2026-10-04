@@ -4962,7 +4962,14 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: not-allowed; }
   display: flex; justify-content: space-between; align-items: center;
   flex-wrap: wrap; gap: 12px; margin-bottom: 18px;
 }
-.iot-graficas { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+/* `min(300px, 100%)`: a 360 px la tarjeta deja ~270 y una columna de 300 se
+   salía y la recortaba la tarjeta, con la etiqueta del umbral fuera (QA,
+   2026-10-03). */
+.iot-graficas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 18px; }
+.iot-detalle-controles { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; max-width: 100%; }
+.iot-detalle-controles .filtros-estado { min-width: 0; max-width: 100%; }
+.iot-detalle-acciones { display: flex; gap: 8px; flex-shrink: 0; }
+.iot-detalle-acciones .btn-secondary { white-space: nowrap; }
 .iot-graficas .nota-suave { grid-column: 1 / -1; }
 .iot-pasos { margin: 0 0 10px 18px; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.7; }
 .iot-codigo {
@@ -5130,3 +5137,34 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: not-allowed; }
 .plantas-boton:hover { border-color: var(--border-focus); }
 .plantas-boton:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .plantas-boton-lapiz { color: var(--text-muted); display: inline-flex; }
+
+/* **Cabeceras con controles, en el celular.** La regla de arriba deja la última
+   pieza de `.page-header` sin encoger y en un renglón, pensada para un solo
+   botón de acción. Monitoreo y Métricas llevan ahí el selector de planta (con
+   un mínimo de 220 px) y más botones: a 360 px empujaban la página 179 px a la
+   derecha y el subtítulo quedaba en una columna de una palabra por renglón
+   (prueba de QA del 2026-10-03). En el celular la cabecera se parte: el título
+   ocupa su renglón y los controles bajan, ceden y se reparten el ancho. */
+@media (max-width: 640px) {
+  .page-header,
+  [data-fondo="flujo"] .page-header {
+    flex-wrap: wrap;
+    row-gap: 14px;
+  }
+  .page-header > :first-child,
+  [data-fondo="flujo"] .page-header > :first-child {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .page-header > :last-child:not(:first-child),
+  [data-fondo="flujo"] .page-header > :last-child:not(:first-child) {
+    flex-shrink: 1;
+    white-space: normal;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .page-header .selector {
+    min-width: 0 !important;
+    flex: 1 1 100%;
+  }
+}

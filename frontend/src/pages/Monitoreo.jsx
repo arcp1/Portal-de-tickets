@@ -208,22 +208,29 @@ export default function Monitoreo() {
             <h2 className="titulo-bloque" style={{ margin: 0 }}>
               <Cpu size={19} /> {actual.nombre || actual.clave}
             </h2>
-            <div className="filtros-estado">
-              {RANGOS.map((h) => (
-                <button key={h} type="button" onClick={() => setHoras(h)}
-                  className={`chip-filtro${horas === h ? ' chip-filtro--activo' : ''}`} aria-pressed={horas === h}>
-                  {h < 24 ? t('iot.horas', { count: h }) : t('iot.dias', { count: h / 24 })}
+            {/* Los rangos y las acciones, en grupos aparte: `.filtros-estado`
+                es una franja de chips que encoge lo que lleva dentro, y el
+                botón de editar quedaba partido en el celular. */}
+            <div className="iot-detalle-controles">
+              <div className="filtros-estado">
+                {RANGOS.map((h) => (
+                  <button key={h} type="button" onClick={() => setHoras(h)}
+                    className={`chip-filtro${horas === h ? ' chip-filtro--activo' : ''}`} aria-pressed={horas === h}>
+                    {h < 24 ? t('iot.horas', { count: h }) : t('iot.dias', { count: h / 24 })}
+                  </button>
+                ))}
+              </div>
+              <div className="iot-detalle-acciones">
+                <button type="button" className="btn-secondary" onClick={() => setEditando(actual)}
+                  style={{ padding: '8px 12px' }}>
+                  <Pencil size={15} /> {t('iot.editar')}
                 </button>
-              ))}
-              <button type="button" className="btn-secondary" onClick={() => setEditando(actual)}
-                style={{ padding: '8px 12px' }}>
-                <Pencil size={15} /> {t('iot.editar')}
-              </button>
-              <button type="button" className="btn-secondary btn-secondary--peligro"
-                onClick={() => setPorBorrar(actual)} style={{ padding: '8px 12px' }}
-                aria-label={t('iot.borrar')} title={t('iot.borrar')}>
-                <Trash2 size={15} />
-              </button>
+                <button type="button" className="btn-secondary btn-secondary--peligro"
+                  onClick={() => setPorBorrar(actual)} style={{ padding: '8px 12px' }}
+                  aria-label={t('iot.borrar')} title={t('iot.borrar')}>
+                  <Trash2 size={15} />
+                </button>
+              </div>
             </div>
           </div>
           {serie && serie.lecturas > 0 ? (
