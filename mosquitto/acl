@@ -10,3 +10,10 @@ topic read portal/+/sensores/+/telemetria
 # Los ESP32: solo publican telemetría, en cualquier planta y con su clave.
 user {{SENSORES}}
 topic write portal/+/sensores/+/telemetria
+
+# Un ESP32 con cuenta propia (MQTT_SENSORES): su usuario es su CLAVE_EQUIPO y
+# solo publica en su propio tema. Quien le saque la contraseña a uno —está en
+# su memoria y viaja en claro por la red de planta— ya no habla por los demás.
+# `pattern` vale para todas las cuentas; a las dos de arriba no les da nada que
+# importe (el receptor no tiene a quién suplantar desde fuera de Docker).
+pattern write portal/+/sensores/%u/telemetria

@@ -253,7 +253,10 @@ services:
       MQTT_USUARIO: ${MQTT_USUARIO:-portal}
       MQTT_PASSWORD: ${MQTT_PASSWORD:?falta MQTT_PASSWORD en el .env}
       MQTT_DISPOSITIVO_USUARIO: ${MQTT_DISPOSITIVO_USUARIO:-sensor}
-      MQTT_DISPOSITIVO_PASSWORD: ${MQTT_DISPOSITIVO_PASSWORD:?falta MQTT_DISPOSITIVO_PASSWORD en el .env}
+      # La compartida y las de cada equipo: ver mosquitto/entrada.sh. Si faltan
+      # las dos, el broker no arranca y dice por qué.
+      MQTT_DISPOSITIVO_PASSWORD: ${MQTT_DISPOSITIVO_PASSWORD:-}
+      MQTT_SENSORES: ${MQTT_SENSORES:-}
     entrypoint: ["/bin/sh", "/entrada.sh"]
     ports:
       - "${MQTT_PUBLICAR:-127.0.0.1:1883}:1883"

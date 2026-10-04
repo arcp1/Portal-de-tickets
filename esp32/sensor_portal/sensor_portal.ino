@@ -25,7 +25,12 @@
  *     descartan; no hace falta filtrarlos aquí, pero tampoco mandarlos.
  *   - Si pasan 10 min sin publicar, TI recibe la alerta «sin señal».
  *
- * La contraseña es la de MQTT_DISPOSITIVO_PASSWORD en el .env del servidor.
+ * Cuenta MQTT, de preferencia **una por equipo**: MQTT_USUARIO igual a
+ * CLAVE_EQUIPO y su propia contraseña, la que TI le dio de alta en MQTT_SENSORES
+ * del .env del servidor. Así el equipo solo puede publicar en su propio tema, y
+ * si alguien le saca la contraseña no puede hablar por los demás. La cuenta
+ * compartida (MQTT_USUARIO "sensor" con MQTT_DISPOSITIVO_PASSWORD) sigue
+ * funcionando mientras se migra, pero la conoce cada ESP32 de la planta.
  * No suba este archivo con la contraseña escrita a ningún repositorio.
  */
 
@@ -38,8 +43,8 @@ const char* WIFI_RED       = "RED-DE-PLANTA";
 const char* WIFI_CLAVE     = "********";
 const char* MQTT_SERVIDOR  = "192.168.1.168";   // IP del servidor del portal en la red de planta
 const uint16_t MQTT_PUERTO = 1883;
-const char* MQTT_USUARIO   = "sensor";
-const char* MQTT_CLAVE     = "********";        // MQTT_DISPOSITIVO_PASSWORD
+const char* MQTT_USUARIO   = "esp32-cuarto-servidores";  // = CLAVE_EQUIPO (cuenta propia)
+const char* MQTT_CLAVE     = "********";        // la suya, de MQTT_SENSORES
 
 const char* CLAVE_PLANTA   = "QRO";             // la clave de la planta en el portal
 const char* CLAVE_EQUIPO   = "esp32-cuarto-servidores";  // única por equipo: letras, números, - y _
