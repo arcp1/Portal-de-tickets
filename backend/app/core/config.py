@@ -49,11 +49,13 @@ class Settings(BaseSettings):
 
     # Origenes del navegador que pueden llamar a la API. El portal va detras del
     # mismo NGINX que la API, asi que en produccion normalmente basta con la URL
-    # publica; el 3000 es el Vite de desarrollo.
-    ORIGENES_PERMITIDOS: str = os.getenv(
-        "ORIGENES_PERMITIDOS",
-        "http://localhost:3000,http://127.0.0.1:3000",
-    )
+    # publica.
+    #
+    # **Vacio si no se dice.** El valor por defecto era el Vite de desarrollo
+    # (localhost:3000) y acababa abierto en produccion. El Vite tampoco lo
+    # necesita para la API —la pasa por su propio proxy—, solo para el
+    # WebSocket del grafo: quien desarrolle lo pone en su .env.
+    ORIGENES_PERMITIDOS: str = os.getenv("ORIGENES_PERMITIDOS", "")
 
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     # Swagger (/docs), ReDoc (/redoc) y el esquema (/openapi.json). Se lee la

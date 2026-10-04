@@ -153,6 +153,11 @@ services:
     container_name: portal_tickets_backend
     restart: always
     read_only: true
+    # Tope de memoria: si algo se desboca —una imagen enorme, un fallo futuro—
+    # se reinicia el backend en vez de que el kernel mate a Postgres u Ollama.
+    # Usa ~150 MB; el peor caso legítimo, dos imágenes de 100 MP a la vez
+    # (IMAGENES_EN_PARALELO), son ~1,4 GB más. Ver core/metadatos.py.
+    mem_limit: 3g
     cap_drop:
       - ALL
     security_opt:
@@ -364,7 +369,9 @@ services:
     # Sin puerto publicado: NGINX lo alcanza por la red interna de compose.
 
   nginx:
-    image: nginx:alpine
+    # Fijada, como las demás: con `alpine` a secas cada `pull` podía traer otro
+    # nginx sin que nadie lo decidiera. 1.31.4 es la que corría al fijarla.
+    image: nginx:1.31.4-alpine
     container_name: portal_tickets_nginx
     restart: always
     read_only: true
