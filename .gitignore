@@ -6,6 +6,9 @@
 # Lo que deja scripts/respaldo.sh por omisión: el volcado de la base trae los
 # hashes de contraseña y los datos personales del padrón.
 /respaldos/
+# Reportes de pentest: traen vectores de explotación, riesgos abiertos y
+# direcciones internas. Se guardan fuera de git.
+/REPORTE-PENTEST*.md
 nginx/certs/*.key
 nginx/certs/*.crt
 *.pem
