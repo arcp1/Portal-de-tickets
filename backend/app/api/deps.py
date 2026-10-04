@@ -44,7 +44,12 @@ def usuario_desde_token(db: Session, token: str) -> Usuario:
         # cuentas: siguen valiendo hasta que su dueño cambie la contraseña.
         version_token = int(payload.get("ver", 1))
         sid = payload.get("sid")
-    except (jwt.PyJWTError, TypeError, ValueError):
+    # `RecursionError`: PyJWT 2.13.0 parseaba la cabecera con `json.loads` y
+    # solo traducía `ValueError`. Una cabecera de corchetes anidados (~5 KB,
+    # cabe por nginx) salía como 500 con la traza entera en el registro, sin
+    # sesión y tantas veces como se quisiera (auditoría 2026-10-03). PyJWT
+    # 2.15.0 ya lo corrige; esto lo cubre hasta reconstruir la imagen.
+    except (jwt.PyJWTError, TypeError, ValueError, RecursionError):
         raise credentials_exception
 
     # Cerró sesión con este token (o con uno de su misma sesión).

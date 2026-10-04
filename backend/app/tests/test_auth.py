@@ -93,3 +93,17 @@ def test_la_sesion_no_se_renueva_mas_alla_de_su_vida_maxima(client, db_session):
                        headers={"Authorization": f"Bearer {reciente}"}).headers["x-token-renovado"]
     datos = pyjwt.decode(nuevo, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
     assert datos["ini"] == int(entrada)
+
+
+def test_una_cabecera_de_token_malformada_es_401_y_no_500(client):
+    """Corchetes anidados en la cabecera del JWT: PyJWT 2.13.0 dejaba escapar
+    un `RecursionError` y la petición, sin sesión, salía como error interno
+    con su traza en el registro (auditoría de seguridad, 2026-10-03)."""
+    import base64
+
+    def b64(datos):
+        return base64.urlsafe_b64encode(datos).rstrip(b"=").decode()
+
+    token = f'{b64(b"[" * 2000 + b"]" * 2000)}.{b64(b"{}")}.{b64(b"x")}'
+    r = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 401

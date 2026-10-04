@@ -10,7 +10,10 @@ email-validator>=2.0.0
 # PyJWT en lugar de python-jose: este solo se usaba para HS256 y aun asi
 # arrastraba `ecdsa` (PYSEC-2026-1325). PyJWT es el que se mantiene al dia y no
 # trae dependencias de curva eliptica.
-PyJWT>=2.8.0
+# 2.15.0 como minimo (auditoria 2026-10-03): 2.13.0 tenia 13 avisos publicados,
+# ninguno explotable con HS256 y secreto unico, pero dos convertian una
+# cabecera malformada en un error no controlado.
+PyJWT>=2.15.0
 # Declarada aparte a proposito. La usa app/api/estado.py para leer cuando vence
 # el certificado TLS, pero hasta ahora entraba de rebote como extra de
 # python-jose: al cambiar de libreria de tokens el portal dejo de arrancar.
