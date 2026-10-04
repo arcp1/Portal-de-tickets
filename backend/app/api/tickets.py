@@ -209,11 +209,13 @@ def list_tickets(
     """
     query = db.query(Ticket)
 
-    # Quien reporta ve los suyos; TI, los de todas las plantas, y puede
-    # quedarse con una (la etiqueta de planta de cada tarjeta dice cuál es).
+    # Quien reporta ve los suyos; TI, los de todas las plantas.
     if current_user.rol != "admin":
         query = query.filter(Ticket.usuario_id == current_user.id)
-    elif sitio_id is not None:
+    # El filtro de planta vale para todos: TI se queda con una, y quien trabaja
+    # en varias ve sus tickets de una. Antes solo se aplicaba a TI, y a una
+    # persona pedir MTY le devolvía sus tickets de QRO (prueba de QA, 2026-10-03).
+    if sitio_id is not None:
         query = query.filter(Ticket.sitio_id == sitio_id)
 
     if estado:

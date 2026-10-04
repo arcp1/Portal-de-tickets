@@ -280,3 +280,18 @@ def test_ti_administra_plantas_y_la_clave_no_se_repite(client, escenario):
 def test_no_se_desactiva_la_unica_planta(client):
     cab = _cab(client, "admin@test.com")
     assert client.patch("/api/sitios/1", headers=cab, json={"activo": False}).status_code == 409
+
+
+def test_el_filtro_de_planta_tambien_vale_para_quien_no_es_ti(client, escenario):
+    """Pedir otra planta no amplía nada, pero tampoco devuelve lo de la suya."""
+    assert _ticket(client, "doble@test.com", sitio_id=1).status_code == 201
+    assert _ticket(client, "doble@test.com", sitio_id=escenario["mty"].id).status_code == 201
+    cab = _cab(client, "doble@test.com")
+    de_mty = client.get(f"/api/tickets?sitio_id={escenario['mty'].id}", headers=cab).json()["items"]
+    assert [t["sitio"]["clave"] for t in de_mty] == ["MTY"]
+    # Quien solo está en QRO, pidiendo MTY: nada (y no sus tickets de QRO).
+    assert _ticket(client, "user@test.com").status_code == 201
+    ajena = client.get(f"/api/tickets?sitio_id={escenario['mty'].id}",
+                       headers=_cab(client, "user@test.com")).json()["items"]
+    assert ajena == []
+
