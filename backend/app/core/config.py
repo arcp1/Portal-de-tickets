@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     )
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
+    # Vida máxima de una sesión aunque se siga usando: el token se renueva
+    # mientras se trabaja (api/deps.py), pero no más allá de esto desde que se
+    # entró. Una semana: TI no vuelve a entrar a media guardia, y un token
+    # copiado deja de servir aunque quien lo tiene lo siga usando.
+    SESION_MAXIMA_HORAS: int = int(os.getenv("SESION_MAXIMA_HORAS", "168"))
 
     # Origenes del navegador que pueden llamar a la API. El portal va detras del
     # mismo NGINX que la API, asi que en produccion normalmente basta con la URL

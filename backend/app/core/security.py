@@ -1,4 +1,5 @@
 import secrets
+import time
 from datetime import datetime, timedelta
 from typing import Optional, Any, Union
 import jwt
@@ -34,6 +35,7 @@ def create_access_token(
     expires_delta: Optional[timedelta] = None,
     version_token: int = 1,
     sesion: Optional[str] = None,
+    inicio: Optional[float] = None,
 ) -> str:
     """Token de sesion.
 
@@ -59,6 +61,10 @@ def create_access_token(
         # se revoca al cerrar sesión (ver core/sesiones.py); el token entero
         # cambia cada pocas horas, la sesión no.
         "sid": sesion or secrets.token_hex(16),
+        # Cuándo se entró, en segundos. Lo heredan las renovaciones, como el
+        # `sid`, y es lo que pone fin a una sesión que se renueva sin parar:
+        # ver `SESION_MAXIMA_HORAS` y `_renovar_si_hace_falta`.
+        "ini": int(inicio if inicio is not None else time.time()),
     }
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
     return encoded_jwt

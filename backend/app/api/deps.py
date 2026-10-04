@@ -98,19 +98,31 @@ def _renovar_si_hace_falta(peticion: Request, token: str, usuario: Usuario) -> N
     No toca la revocación: el token nuevo lleva la misma versión de cuenta, y
     un cambio de contraseña lo invalida igual que al viejo. La cabecera la
     pone `EntregaTokenRenovado` en main.py.
+
+    **Pero no para siempre** (auditoría de seguridad, 2026-10-03). Sin tope,
+    un token copiado —de una computadora compartida, de un respaldo del
+    navegador— vivía indefinidamente con solo usarlo una vez cada pocas horas,
+    hasta que su dueño cerrara sesión o cambiara la contraseña. Pasadas
+    `SESION_MAXIMA_HORAS` desde que se entró (`ini`, que heredan las
+    renovaciones) ya no se renueva: el último token vence a su hora y hay que
+    volver a entrar.
     """
     try:
         datos = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM],
                            options={"verify_exp": False})
-        vence = datos["exp"]
-    except (jwt.PyJWTError, KeyError):
+        vence = float(datos["exp"])
+        # Los tokens de antes del tope no traen `ini`: cuentan desde su emisión.
+        inicio = float(datos.get("ini") or datos.get("iat") or time.time())
+    except (jwt.PyJWTError, KeyError, TypeError, ValueError):
+        return
+    if time.time() - inicio > settings.SESION_MAXIMA_HORAS * 3600:
         return
     if vence - time.time() < settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60 / 2:
         # La misma sesión: cerrar sesión tiene que alcanzar también al token
-        # renovado.
+        # renovado, y la vida máxima se sigue contando desde la entrada.
         peticion.state.token_renovado = create_access_token(
             subject=usuario.id, version_token=usuario.version_token,
-            sesion=datos.get("sid"))
+            sesion=datos.get("sid"), inicio=inicio)
 
 
 def get_current_admin(
