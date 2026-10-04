@@ -31,9 +31,26 @@ desde qué casa se tomó la foto del equipo que alguien se llevó a trabajar.
 bytes sin abrirlos, y ahora los descomprime. Un PNG de 10 MB puede declarar
 40 000 × 40 000 píxeles y pedir gigas de memoria al decodificarse (una «bomba
 de descompresión»). Se mira el tamaño en la cabecera, antes de decodificar.
+
+**Y cuenta todos los cuadros, no solo el primero** (auditoría de seguridad,
+2026-10-03). El tope se medía por cuadro, y una animada se guarda decodificando
+cada uno —Pillow los tiene todos en memoria a la vez para escribirla—. Medido:
+un PNG animado de 9,88 MB, 40 cuadros de 9 000 × 9 000 (81 MP cada uno, bajo el
+tope), tumbó por falta de memoria un contenedor con 4 GB. Cualquier cuenta podía
+subirlo como adjunto de su propio ticket, y el backend no tiene tope de memoria:
+dos a la vez eran unos 20 GB en un servidor de 32 que comparte con Postgres y
+Ollama. Ahora el tope es para la suma de los cuadros.
+
+**Y se limpian pocas a la vez** (`IMAGENES_EN_PARALELO`). Aun dentro del tope,
+una foto grande ocupa cientos de megas mientras se reescribe, y el *pool* de
+hilos admite cuarenta peticiones: cuarenta fotos de 100 MP a la vez seguían
+siendo decenas de gigas. Quien no consigue turno en `IMAGENES_ESPERA_S`
+recibe un 503 y vuelve a intentar; mientras espera no ocupa un hilo.
 """
 
+import asyncio
 import io
+import weakref
 
 from PIL import Image, ImageOps, JpegImagePlugin, UnidentifiedImageError
 
@@ -67,9 +84,13 @@ def sin_metadatos(contenido: bytes, tipo: str) -> bytes:
         return contenido
     try:
         with Image.open(io.BytesIO(contenido)) as im:
-            if im.width * im.height > settings.IMAGENES_MAX_MEGAPIXELES * 1_000_000:
+            # Lo dice la cabecera: el tamaño del lienzo y, en las animadas, el
+            # número de cuadros. Nada de esto descomprime todavía.
+            cuadros = max(1, getattr(im, "n_frames", 1))
+            if im.width * im.height * cuadros > settings.IMAGENES_MAX_MEGAPIXELES * 1_000_000:
                 raise ImagenIlegible(
-                    f"La imagen tiene más de {settings.IMAGENES_MAX_MEGAPIXELES} megapíxeles.")
+                    f"La imagen tiene más de {settings.IMAGENES_MAX_MEGAPIXELES} megapíxeles"
+                    + (" sumando todos sus cuadros." if cuadros > 1 else "."))
             icc = im.info.get("icc_profile")
             salida = io.BytesIO()
 
@@ -134,7 +155,34 @@ async def limpiar_subida(contenido: bytes, tipo: str) -> bytes:
     from fastapi import HTTPException, status
     from starlette.concurrency import run_in_threadpool
 
+    if tipo not in LIMPIABLES:
+        return contenido
+    turno = _turno()
+    try:
+        async with asyncio.timeout(settings.IMAGENES_ESPERA_S):
+            await turno.acquire()
+    except TimeoutError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="El servidor está procesando otras imágenes. Intente de nuevo en un momento.")
     try:
         return await run_in_threadpool(sin_metadatos, contenido, tipo)
     except ImagenIlegible as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
+    finally:
+        turno.release()
+
+
+#: Un semáforo por bucle de eventos. En producción hay uno solo; las pruebas
+#: abren uno por `TestClient`, y un `asyncio.Semaphore` queda atado al primer
+#: bucle que lo usa.
+_turnos: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = (
+    weakref.WeakKeyDictionary())
+
+
+def _turno() -> asyncio.Semaphore:
+    bucle = asyncio.get_running_loop()
+    turno = _turnos.get(bucle)
+    if turno is None:
+        turno = _turnos[bucle] = asyncio.Semaphore(max(1, settings.IMAGENES_EN_PARALELO))
+    return turno

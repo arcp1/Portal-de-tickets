@@ -376,7 +376,13 @@ class Settings(BaseSettings):
     # Tope al abrir una imagen para quitarle los metadatos (core/metadatos.py):
     # se mira en la cabecera antes de descomprimir. 100 MP cubre la cámara de
     # cualquier celular y deja fuera las «bombas» de 40 000 × 40 000.
+    # **Sumando los cuadros** de una animada: ver core/metadatos.py.
     IMAGENES_MAX_MEGAPIXELES: int = int(os.getenv("IMAGENES_MAX_MEGAPIXELES", "100"))
+    # Cuántas imágenes se reescriben a la vez, y cuánto espera turno una subida
+    # antes de recibir un 503. Cada una puede ocupar cientos de megas mientras
+    # tanto: sin este límite, la memoria la decidía quien subiera más a la vez.
+    IMAGENES_EN_PARALELO: int = int(os.getenv("IMAGENES_EN_PARALELO", "2"))
+    IMAGENES_ESPERA_S: float = float(os.getenv("IMAGENES_ESPERA_S", "30"))
 
     # --- Catalogo visual: los problemas que se reconocen mirandolos ---
     #

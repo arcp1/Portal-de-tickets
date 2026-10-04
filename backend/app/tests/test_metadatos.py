@@ -145,6 +145,74 @@ def test_hay_tope_de_pixeles_antes_de_descomprimir(monkeypatch):
         sin_metadatos(foto_con_gps(), "image/jpeg")
 
 
+def _animada(formato, ancho, alto, cuadros) -> bytes:
+    """Cuadros de colores alternos: iguales, Pillow los fundiría en uno."""
+    marcos = [Image.new("RGB", (ancho, alto), (255 * (i % 2), 0, 0)) for i in range(cuadros)]
+    salida = io.BytesIO()
+    marcos[0].save(salida, formato, save_all=True, append_images=marcos[1:], duration=100)
+    return salida.getvalue()
+
+
+@pytest.mark.parametrize("formato,tipo", [("PNG", "image/png"), ("WEBP", "image/webp")])
+def test_el_tope_de_pixeles_suma_todos_los_cuadros(monkeypatch, formato, tipo):
+    """La bomba de la auditoría de 2026-10-03, en pequeño.
+
+    Cada cuadro cabía bajo el tope y la suma no: 40 cuadros de 81 MP en un PNG
+    de 9,88 MB tumbaron un contenedor de 4 GB. Aquí, cuatro de 0,36 MP contra
+    un tope de 1 MP.
+    """
+    monkeypatch.setattr(settings, "IMAGENES_MAX_MEGAPIXELES", 1)
+    animada = _animada(formato, 600, 600, 4)
+    with Image.open(io.BytesIO(animada)) as im:
+        assert im.n_frames == 4 and im.width * im.height < 1_000_000
+    with pytest.raises(ImagenIlegible, match="sumando todos sus cuadros"):
+        sin_metadatos(animada, tipo)
+    # Con dos cuadros cabe, y se guarda animada.
+    with Image.open(io.BytesIO(sin_metadatos(_animada(formato, 600, 600, 2), tipo))) as im:
+        assert im.n_frames == 2
+
+
+def test_se_limpian_pocas_imagenes_a_la_vez(monkeypatch):
+    """Con el turno ocupado, la siguiente espera; si no le toca a tiempo, 503."""
+    import asyncio
+    import threading
+    import time
+
+    from fastapi import HTTPException
+
+    from app.core import metadatos
+
+    monkeypatch.setattr(settings, "IMAGENES_EN_PARALELO", 1)
+    monkeypatch.setattr(settings, "IMAGENES_ESPERA_S", 0.2)
+    a_la_vez, maximo = 0, 0
+    candado = threading.Lock()
+
+    def lenta(contenido, tipo):
+        nonlocal a_la_vez, maximo
+        with candado:
+            a_la_vez += 1
+            maximo = max(maximo, a_la_vez)
+        time.sleep(0.5)
+        with candado:
+            a_la_vez -= 1
+        return contenido
+
+    monkeypatch.setattr(metadatos, "sin_metadatos", lenta)
+
+    async def tres_a_la_vez():
+        return await asyncio.gather(
+            *(metadatos.limpiar_subida(b"x", "image/png") for _ in range(3)),
+            return_exceptions=True)
+
+    resultados = asyncio.run(tres_a_la_vez())
+    assert maximo == 1
+    assert resultados.count(b"x") == 1
+    rechazos = [r for r in resultados if isinstance(r, HTTPException)]
+    assert len(rechazos) == 2 and all(r.status_code == 503 for r in rechazos)
+    # Lo que no se reescribe no pide turno: un PDF no espera a nadie.
+    assert asyncio.run(metadatos.limpiar_subida(b"%PDF-1.7", "application/pdf")) == b"%PDF-1.7"
+
+
 # ----------------------------------------------------------------------
 # Las cuatro puertas de subida, de punta a punta
 # ----------------------------------------------------------------------
