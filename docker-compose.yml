@@ -236,7 +236,10 @@ services:
   # en el propio servidor). Sin usuario y contraseña no entra nadie, y cada
   # cuenta solo puede lo suyo (mosquitto/acl).
   mosquitto:
-    image: eclipse-mosquitto:2.0.20
+    # 2.0.22 y no 2.0.20 (auditoría 2026-10-03): la 2.0.21 corrige una fuga de
+    # memoria con un SUBSCRIBE malicioso de un cliente autenticado —aquí, quien
+    # tenga la contraseña de un sensor— y completa el arreglo del CVE-2023-28366.
+    image: eclipse-mosquitto:2.0.22
     container_name: portal_tickets_mosquitto
     restart: always
     read_only: true
