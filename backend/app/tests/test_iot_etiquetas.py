@@ -255,3 +255,24 @@ def test_la_base_rechaza_una_calificacion_fuera_de_rango(db_session):
     with pytest.raises(IntegrityError):
         db_session.commit()
     db_session.rollback()
+
+
+# ----------------------------------------------------------------------
+# El receptor MQTT no se deja echar del broker
+# ----------------------------------------------------------------------
+
+def test_el_identificador_del_receptor_no_se_adivina():
+    """En MQTT, conectarse con el identificador de otro lo echa del broker.
+
+    Era `portal-ingestor`, fijo: con la contraseña de los sensores —la misma en
+    todos los ESP32, y en claro por la red de planta— se dejaba al receptor
+    fuera una y otra vez (auditoría 2026-10-03). Ahora depende de su
+    contraseña, y es estable para que la sesión persistente se conserve.
+    """
+    from app.iot.ingestor import identificador_del_receptor
+
+    uno = identificador_del_receptor("clave-del-receptor")
+    assert uno != "portal-ingestor" and uno.startswith("portal-ingestor-")
+    assert "clave-del-receptor" not in uno
+    assert uno == identificador_del_receptor("clave-del-receptor")
+    assert uno != identificador_del_receptor("otra-clave")

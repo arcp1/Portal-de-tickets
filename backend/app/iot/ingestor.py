@@ -19,8 +19,18 @@ pantallas de TI (``iot`` para la gráfica, ``alertas`` para la campana).
 y sesión persistente (``clean_session=False``) y se suscribe con QoS 1:
 mientras está caído, Mosquitto le guarda los mensajes y se los entrega al
 volver.
+
+**El identificador fijo no es adivinable** (auditoría de seguridad,
+2026-10-03). Era ``portal-ingestor``, y en MQTT quien se conecta con el
+identificador de otro **lo echa del broker**. La contraseña de los sensores es
+la misma en todos los ESP32 y viaja en claro por la red de la planta: con ella,
+conectarse una y otra vez como ``portal-ingestor`` dejaba al receptor fuera y
+las lecturas —y sus alertas— sin llegar. Probado contra un Mosquitto con esta
+misma configuración. Ahora sale de la contraseña del receptor, que nunca sale
+de la red interna de Docker: ver `identificador_del_receptor`.
 """
 
+import hashlib
 import signal
 import sys
 import time
@@ -39,6 +49,19 @@ from app.services.iot_service import IoTService
 AVISO_IOT_CADA_S = 5
 
 
+def identificador_del_receptor(clave: str) -> str:
+    """El *client id* del receptor: estable mientras no cambie su contraseña.
+
+    Estable porque la sesión persistente va atada a él; secreto porque quien lo
+    conoce puede echar al receptor del broker. Un resumen de la contraseña
+    cumple las dos cosas sin añadir otra variable al .env. Cambiar la
+    contraseña deja huérfana la sesión anterior, y Mosquitto la retira sola
+    (``persistent_client_expiration`` en mosquitto.conf).
+    """
+    resumen = hashlib.sha256(f"portal-ingestor:{clave}".encode()).hexdigest()[:24]
+    return f"portal-ingestor-{resumen}"
+
+
 class Receptor:
     def __init__(self) -> None:
         self._ultimo_aviso = 0.0
@@ -46,7 +69,7 @@ class Receptor:
         self.guardados = 0
         self.cliente = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2,
-            client_id="portal-ingestor",
+            client_id=identificador_del_receptor(settings.MQTT_PASSWORD or ""),
             clean_session=False,
         )
         if settings.MQTT_USUARIO:
