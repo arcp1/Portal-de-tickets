@@ -223,3 +223,95 @@ def test_cambiar_a_una_contrasena_comun_se_rechaza(client):
                     json={"password_actual": "Secret123!", "password_nueva": "Password2026!"})
     assert r.status_code == 400
     assert "se adivina" in r.json()["detail"]
+
+
+# ----------------------------------------------------------------------
+# La IP de la planta, por internet, es la planta (2026-10-05)
+# ----------------------------------------------------------------------
+
+PLANTA = "189.254.199.194"
+
+
+@pytest.fixture
+def con_planta(monkeypatch):
+    """La planta sale a internet por su enlace, con una sola IP pública."""
+    monkeypatch.setattr(settings, "REDES_DE_PLANTA", PLANTA)
+
+
+def _desde(ip):
+    return {**PUBLICO, "X-Forwarded-For": ip}
+
+
+def test_desde_la_planta_por_internet_se_activa_con_datos_personales(client, db_session, con_planta):
+    """La activación con EPP y fecha de nacimiento se cerró para internet; la
+    planta, que ahora entra por internet, tiene que poder usarla."""
+    from app.tests.test_seguridad import _pendiente
+
+    _pendiente(db_session, numero="4401")
+    _pendiente(db_session, numero="4402")
+    datos = {"password": "UnaClaveLarga1", "nombre_completo": "Operador Nuevo",
+             "numero_epp": "0987", "fecha_nacimiento": "1985-07-14"}
+
+    r = client.post("/api/auth/activar", headers=_desde(PLANTA),
+                    json={"identificador": "4401", **datos})
+    assert r.status_code == 200
+
+    # Desde cualquier otra IP de internet sigue cerrada.
+    r = client.post("/api/auth/activar", headers=_desde("203.0.113.9"),
+                    json={"identificador": "4402", **datos})
+    assert r.status_code == 403
+
+
+def test_los_fallos_de_la_planta_no_cierran_la_entrada_a_toda_la_planta(client, con_planta,
+                                                                      monkeypatch):
+    """Setenta personas detrás de una IP: con freno por IP, unos cuantos
+    errores de teclear —o un compañero— dejaban a todas sin entrar."""
+    monkeypatch.setattr(limitador_login_ip, "maximo", 3)
+    for n in range(6):
+        r = _entrar(client, f"nadie{n}@test.com", "x" * 12, **_desde(PLANTA))
+        assert r.status_code == 401
+    assert _entrar(client, "user@test.com", "Secret123!", **_desde(PLANTA)).status_code == 200
+
+    # Cualquier otra IP sí tiene su freno.
+    for n in range(3):
+        _entrar(client, f"otro{n}@test.com", "x" * 12, **_desde("203.0.113.9"))
+    assert _entrar(client, "otro9@test.com", "x" * 12, **_desde("203.0.113.9")).status_code == 429
+
+
+def test_quien_se_equivoca_en_la_planta_solo_se_bloquea_a_si_mismo(client, con_planta):
+    """El freno por cuenta sigue en pie: protege a cada persona sin castigar
+    a las demás."""
+    for _ in range(settings.LOGIN_MAX_INTENTOS):
+        _entrar(client, "user@test.com", "no-es-la-buena", **_desde(PLANTA))
+    assert _entrar(client, "user@test.com", "Secret123!", **_desde(PLANTA)).status_code == 429
+    assert _entrar(client, "admin@test.com", "Secret123!", **_desde(PLANTA)).status_code == 200
+
+
+def test_sin_redes_de_planta_todo_lo_de_internet_es_publico(client, db_session):
+    """Vacío —el valor por defecto—, nada cambia: es lo que vale si falta en el .env."""
+    from app.tests.test_seguridad import _pendiente
+
+    _pendiente(db_session, numero="4403")
+    r = client.post("/api/auth/activar", headers=_desde(PLANTA),
+                    json={"identificador": "4403", "password": "UnaClaveLarga1",
+                          "numero_epp": "0987", "fecha_nacimiento": "1985-07-14"})
+    assert r.status_code == 403
+
+
+@pytest.mark.parametrize("ip,es", [
+    ("189.254.199.194", True),
+    ("::ffff:189.254.199.194", True),
+    ("10.4.5.6", True),
+    ("2001:db8:aa:1::5", True),
+    ("189.254.199.195", False),
+    ("2001:db8:ab::1", False),
+    ("no-es-ip", False),
+    (None, False),
+])
+def test_es_red_de_planta(monkeypatch, ip, es):
+    from app.core.limitador import es_red_de_planta
+
+    # Varias redes, con espacios y una entrada inválida que se ignora.
+    monkeypatch.setattr(settings, "REDES_DE_PLANTA",
+                        "189.254.199.194, 10.0.0.0/8, no-es-red, 2001:db8:aa::/48")
+    assert es_red_de_planta(ip) is es

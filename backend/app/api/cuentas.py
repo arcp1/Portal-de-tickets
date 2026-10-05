@@ -18,7 +18,7 @@ from app.core.config import settings
 from app.core import plantas
 from app.core.db import get_db
 from app.core.limitador import (
-    clave_de_cuenta, clave_de_red, es_publico, frenar, limitador_activacion,
+    clave_de_cuenta, es_publico, frenar, freno_por_ip, limitador_activacion,
     limitador_activacion_ip, limitador_login,
 )
 from app.core.logging import logger
@@ -26,7 +26,7 @@ from app.core.security import HashOcupado, create_access_token, respuesta_ocupad
 from app.models import ESTADOS_TERMINADOS, Equipo, Resguardo, Sitio, Ticket, Usuario
 from app.schemas.auth import TokenResponse, UserResponse
 from app.schemas.comunes import FechaUTC, PlantaBreve
-from app.services.auditoria_service import AuditoriaService, ip_de
+from app.services.auditoria_service import AuditoriaService
 from app.services.frases_service import sugerencias
 from app.services.cuentas_service import (
     BLOQUEADA, NUMERO_EMPLEADO_INVALIDO, PENDIENTE, CuentasService, ErrorCuenta,
@@ -208,7 +208,7 @@ def activar(peticion: ActivarRequest, request: Request, db: Session = Depends(ge
     internet es el mundo entero, y ahí ese nivel de prueba no es aceptable, así
     que por la vía pública se exige el código de un solo uso.
     """
-    origen = clave_de_red(ip_de(request))
+    # Desde la planta (también por internet, con REDES_DE_PLANTA) es interno.
     publico = es_publico(request)
     usa_verificacion = peticion.codigo is None and any(
         (peticion.nombre_completo, peticion.numero_epp,
@@ -232,7 +232,8 @@ def activar(peticion: ActivarRequest, request: Request, db: Session = Depends(ge
     cuenta = clave_de_cuenta(
         CuentasService.buscar_por_identificador(db, peticion.identificador),
         peticion.identificador, publico=publico)
-    frenar((limitador_activacion_ip, f"ip:{origen}"), (limitador_activacion, cuenta))
+    por_ip = freno_por_ip(limitador_activacion_ip, request)
+    frenar(*por_ip, (limitador_activacion, cuenta))
 
     try:
         # Compara el código y calcula el hash de la nueva: dos bcrypt, en fila
@@ -249,14 +250,15 @@ def activar(peticion: ActivarRequest, request: Request, db: Session = Depends(ge
                 numero_epp=peticion.numero_epp,
             )
     except HashOcupado:
-        limitador_activacion_ip.descontar(f"ip:{origen}")
-        limitador_activacion.descontar(cuenta)
+        for limitador, clave in (*por_ip, (limitador_activacion, cuenta)):
+            limitador.descontar(clave)
         raise respuesta_ocupado()
     except ErrorCuenta as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
     limitador_activacion.limpiar(cuenta)
-    limitador_activacion_ip.descontar(f"ip:{origen}")
+    for limitador, clave in por_ip:
+        limitador.descontar(clave)
     usuario.ultimo_acceso = datetime.utcnow()
     db.commit()
 

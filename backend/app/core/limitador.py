@@ -206,9 +206,73 @@ def clave_de_cuenta(usuario, identificador: str, publico: bool = False) -> str:
     return f"publico:{clave}" if publico else clave
 
 
+def _ip_de(peticion):
+    # Aquí y no arriba: auditoria_service importa los modelos, y esto lo
+    # importa medio portal.
+    from app.services.auditoria_service import ip_de
+    return ip_de(peticion)
+
+
+def _redes(texto: str):
+    redes = []
+    for trozo in (texto or "").split(","):
+        if trozo.strip():
+            try:
+                redes.append(ipaddress.ip_network(trozo.strip(), strict=False))
+            except ValueError:
+                logger.error("REDES_DE_PLANTA trae algo que no es una red; se ignora",
+                             extra={"valor": trozo.strip()})
+    return redes
+
+
+def es_red_de_planta(ip) -> bool:
+    """Si la IP es una de las redes públicas de la planta (`REDES_DE_PLANTA`).
+
+    **Por qué existe** (2026-10-05). El portal sale a internet por Tailscale
+    Funnel, y desde la oficina la plantilla entera llega con la IP pública del
+    enlace de la empresa: para el portal era "internet" y era "una sola IP".
+    Lo primero le negaba la activación con datos personales justo a quien
+    está en la planta; lo segundo hacía que los fallos de setenta personas
+    cayeran en un solo freno por IP, y un día de altas —o un compañero— dejaba
+    a todos sin entrar.
+
+    La IP es de fiar: llega en X-Forwarded-For, que nginx escribe siempre con
+    la real (la que Tailscale pone, que no se puede falsificar desde fuera; ver
+    nginx/comun/lista-blanca.conf).
+    """
+    if not ip:
+        return False
+    try:
+        direccion = ipaddress.ip_address(str(ip).strip())
+    except ValueError:
+        return False
+    if direccion.version == 6 and direccion.ipv4_mapped:
+        direccion = direccion.ipv4_mapped
+    return any(direccion in red for red in _redes(settings.REDES_DE_PLANTA)
+               if red.version == direccion.version)
+
+
 def es_publico(peticion) -> bool:
-    """Si la petición llegó por el camino de internet (lo marca nginx)."""
-    return peticion is not None and peticion.headers.get("X-Portal-Origen") == "publico"
+    """Si la petición llegó por el camino de internet (lo marca nginx) y no
+    desde la planta: lo que llega de una red de planta es interno."""
+    if peticion is None or peticion.headers.get("X-Portal-Origen") != "publico":
+        return False
+    return not es_red_de_planta(_ip_de(peticion))
+
+
+def freno_por_ip(limitador: "Limitador", peticion) -> list:
+    """El par `(limitador, clave)` del freno por IP, o nada si la IP es la de
+    la planta.
+
+    Detrás de la IP de la planta está la plantilla entera: un freno por IP ahí
+    es un freno para todos. Lo que protege a cada persona sigue en pie —el
+    freno por cuenta, la fila de bcrypt y la lista de contraseñas comunes—, así
+    que quien se equivoca solo se bloquea a sí mismo.
+    """
+    ip = _ip_de(peticion)
+    if es_red_de_planta(ip):
+        return []
+    return [(limitador, f"ip:{clave_de_red(ip)}")]
 
 
 def clave_de_red(ip) -> str:

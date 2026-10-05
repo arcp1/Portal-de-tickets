@@ -316,6 +316,12 @@ class Settings(BaseSettings):
     HASH_EN_PARALELO: int = int(os.getenv("HASH_EN_PARALELO", "4"))
     HASH_COLA_MAXIMA: int = int(os.getenv("HASH_COLA_MAXIMA", "12"))
     HASH_ESPERA_S: float = float(os.getenv("HASH_ESPERA_S", "1"))
+    # Las IP o redes públicas de la planta (separadas por comas; admite CIDR).
+    # Lo que llega desde ahí por el camino de internet se trata como la red
+    # interna: activa con datos personales, y sus fallos no cuentan contra un
+    # freno por IP que compartiría la planta entera. Ver `es_red_de_planta` en
+    # core/limitador.py. Vacío, todo lo de internet es público.
+    REDES_DE_PLANTA: str = os.getenv("REDES_DE_PLANTA", "")
     # Lo mismo para la activacion de cuenta, que prueba fechas y codigos. Es
     # el freno de corto plazo; el bloqueo definitivo de la via por datos
     # personales es `ACTIVACION_MAX_INTENTOS`, mas arriba.

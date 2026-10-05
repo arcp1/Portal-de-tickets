@@ -16,10 +16,9 @@ from app.core import sesiones
 from app.core.config import settings
 import jwt
 from app.core.limitador import (
-    clave_de_cuenta, clave_de_red, es_publico, frenar, limitador_login, limitador_login_ip,
+    clave_de_cuenta, es_publico, frenar, freno_por_ip, limitador_login, limitador_login_ip,
 )
 from app.core.logging import logger
-from app.services.auditoria_service import ip_de
 from app.services.cuentas_service import CuentasService
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -37,9 +36,10 @@ def login(request: LoginRequest, peticion: Request, db: Session = Depends(get_db
     # contra quien ataca a una persona desde varios sitios. El de cuenta se
     # aplica a la cuenta encontrada y no al texto tecleado; ver
     # `clave_de_cuenta`. Va antes de bcrypt, que es lo caro.
-    origen = clave_de_red(ip_de(peticion))
+    # La IP de la planta no lleva freno por IP: ver `freno_por_ip`.
     cuenta = clave_de_cuenta(user, request.email, publico=es_publico(peticion))
-    frenar((limitador_login_ip, f"ip:{origen}"), (limitador_login, cuenta))
+    por_ip = freno_por_ip(limitador_login_ip, peticion)
+    frenar(*por_ip, (limitador_login, cuenta))
 
     # Una sola respuesta para todos los fracasos.
     #
@@ -72,8 +72,8 @@ def login(request: LoginRequest, peticion: Request, db: Session = Depends(get_db
             coincide = verify_password(request.password, hash_a_comparar)
     except HashOcupado:
         # No se llegó a comparar nada: el intento no cuenta contra nadie.
-        limitador_login_ip.descontar(f"ip:{origen}")
-        limitador_login.descontar(cuenta)
+        for limitador, clave in (*por_ip, (limitador_login, cuenta)):
+            limitador.descontar(clave)
         raise respuesta_ocupado()
 
     if not user or not coincide or not user.activo or user.estado_cuenta != "activa":
@@ -85,7 +85,8 @@ def login(request: LoginRequest, peticion: Request, db: Session = Depends(get_db
     # Quien entró bien no arrastra sus intentos previos. De la IP solo se
     # descuenta este acierto: los fallos de otros siguen contando.
     limitador_login.limpiar(cuenta)
-    limitador_login_ip.descontar(f"ip:{origen}")
+    for limitador, clave in por_ip:
+        limitador.descontar(clave)
 
     access_token = create_access_token(subject=user.id, version_token=user.version_token)
     return TokenResponse(
