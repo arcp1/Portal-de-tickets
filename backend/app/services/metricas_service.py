@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.plantas import de_planta
-from app.models import CANCELADO, BaseConocimiento, ChatSesion, SugerenciaKB, Ticket, Usuario
+from app.models import (CANCELADO, Alerta, BaseConocimiento, ChatSesion, DispositivoIoT, SugerenciaKB,
+                        Ticket, Usuario)
 from app.services.ollama_client import ollama
 
 # Canales en los que la incidencia se resolvió sin que un técnico interviniera.
@@ -234,6 +235,41 @@ class MetricasService:
             "precision_clasificacion": _porcentaje(aciertos, comparables),
             "umbral_confianza": settings.CHAT_UMBRAL_CONFIANZA,
             "max_intercambios": settings.CHAT_MAX_INTERCAMBIOS,
+        }
+
+    @staticmethod
+    def sensores(db: Session, sitio_id: Optional[int], dias: int = 30) -> dict:
+        """Los ESP32 de las plantas, en resumen: cuántos reportan ahora y
+        cuántas alertas dieron en el periodo. El detalle vive en Monitoreo.
+
+        «En línea» es lo mismo que dice Monitoreo (`api/iot.py`): activo y con
+        un reporte más reciente que `IOT_SIN_SENAL_MINUTOS`.
+        """
+        ahora = datetime.utcnow()
+        activos = db.query(DispositivoIoT).filter(
+            DispositivoIoT.activo.is_(True), de_planta(DispositivoIoT.sitio_id, sitio_id))
+        total = activos.count()
+        en_linea = activos.filter(
+            DispositivoIoT.ultimo_contacto >= ahora - timedelta(minutes=settings.IOT_SIN_SENAL_MINUTOS)
+        ).count()
+        tipos = ("iot_umbral", "iot_sin_senal")
+        por_tipo = dict(
+            db.query(Alerta.tipo, func.count(Alerta.id))
+            .filter(Alerta.tipo.in_(tipos), de_planta(Alerta.sitio_id, sitio_id),
+                    Alerta.creado_en >= ahora - timedelta(days=dias))
+            .group_by(Alerta.tipo).all()
+        )
+        pendientes = (db.query(Alerta)
+                      .filter(Alerta.tipo.in_(tipos), de_planta(Alerta.sitio_id, sitio_id),
+                              Alerta.atendida_en.is_(None)).count())
+        return {
+            "dispositivos": total,
+            "en_linea": en_linea,
+            "alertas_periodo": sum(por_tipo.values()),
+            "alertas_por_tipo": {t: por_tipo.get(t, 0) for t in tipos},
+            "alertas_pendientes": pendientes,
+            "sin_senal_minutos": settings.IOT_SIN_SENAL_MINUTOS,
+            "periodo_dias": dias,
         }
 
     @staticmethod

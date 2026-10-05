@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import MenuBarra from './MenuBarra';
-import { seccionesDe } from '../lib/navegacion';
+import { seccionesDe, seccionActiva } from '../lib/navegacion';
 import { LogOut, ShieldCheck, User, FolderOpen, KeyRound, Languages, Check, Search
 } from 'lucide-react';
 import { useConexionPortal } from '../context/Eventos';
@@ -53,14 +53,17 @@ const Navbar = () => {
     navigate('/login', { replace: true });
   };
 
-  const activo = (ruta) => location.pathname === ruta;
-
   const esAdmin = user.rol === 'admin';
 
   // La lista vive en `lib/navegacion`, no aquí: la paleta de comandos
   // necesita exactamente la misma, y copiada en dos sitios el día que se
   // añada una sección se añadiría en uno solo.
   const secciones = seccionesDe(t, esAdmin);
+  // Por prefijo y no exacta: `/personas/plantas` sigue siendo «Personas».
+  const activo = (ruta) => {
+    const s = secciones.find((x) => x.ruta === ruta);
+    return s ? seccionActiva(s, location.pathname) : location.pathname === ruta;
+  };
 
   return (
     <nav className="navbar">

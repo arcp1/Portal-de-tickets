@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import useTituloPagina from './hooks/useTituloPagina';
 import useAtajoBusqueda from './hooks/useAtajoBusqueda';
@@ -27,6 +27,7 @@ import NewTicket from './pages/NewTicket';
 import TicketDetail from './pages/TicketDetail';
 import Inventory from './pages/Inventory';
 import FiltrosSVG from './components/FiltrosSVG';
+import Modulo from './components/Modulo';
 
 /**
  * **Lo que no usa todo el mundo, se descarga cuando se usa.** Todo iba en un
@@ -70,7 +71,12 @@ const DocumentacionTI = diferida(() => import('./pages/DocumentacionTI'));
 const CatalogoVisual = diferida(() => import('./pages/CatalogoVisual'));
 const RulesAdmin = diferida(() => import('./pages/RulesAdmin'));
 const Metricas = diferida(() => import('./pages/Metricas'));
-const Temas = diferida(() => import('./pages/Temas'));
+const PaginaPasos = diferida(() => import('./pages/Temas').then((m) => ({ default: m.PaginaPasos })));
+const PaginaArticulos = diferida(() => import('./pages/Temas').then((m) => ({ default: m.PaginaArticulos })));
+const PaginaBandeja = diferida(() => import('./pages/Temas').then((m) => ({ default: m.PaginaBandeja })));
+const CentroAlertas = diferida(() => import('./pages/CentroAlertas'));
+const Bitacora = diferida(() => import('./pages/Bitacora'));
+const Directorio = diferida(() => import('./pages/Directorio'));
 const Expediente = diferida(() => import('./pages/Expediente'));
 const Resguardos = diferida(() => import('./pages/Resguardos'));
 const Monitoreo = diferida(() => import('./pages/Monitoreo'));
@@ -95,6 +101,14 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
   }
 
   return children;
+};
+
+/** Una ruta de antes, a su sitio nuevo, con la consulta y el ancla. */
+const Redirigir = ({ a }) => {
+  const location = useLocation();
+  const params = useParams();
+  const destino = typeof a === 'function' ? a(params) : a;
+  return <Navigate to={destino + location.search + location.hash} replace />;
 };
 
 /**
@@ -186,22 +200,50 @@ function AppRoutes() {
         <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/new-ticket" element={<ProtectedRoute><NewTicket /></ProtectedRoute>} />
         <Route path="/tickets/:id" element={<ProtectedRoute><TicketDetail /></ProtectedRoute>} />
-        <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
+        <Route path="/inventory" element={<ProtectedRoute><Modulo id="activos"><Inventory /></Modulo></ProtectedRoute>} />
         <Route path="/expediente" element={<ProtectedRoute><Expediente /></ProtectedRoute>} />
-        <Route path="/expediente/:usuarioId" element={<ProtectedRoute adminOnly><Expediente /></ProtectedRoute>} />
-        <Route path="/resguardos" element={<ProtectedRoute adminOnly><Resguardos /></ProtectedRoute>} />
-        <Route path="/usuarios" element={<ProtectedRoute adminOnly><Usuarios /></ProtectedRoute>} />
-        <Route path="/importar" element={<ProtectedRoute adminOnly><Importar /></ProtectedRoute>} />
-        <Route path="/estado" element={<ProtectedRoute adminOnly><EstadoSistema /></ProtectedRoute>} />
-        <Route path="/conciencia" element={<ProtectedRoute adminOnly><Conciencia /></ProtectedRoute>} />
-        <Route path="/soluciones" element={<ProtectedRoute adminOnly><Soluciones /></ProtectedRoute>} />
-        <Route path="/documentacion" element={<ProtectedRoute adminOnly><DocumentacionTI /></ProtectedRoute>} />
-        <Route path="/catalogo-visual" element={<ProtectedRoute adminOnly><CatalogoVisual /></ProtectedRoute>} />
-        <Route path="/rules" element={<ProtectedRoute adminOnly><RulesAdmin /></ProtectedRoute>} />
-        <Route path="/temas" element={<ProtectedRoute adminOnly><Temas /></ProtectedRoute>} />
-        <Route path="/metricas" element={<ProtectedRoute adminOnly><Metricas /></ProtectedRoute>} />
-        <Route path="/monitoreo" element={<ProtectedRoute adminOnly><Monitoreo /></ProtectedRoute>} />
-        <Route path="/plantas" element={<ProtectedRoute adminOnly><Plantas /></ProtectedRoute>} />
+        <Route path="/resguardos" element={<ProtectedRoute adminOnly><Modulo id="activos"><Resguardos /></Modulo></ProtectedRoute>} />
+        {/* Los módulos (reorganización del 2026-10-05). Qué pestañas tiene
+            cada uno lo dice `lib/navegacion`; `Modulo` las pinta. */}
+        <Route path="/operacion" element={<Navigate to="/operacion/alertas" replace />} />
+        <Route path="/operacion/alertas" element={<ProtectedRoute adminOnly><Modulo id="operacion"><CentroAlertas /></Modulo></ProtectedRoute>} />
+        <Route path="/operacion/monitoreo" element={<ProtectedRoute adminOnly><Modulo id="operacion"><Monitoreo /></Modulo></ProtectedRoute>} />
+        <Route path="/personas" element={<ProtectedRoute adminOnly><Modulo id="personas"><Usuarios /></Modulo></ProtectedRoute>} />
+        <Route path="/personas/plantas" element={<ProtectedRoute adminOnly><Modulo id="personas"><Plantas /></Modulo></ProtectedRoute>} />
+        <Route path="/personas/importar" element={<ProtectedRoute adminOnly><Modulo id="personas"><Importar /></Modulo></ProtectedRoute>} />
+        <Route path="/personas/:usuarioId" element={<ProtectedRoute adminOnly><Modulo id="personas"><Expediente /></Modulo></ProtectedRoute>} />
+        <Route path="/conocimiento" element={<ProtectedRoute adminOnly><Modulo id="conocimiento"><Conciencia /></Modulo></ProtectedRoute>} />
+        <Route path="/conocimiento/articulos" element={<ProtectedRoute adminOnly><Modulo id="conocimiento"><PaginaArticulos /></Modulo></ProtectedRoute>} />
+        <Route path="/conocimiento/procedimientos" element={<ProtectedRoute adminOnly><Modulo id="conocimiento"><Soluciones /></Modulo></ProtectedRoute>} />
+        <Route path="/conocimiento/pasos" element={<ProtectedRoute adminOnly><Modulo id="conocimiento"><PaginaPasos /></Modulo></ProtectedRoute>} />
+        <Route path="/conocimiento/catalogo" element={<ProtectedRoute adminOnly><Modulo id="conocimiento"><CatalogoVisual /></Modulo></ProtectedRoute>} />
+        <Route path="/conocimiento/bandeja" element={<ProtectedRoute adminOnly><Modulo id="conocimiento"><PaginaBandeja /></Modulo></ProtectedRoute>} />
+        {/* Documentos es de todos: la planta ve, en solo lectura, las
+            carpetas que su visibilidad le enseña. */}
+        <Route path="/documentos" element={<Navigate to="/documentos/archivos" replace />} />
+        <Route path="/documentos/archivos" element={<ProtectedRoute><Modulo id="documentos"><Directorio /></Modulo></ProtectedRoute>} />
+        <Route path="/documentos/archivos/:carpetaId" element={<ProtectedRoute><Modulo id="documentos"><Directorio /></Modulo></ProtectedRoute>} />
+        <Route path="/documentos/tecnica" element={<ProtectedRoute adminOnly><Modulo id="documentos"><DocumentacionTI /></Modulo></ProtectedRoute>} />
+        <Route path="/sistema" element={<Navigate to="/sistema/metricas" replace />} />
+        <Route path="/sistema/metricas" element={<ProtectedRoute adminOnly><Modulo id="sistema"><Metricas /></Modulo></ProtectedRoute>} />
+        <Route path="/sistema/reglas" element={<ProtectedRoute adminOnly><Modulo id="sistema"><RulesAdmin /></Modulo></ProtectedRoute>} />
+        <Route path="/sistema/estado" element={<ProtectedRoute adminOnly><Modulo id="sistema"><EstadoSistema /></Modulo></ProtectedRoute>} />
+        <Route path="/sistema/bitacora" element={<ProtectedRoute adminOnly><Modulo id="sistema"><Bitacora /></Modulo></ProtectedRoute>} />
+        {/* Las rutas de antes: marcadores, correos y enlaces guardados
+            apuntan ahí. `Redirigir` conserva la consulta (`?dispositivo=3`). */}
+        <Route path="/usuarios" element={<Redirigir a="/personas" />} />
+        <Route path="/importar" element={<Redirigir a="/personas/importar" />} />
+        <Route path="/plantas" element={<Redirigir a="/personas/plantas" />} />
+        <Route path="/expediente/:usuarioId" element={<Redirigir a={(p) => `/personas/${p.usuarioId}`} />} />
+        <Route path="/conciencia" element={<Redirigir a="/conocimiento" />} />
+        <Route path="/soluciones" element={<Redirigir a="/conocimiento/procedimientos" />} />
+        <Route path="/catalogo-visual" element={<Redirigir a="/conocimiento/catalogo" />} />
+        <Route path="/temas" element={<Redirigir a="/conocimiento/pasos" />} />
+        <Route path="/documentacion" element={<Redirigir a="/documentos/tecnica" />} />
+        <Route path="/monitoreo" element={<Redirigir a="/operacion/monitoreo" />} />
+        <Route path="/metricas" element={<Redirigir a="/sistema/metricas" />} />
+        <Route path="/rules" element={<Redirigir a="/sistema/reglas" />} />
+        <Route path="/estado" element={<Redirigir a="/sistema/estado" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </Suspense>

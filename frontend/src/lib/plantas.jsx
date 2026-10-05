@@ -105,7 +105,7 @@ export function textoPlantasDe(usuario, t) {
  * primera elegida es la principal —la que se le propone al levantar un
  * ticket— y se marca. Son casillas de verdad, para el teclado y el lector.
  */
-export function PlantasMultiples({ plantas, value, onChange, idGrupo = 'plantas-persona' }) {
+export function PlantasMultiples({ plantas, value, onChange, idGrupo = 'plantas-persona', conPrincipal = true }) {
   const { t } = useTranslation();
   const elegidas = value || [];
   const alternar = (id) => {
@@ -123,7 +123,7 @@ export function PlantasMultiples({ plantas, value, onChange, idGrupo = 'plantas-
                 que en el diálogo oscuro apenas se distinguía. */}
             {marcada ? <Check size={13} aria-hidden="true" /> : <Factory size={13} aria-hidden="true" />}
             {p.clave} · {p.nombre}
-            {marcada && elegidas[0] === p.id && elegidas.length > 1 && (
+            {conPrincipal && marcada && elegidas[0] === p.id && elegidas.length > 1 && (
               <span className="plantas-principal">{t('plantas.principal')}</span>
             )}
           </label>

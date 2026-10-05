@@ -287,9 +287,13 @@ def test_quien_se_equivoca_en_la_planta_solo_se_bloquea_a_si_mismo(client, con_p
     assert _entrar(client, "admin@test.com", "Secret123!", **_desde(PLANTA)).status_code == 200
 
 
-def test_sin_redes_de_planta_todo_lo_de_internet_es_publico(client, db_session):
+def test_sin_redes_de_planta_todo_lo_de_internet_es_publico(client, db_session, monkeypatch):
     """Vacío —el valor por defecto—, nada cambia: es lo que vale si falta en el .env."""
     from app.tests.test_seguridad import _pendiente
+
+    # Se fija aquí y no se da por supuesto: la suite corre con el .env de la
+    # máquina, y desde el 2026-10-05 el de producción trae la red de la planta.
+    monkeypatch.setattr(settings, "REDES_DE_PLANTA", "")
 
     _pendiente(db_session, numero="4403")
     r = client.post("/api/auth/activar", headers=_desde(PLANTA),

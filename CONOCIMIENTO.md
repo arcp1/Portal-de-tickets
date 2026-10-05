@@ -145,7 +145,7 @@ veces al día— lo hace Ollama, gratis y sin que nada salga de la planta.
 Diez tickets sobre la misma falla dejan diez soluciones parecidas y ninguna
 completa. Cada una cuenta lo que pasó ese día; ninguna cuenta **el problema**.
 
-En **Soluciones** del menú, el portal enseña qué fallas ya se repitieron lo
+En **Conocimiento → Procedimientos**, el portal enseña qué fallas ya se repitieron lo
 suficiente y ofrece redactar el procedimiento: síntoma, causa más común, qué
 hacer, y qué ya se descartó.
 

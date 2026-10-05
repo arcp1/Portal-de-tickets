@@ -206,7 +206,11 @@ services:
     security_opt:
       - no-new-privileges:true
     tmpfs:
-      - /tmp:size=100m
+      # Las subidas grandes pasan por aquí antes de llegar al endpoint
+      # (Starlette las vuelca a /tmp pasado 1 MB). Con el directorio de
+      # documentos una sola subida puede ser de 50 MB: con 100 MB, dos a la vez
+      # lo llenaban. Es memoria del contenedor (mem_limit 3g).
+      - /tmp:size=256m
     env_file:
       - .env
     environment:
@@ -373,6 +377,9 @@ services:
         condition: service_started
     volumes:
       - ./backend:/app:ro
+      # La papelera del directorio de documentos: el worker la purga a los
+      # DIRECTORIO_PAPELERA_DIAS y tiene que poder borrar los binarios.
+      - documentos:/app/documentos
 
   # El receptor de telemetría: suscrito a Mosquitto, guarda las lecturas y
   # abre alertas (backend/app/iot/ingestor.py). Misma imagen que el backend.

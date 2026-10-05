@@ -5,7 +5,7 @@ Las abre el sistema —ver `services/alertas_service.py`—; aquí solo se leen 
 se atienden.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -36,6 +36,8 @@ class AlertaResponse(BaseModel):
     creado_en: FechaUTC
     atendida_en: Optional[FechaUTC] = None
     atendida_por: Optional[int] = None
+    # Para el historial del centro de alertas: quién la dio por atendida.
+    atendida_por_nombre: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -59,16 +61,41 @@ def _filtradas(db: Session, sitio_id: Optional[int], tipo: Optional[str]):
 @router.get("", response_model=List[AlertaResponse])
 def listar(
     pendientes: bool = True,
+    atendidas: bool = False,
     tipo: Optional[str] = None,
     sitio_id: Optional[int] = Query(None, ge=1, le=2**31 - 1),
+    dias: Optional[int] = Query(None, ge=1, le=365),
+    antes_de: Optional[int] = Query(None, ge=1, le=2**31 - 1),
     limite: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
     admin: Usuario = Depends(get_current_admin),
 ):
+    """Las alertas, de la más reciente a la más vieja.
+
+    La campana pide solo las pendientes. El centro de alertas pide también el
+    historial: `pendientes=false` las trae todas y `atendidas=true` solo las
+    cerradas; `dias` acota el periodo y `antes_de` (el id de la última que ya
+    tiene) pide la página siguiente sin saltarse ni repetir ninguna aunque
+    entren alertas nuevas mientras tanto.
+    """
     consulta = _filtradas(db, sitio_id, tipo).options(joinedload(Alerta.sitio))
     if pendientes:
         consulta = consulta.filter(Alerta.atendida_en.is_(None))
-    return consulta.order_by(Alerta.creado_en.desc(), Alerta.id.desc()).limit(limite).all()
+    elif atendidas:
+        consulta = consulta.filter(Alerta.atendida_en.isnot(None))
+    if dias:
+        consulta = consulta.filter(Alerta.creado_en >= datetime.utcnow() - timedelta(days=dias))
+    if antes_de:
+        consulta = consulta.filter(Alerta.id < antes_de)
+    filas = consulta.order_by(Alerta.id.desc()).limit(limite).all()
+    ids = {a.atendida_por for a in filas if a.atendida_por}
+    nombres = dict(db.query(Usuario.id, Usuario.nombre).filter(Usuario.id.in_(ids)).all()) if ids else {}
+    salida = []
+    for a in filas:
+        r = AlertaResponse.model_validate(a)
+        r.atendida_por_nombre = nombres.get(a.atendida_por)
+        salida.append(r)
+    return salida
 
 
 @router.get("/resumen", response_model=ResumenAlertas)

@@ -181,7 +181,16 @@ def db_session():
         yield db
     finally:
         db.close()
-        Base.metadata.drop_all(bind=engine)
+        # SQLite borra cada tabla con un DELETE implícito, y una llave
+        # `ON DELETE RESTRICT` —las carpetas del directorio, que cuelgan unas
+        # de otras— lo rechaza a mitad si quedaron filas. Las llaves se
+        # apagan solo para tirar las tablas; fuera de un BEGIN, que es donde
+        # SQLite admite el PRAGMA.
+        with engine.connect() as conexion:
+            conexion.exec_driver_sql("PRAGMA foreign_keys=OFF")
+            Base.metadata.drop_all(bind=conexion)
+            conexion.commit()
+            conexion.exec_driver_sql("PRAGMA foreign_keys=ON")
 
 @pytest.fixture(scope="function")
 def client(db_session):

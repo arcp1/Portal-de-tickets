@@ -220,7 +220,7 @@ const Usuarios = () => {
         </button>
 
         {/* Para 300 personas, el alta de una en una no es camino. */}
-        <button onClick={() => navigate('/importar')} className="btn-secondary"
+        <button onClick={() => navigate('/personas/importar')} className="btn-secondary"
           style={{ padding: '10px 18px', fontSize: '0.9rem' }}>
           <Upload size={16} /> {t('usuarios.importar')}
         </button>
@@ -509,7 +509,7 @@ const Usuarios = () => {
                 </div>
 
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                  <button onClick={() => navigate(`/expediente/${u.id}`)} className="btn-secondary"
+                  <button onClick={() => navigate(`/personas/${u.id}`)} className="btn-secondary"
                     style={{ padding: '9px 13px' }} title={t('usuarios.ver_expediente')}>
                     <FolderOpen size={15} />
                   </button>
@@ -995,7 +995,7 @@ const NotaUnaPlanta = () => {
   return (
     <div className="nota-suave" style={{ marginTop: '10px' }}>
       {t('plantas.una_sola')}{' '}
-      <Link to="/plantas" className="boton-texto" style={{ padding: 0 }}>{t('plantas.ir_a_plantas')}</Link>
+      <Link to="/personas/plantas" className="boton-texto" style={{ padding: 0 }}>{t('plantas.ir_a_plantas')}</Link>
     </div>
   );
 };

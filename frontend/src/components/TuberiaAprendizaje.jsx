@@ -124,7 +124,7 @@ export const AvisosAprendizaje = ({ aprendizaje, hayConocimiento = true }) => {
     pendientes.push({
       clave: 'proponer',
       texto: t('conciencia.aviso.proponer'),
-      enlace: '/soluciones',
+      enlace: '/conocimiento/procedimientos',
     });
   }
 

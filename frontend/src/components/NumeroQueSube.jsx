@@ -22,7 +22,7 @@ import React, { useEffect, useRef, useState } from 'react';
  *     cuenta deja un `requestAnimationFrame` vivo escribiendo en un
  *     componente que ya no existe.
  */
-export default function NumeroQueSube({ valor, sufijo = '', duracion = 900 }) {
+export default function NumeroQueSube({ valor, sufijo = '', duracion = 900, formatear }) {
   const sinDato = valor === null || valor === undefined;
   const [mostrado, setMostrado] = useState(sinDato ? null : 0);
   const cuadro = useRef(null);
@@ -69,5 +69,8 @@ export default function NumeroQueSube({ valor, sufijo = '', duracion = 900 }) {
   }, [valor, sinDato, duracion]);
 
   if (mostrado === null) return '—';
+  // Con `formatear`, cada fotograma se escribe como la cifra final —con la
+  // coma del idioma y la unidad en pequeño—, no como un número suelto.
+  if (formatear) return formatear(mostrado);
   return `${mostrado}${sufijo}`;
 }

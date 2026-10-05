@@ -5200,3 +5200,260 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: not-allowed; }
     flex: 1 1 100%;
   }
 }
+
+/* **Las pestañas de un módulo** (reorganización del 2026-10-05). Van en su
+   propio `.page-container` para heredar el mismo ancho y los mismos márgenes
+   que la pantalla de debajo: si no, la fila de pestañas y el título no
+   empezarían en la misma columna. La pantalla se acerca a ellas porque ya no
+   es lo primero de la página. */
+.modulo-barra {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-bottom: 0;
+}
+.modulo-barra + .page-container { padding-top: 1.1rem; }
+.modulo-nombre {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+/* Cede y se desplaza de lado en vez de empujar la página: en el celular,
+   seis pestañas de Conocimiento no caben en 360 px. */
+.modulo-pestanas { flex: 1 1 auto; min-width: 0; }
+.modulo-pestanas .chip-filtro { text-decoration: none; }
+@media (max-width: 640px) {
+  .modulo-nombre { display: none; }
+  .modulo-pestanas .chip-filtro--pestana { padding: 8px 14px; font-size: 0.85rem; }
+}
+
+/* La Bandeja de Conocimiento: los borradores arriba, en una tarjeta, y los
+   temas detectados debajo con su título de sección. */
+.bandeja-borradores { padding: 18px 20px; margin-bottom: 26px; }
+.bandeja-borradores-cabecera { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.bandeja-cuenta {
+  min-width: 24px; padding: 1px 8px; border-radius: var(--radius-full);
+  background: var(--bg-tertiary); color: var(--text-secondary);
+  font-size: 0.8rem; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums;
+}
+.bandeja-vacia { color: var(--text-muted); font-size: 0.9rem; margin: 0; }
+.bandeja-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.bandeja-lista li {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 0; border-top: 1px solid var(--border-color);
+}
+.bandeja-lista li:first-child { border-top: none; }
+.bandeja-titulo { flex: 1 1 200px; min-width: 0; color: var(--text-primary); font-weight: 500; overflow-wrap: anywhere; }
+.bandeja-categoria { color: var(--text-muted); font-size: 0.82rem; }
+.seccion-titulo-bandeja {
+  font-family: var(--font-heading); font-size: 1.1rem; font-weight: 650;
+  color: var(--text-primary); margin: 0 0 14px;
+}
+
+/* El centro de alertas reutiliza las filas de la campana, a ancho de página. */
+.centro-alertas-lista { list-style: none; margin: 0; padding: 6px 0; }
+.centro-alertas-lista .campana-item { padding: 14px 18px; }
+.centro-alertas-lista .campana-item-texto { font-size: 0.95rem; }
+.centro-alerta-tipo { font-weight: 600; color: var(--text-secondary); }
+.centro-alerta--atendida .campana-item-icono { color: var(--text-muted); }
+.centro-alerta--atendida .campana-item-texto { color: var(--text-secondary); }
+.centro-alerta-atendida {
+  display: inline-flex; align-items: center; gap: 5px; margin-top: 6px;
+  font-size: 0.78rem; color: var(--status-cerrado-text);
+}
+/* Varios desplegables en una barra: en fila mientras quepan, y se reparten
+   el ancho; en el celular bajan de dos en dos. */
+.filtros-en-fila .form-select,
+.filtros-en-fila .selector { min-width: 0; flex: 1 1 160px; width: auto; }
+
+/* La bitácora: la hora a la izquierda, el qué a la derecha. En el celular,
+   la hora encima. */
+.bitacora-lista { list-style: none; margin: 0; padding: 4px 0; }
+.bitacora-fila {
+  display: grid; grid-template-columns: 170px 1fr; gap: 16px;
+  padding: 14px 20px; border-top: 1px solid var(--border-color);
+}
+.bitacora-fila:first-child { border-top: none; }
+.bitacora-cuando { display: flex; flex-direction: column; gap: 2px; font-size: 0.82rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.bitacora-ip { font-family: var(--font-mono, monospace); font-size: 0.72rem; color: var(--text-muted); }
+.bitacora-que { min-width: 0; color: var(--text-primary); font-size: 0.9rem; line-height: 1.45; }
+.bitacora-accion { color: var(--accent-primary); font-weight: 600; }
+.bitacora-entidad { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+.bitacora-detalle {
+  display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px;
+  margin: 8px 0 0; font-size: 0.8rem;
+}
+.bitacora-detalle dt { color: var(--text-muted); }
+.bitacora-detalle dd { margin: 0; color: var(--text-secondary); overflow-wrap: anywhere; min-width: 0; }
+@media (max-width: 640px) {
+  .bitacora-fila { grid-template-columns: 1fr; gap: 6px; padding: 12px 14px; }
+  .bitacora-cuando { flex-direction: row; gap: 10px; }
+}
+
+/* **El directorio de documentos.** El árbol a la izquierda y el contenido a
+   la derecha; en el celular el árbol se va (las migas dicen dónde se está y
+   las carpetas se abren tocándolas). Cada fila es nombre, datos y botones, y
+   en lo estrecho los datos bajan a su propio renglón. */
+.directorio-acciones { display: flex; gap: 10px; flex-wrap: wrap; }
+.directorio-barra { gap: 12px; }
+.directorio-migas {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  flex: 1 1 260px; min-width: 0; font-size: 0.88rem; color: var(--text-muted);
+}
+.directorio-migas a {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: var(--text-secondary); text-decoration: none; overflow-wrap: anywhere;
+}
+.directorio-migas a:last-child { color: var(--text-primary); font-weight: 600; }
+.directorio-migas a:hover { text-decoration: underline; }
+.directorio-busqueda { position: relative; flex: 0 1 260px; min-width: 0; }
+.directorio-busqueda svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+.directorio-busqueda .form-input { padding-left: 32px; width: 100%; }
+.directorio-cuerpo { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 20px; align-items: start; }
+.directorio-arbol { padding: 12px 8px; position: sticky; top: 140px; max-height: calc(100vh - 170px); overflow: auto; }
+.directorio-arbol ul { list-style: none; margin: 0; padding: 0; }
+.directorio-arbol ul ul { padding-left: 14px; }
+.directorio-arbol-enlace {
+  display: flex; align-items: center; gap: 7px; padding: 6px 8px; border-radius: var(--radius-sm);
+  color: var(--text-secondary); text-decoration: none; font-size: 0.86rem;
+}
+.directorio-arbol-enlace span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.directorio-arbol-enlace:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.directorio-arbol-enlace--actual { background: var(--bg-tertiary); color: var(--text-primary); font-weight: 600; }
+.directorio-contenido { min-width: 0; border-radius: var(--radius-lg); transition: box-shadow 0.2s ease; }
+.directorio-contenido--soltar { box-shadow: 0 0 0 2px var(--accent-primary); }
+.directorio-lista { list-style: none; margin: 0; padding: 4px 0; }
+.directorio-lista--simple { padding: 0; margin: 12px 0; }
+.directorio-fila {
+  display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap;
+  padding: 10px 16px; border-top: 1px solid var(--border-color);
+}
+.directorio-fila:first-child { border-top: none; }
+.directorio-fila--info { padding: 10px 16px; }
+.directorio-nombre {
+  display: inline-flex; align-items: center; gap: 10px; flex: 1 1 220px; min-width: 0;
+  background: none; border: none; padding: 0; cursor: pointer; text-align: left;
+  color: var(--text-primary); font: inherit; font-weight: 500; text-decoration: none;
+}
+.directorio-nombre:hover .directorio-nombre-texto { text-decoration: underline; }
+.directorio-nombre--quieto { cursor: default; }
+.directorio-nombre--quieto:hover .directorio-nombre-texto { text-decoration: none; }
+.directorio-nombre-texto { overflow-wrap: anywhere; min-width: 0; }
+.directorio-icono { flex-shrink: 0; color: var(--text-secondary); }
+.directorio-icono--carpeta { color: var(--status-espera-proveedor-text); }
+.directorio-meta { font-size: 0.8rem; color: var(--text-muted); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.directorio-meta a { color: inherit; }
+.directorio-botones { display: inline-flex; gap: 6px; margin-left: auto; }
+.directorio-restaurar { padding: 6px 12px; font-size: 0.82rem; }
+.directorio-descripcion { flex: 1 1 100%; margin: 0 0 0 28px; font-size: 0.82rem; color: var(--text-secondary); }
+.directorio-visibilidad { display: inline-flex; align-items: center; gap: 4px; }
+.directorio-visibilidad--ti { color: var(--status-espera-proveedor-text); }
+.directorio-pista { margin: 12px 4px 0; font-size: 0.8rem; color: var(--text-muted); }
+.directorio-rechazos { margin: 6px 0 0; padding-left: 18px; font-size: 0.84rem; }
+.directorio-dialogo { width: 100%; max-width: 480px; padding: 28px; }
+.directorio-dialogo--ancho { max-width: 620px; }
+.directorio-dialogo h2 { font-size: 1.2rem; font-weight: 700; margin: 0 0 14px; color: var(--text-primary); overflow-wrap: anywhere; }
+.directorio-dialogo-pie { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 18px; }
+@media (max-width: 900px) {
+  .directorio-cuerpo { grid-template-columns: minmax(0, 1fr); }
+  .directorio-arbol { display: none; }
+}
+@media (max-width: 640px) {
+  .directorio-busqueda { flex: 1 1 100%; }
+  .directorio-fila { padding: 10px 12px; }
+  .directorio-botones { margin-left: 0; }
+  .directorio-descripcion { margin-left: 0; }
+  .directorio-dialogo { padding: 20px; }
+}
+
+/* **Métricas, rediseño del 2026-10-05.** Las etiquetas iban en mono a
+   0.67 rem, mayúsculas y con 0.16 em de aire: «DESCRIPCIÓN NORMALIZADA» se
+   partía en dos y la casilla de al lado no, así que las cifras de una misma
+   fila quedaban a dos alturas. Ahora van en redonda, a tamaño de lectura y
+   con sitio fijo para dos renglones: las cifras de una fila se alinean
+   siempre. La unidad va más pequeña que el número, y cada casilla dice de
+   cuándo es su cifra. */
+.casilla-metrica-cabeza {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.casilla-metrica-cabeza .casilla-metrica-etiqueta,
+[data-fondo="flujo"] .casilla-metrica-cabeza .casilla-metrica-etiqueta {
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.3;
+  color: var(--text-secondary);
+  margin-bottom: 0;
+  min-height: 2.6em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.casilla-metrica-ambito {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-muted);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.cifra-unidad {
+  font-size: 0.52em;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--text-secondary);
+}
+.titulo-bloque-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.titulo-bloque-fila .titulo-bloque { margin-bottom: 0; }
+.metricas-subtitulo { display: flex; align-items: center; gap: 8px; margin: 28px 0 12px; }
+.metricas-subtitulo:first-of-type { margin-top: 0; }
+.metricas-controles { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.metricas-controles .form-select,
+.metricas-controles .selector { min-width: 160px; }
+.metricas-enlaces { display: flex; gap: 8px; flex-wrap: wrap; }
+.metricas-boton { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 0.85rem; text-decoration: none; }
+.metricas-vacio { color: var(--text-muted); font-size: 0.9rem; }
+.metricas-nota { font-size: 0.8rem; color: var(--text-muted); margin-top: 14px; }
+.reparto { display: flex; flex-direction: column; gap: 10px; }
+/* La columna del nombre, más ancha: «Base de conocimiento» y «Catálogo
+   visual» no cabían en 110 px y se partían. En redonda y sin versalitas. */
+.reparto .fila-canal-nombre,
+[data-fondo="flujo"] .reparto .fila-canal-nombre {
+  width: 190px;
+  flex-shrink: 0;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-secondary);
+}
+.reparto .fila-canal-cifra { width: auto; min-width: 104px; white-space: nowrap; }
+.reparto .fila-canal-cifra .cifra-unidad { font-size: 0.85em; }
+@media (max-width: 640px) {
+  .reparto .fila-canal { flex-wrap: wrap; row-gap: 4px; }
+  .reparto .fila-canal-nombre,
+  [data-fondo="flujo"] .reparto .fila-canal-nombre { width: auto; flex: 1 1 100%; }
+  .metricas-controles { width: 100%; }
+  .metricas-controles > * { flex: 1 1 140px; }
+}

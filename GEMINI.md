@@ -22,7 +22,7 @@ docker compose up -d backend
 ```
 
 Listo. Para comprobar que quedó bien **no hace falta enseñarle la llave a nadie**:
-entra al portal, menú **Estado**, y la tarjeta de Gemini debe decir *Arriba*. Ahí
+entra al portal, **Sistema → Estado del sistema**, y la tarjeta de Gemini debe decir *Arriba*. Ahí
 solo se muestran los últimos cuatro caracteres, suficiente para saber cuál llave
 está puesta e inútil para usarla.
 

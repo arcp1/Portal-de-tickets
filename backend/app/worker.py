@@ -42,6 +42,7 @@ from app.core.config import settings
 from app.core.db import SessionLocal
 from app.core.logging import logger, setup_logging
 from app.models import Ticket
+from app.services import directorio_service
 from app.services import eventos_service as eventos
 from app.services.alertas_service import AlertasService
 from app.services.iot_service import IoTService
@@ -135,6 +136,16 @@ async def purgar_lecturas(ctx) -> int:
     return borradas
 
 
+async def purgar_papelera(ctx) -> int:
+    """Lo que lleva más de DIRECTORIO_PAPELERA_DIAS en la papelera del
+    directorio de documentos se borra de verdad, binarios incluidos."""
+    borrados = await asyncio.to_thread(_con_sesion, directorio_service.purgar)
+    if borrados:
+        logger.info("Papelera del directorio purgada",
+                    extra={"archivos": borrados, "dias": settings.DIRECTORIO_PAPELERA_DIAS})
+    return borrados
+
+
 async def al_arrancar(ctx) -> None:
     setup_logging()
     # Arq trae su propio manejador de texto y además propaga a la raíz, que
@@ -153,6 +164,7 @@ class WorkerSettings:
         cron(reindexar_pendientes, minute={7, 37}),
         # 03:30 hora de planta (UTC-6): nadie está mirando las gráficas.
         cron(purgar_lecturas, hour=9, minute=30),
+        cron(purgar_papelera, hour=9, minute=45),
     ]
     on_startup = al_arrancar
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL or "redis://redis:6379/0")

@@ -454,6 +454,20 @@ class Settings(BaseSettings):
     DOCUMENTOS_RUTA: str = os.getenv("DOCUMENTOS_RUTA", "/app/documentos")
     DOCUMENTOS_MAX_MB: int = int(os.getenv("DOCUMENTOS_MAX_MB", "20"))
 
+    # --- Directorio de documentos (migración 0030) ---
+    # Manuales, formatos, planos, hojas de cálculo. Van al mismo volumen que el
+    # expediente (`DOCUMENTOS_RUTA/directorio`), que ya entra en el respaldo.
+    # El tope es por subida, sumando todos los archivos: nginx corta la misma
+    # ruta en 50 MB (nginx/comun/portal.conf), y este es el mismo número para
+    # que el backend no dependa de que nginx esté delante.
+    DIRECTORIO_MAX_MB: int = int(os.getenv("DIRECTORIO_MAX_MB", "50"))
+    DIRECTORIO_MAX_ARCHIVOS: int = int(os.getenv("DIRECTORIO_MAX_ARCHIVOS", "20"))
+    # Con la vigente: diez versiones de cada archivo, las demás se borran.
+    DIRECTORIO_MAX_VERSIONES: int = int(os.getenv("DIRECTORIO_MAX_VERSIONES", "10"))
+    # Lo que se manda a la papelera se puede restaurar durante estos días;
+    # después el worker lo borra de verdad, binarios incluidos.
+    DIRECTORIO_PAPELERA_DIAS: int = int(os.getenv("DIRECTORIO_PAPELERA_DIAS", "30"))
+
     # --- Temas recurrentes ---
     # Qué tan parecidas deben ser dos incidencias para contarlas como el mismo
     # problema. Más alto que el umbral de sugerencias: aquí se agrupa, y agrupar

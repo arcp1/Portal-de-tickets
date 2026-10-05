@@ -577,9 +577,11 @@ funciona bien, porque ahí el costo está en generar y no en leer.
     python3 scripts/vista-previa.py vacio      # el primer día, todo en cero
     python3 scripts/vista-previa.py roto       # todos los avisos disparados
 
-Abre http://localhost:8099/conciencia con el frontend ya construido y una API
+Abre http://localhost:8099/conocimiento con el frontend ya construido y una API
 simulada. La sesión se inyecta sola: no hay que iniciarla ni tener una cuenta.
-También sirve `/catalogo-visual`, y el reconocimiento por foto se dispara
+También sirve `/conocimiento/catalogo` y las pantallas de la
+reorganización del menú (`/documentos/archivos/1`, `/operacion/alertas`,
+`/sistema/bitacora`, `/sistema/metricas`), y el reconocimiento por foto se dispara
 escribiendo «sale borroso» en el chat o en la descripción de `/new-ticket`.
 
 **Qué frontend sirve, que importa.** Si existe `frontend/dist` usa ése y lo dice

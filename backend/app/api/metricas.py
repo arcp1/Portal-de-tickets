@@ -24,4 +24,5 @@ def resumen_completo(
         "base_conocimiento": MetricasService.base_conocimiento(db, sitio_id),
         "chatbot": MetricasService.chatbot(db, sitio_id),
         "ollama": MetricasService.ollama_estado(),
+        "sensores": MetricasService.sensores(db, sitio_id, dias=dias),
     }

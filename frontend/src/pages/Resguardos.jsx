@@ -146,7 +146,7 @@ const Resguardos = () => {
 
                   <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', fontSize: '0.88rem' }}>
                     <button
-                      onClick={() => navigate(`/expediente/${r.usuario_id}`)}
+                      onClick={() => navigate(`/personas/${r.usuario_id}`)}
                       style={{
                         display: 'flex', alignItems: 'center', gap: '6px', border: 'none',
                         background: 'none', cursor: 'pointer', padding: 0,

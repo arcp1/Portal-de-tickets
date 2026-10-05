@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import api from '../api/client';
 import { EsqueletoLista } from '../components/Cargando';
 import Confirmacion from '../components/Confirmacion';
@@ -7,7 +8,7 @@ import Selector from '../components/Selector';
 import EstadoVacio from '../components/EstadoVacio';
 import Formulario from '../components/Formulario';
 import {
-  ListChecks, BookOpen, Sparkles, Plus, Trash2, Pencil,
+  Plus, Trash2, Pencil,
   Check, X, EyeOff, Eye, AlertTriangle, TrendingUp
 } from 'lucide-react';
 import lista from '../lib/lista';
@@ -16,58 +17,104 @@ import { EditorImagenes, GaleriaImagenes } from '../components/ImagenesConocimie
 const CATEGORIAS = ['impresora', 'red', 'equipo', 'software', 'accesos', 'otro'];
 
 /**
- * Administración de temas.
+ * Las tres pantallas de conocimiento que antes eran pestañas de «Temas».
  *
- * Tres cosas que el admin necesita poder hacer sin tocar la base de datos:
- * editar los pasos de diagnóstico, mantener la base de conocimiento, y revisar
- * los problemas recurrentes que el portal detectó y todavía no tiene cubiertos.
+ * Temas mezclaba lo que se escribe a mano (pasos de diagnóstico, artículos)
+ * con lo que espera revisión (lo que el portal detectó solo). Desde la
+ * reorganización del 2026-10-05 cada una es una pestaña del módulo de
+ * Conocimiento con su propia ruta, así que se puede enlazar, volver atrás y
+ * abrir en otra pestaña del navegador. Las piezas de abajo no cambiaron.
  */
-const Temas = () => {
-  const { t } = useTranslation();
-  const [pestana, setPestana] = useState('pasos');
-
-  const pestanas = [
-    { id: 'pasos', icono: <ListChecks size={17} />, texto: t('temas.tab_pasos') },
-    { id: 'kb', icono: <BookOpen size={17} />, texto: t('temas.tab_kb') },
-    { id: 'detectados', icono: <Sparkles size={17} />, texto: t('temas.tab_detectados') }
-  ];
-
-  return (
-    <div className="page-container animate-fade-in">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">
-            {t('temas.title')}
-          </h1>
-          <p>
-              {t('temas.subtitle')}
-          </p>
-        </div>
+const Pagina = ({ titulo, subtitulo, children }) => (
+  <div className="page-container animate-fade-in">
+    <div className="page-header">
+      <div>
+        <h1 className="page-title">{titulo}</h1>
+        <p>{subtitulo}</p>
       </div>
-
-      {/* Las pestañas usan el mismo mecanismo que los filtros del tablero, no
-          un cambio de clase entre `btn-primary` y `btn-secondary`. Con aquello
-          la pestaña activa era siempre azul, así que la que se ilumina en rosa
-          al pasar el ratón cambiaba de color al pulsarla — y como el foco
-          también encendía, se veían dos encendidas a la vez. */}
-      <div className="filtros-estado" style={{ marginBottom: '28px', flexWrap: 'wrap' }}>
-        {pestanas.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => setPestana(p.id)}
-            className={`chip-filtro chip-filtro--pestana${pestana === p.id ? ' chip-filtro--activo' : ''}`}
-            aria-pressed={pestana === p.id}
-          >
-            {p.icono}
-            {p.texto}
-          </button>
-        ))}
-      </div>
-
-      {pestana === 'pasos' && <Pasos />}
-      {pestana === 'kb' && <Conocimiento />}
-      {pestana === 'detectados' && <Detectados />}
     </div>
+    {children}
+  </div>
+);
+
+export const PaginaPasos = () => {
+  const { t } = useTranslation();
+  return <Pagina titulo={t('temas.tab_pasos')} subtitulo={t('temas.sub_pasos')}><Pasos /></Pagina>;
+};
+
+export const PaginaArticulos = () => {
+  const { t } = useTranslation();
+  return <Pagina titulo={t('temas.tab_kb')} subtitulo={t('temas.sub_kb')}><Conocimiento /></Pagina>;
+};
+
+/** Lo que espera a una persona: los borradores que escribió la máquina y los
+ *  problemas que el portal agrupó solo. Nada de esto le contesta a nadie
+ *  mientras siga aquí. */
+export const PaginaBandeja = () => {
+  const { t } = useTranslation();
+  return (
+    <Pagina titulo={t('temas.bandeja_titulo')} subtitulo={t('temas.bandeja_sub')}>
+      <Borradores />
+      <h2 className="seccion-titulo-bandeja">{t('temas.tab_detectados')}</h2>
+      <Detectados />
+    </Pagina>
+  );
+};
+
+/** Procedimientos y fichas visuales en borrador, con un enlace a donde se
+ *  firman. Solo se listan: revisarlos es cosa de su pestaña. */
+const Borradores = () => {
+  const { t } = useTranslation();
+  const [filas, setFilas] = useState(null);
+
+  useEffect(() => {
+    let vivo = true;
+    Promise.allSettled([
+      api.get('/admin/soluciones', { params: { estado: 'borrador' } }),
+      api.get('/admin/visual', { params: { estado: 'borrador' } })
+    ]).then(([sol, vis]) => {
+      if (!vivo) return;
+      const procedimientos = sol.status === 'fulfilled'
+        ? lista(sol.value.data, 'los procedimientos').map((s) => ({
+          clave: 'p' + s.id, titulo: s.titulo, tipo: 'procedimiento',
+          ruta: '/conocimiento/procedimientos', categoria: s.categoria }))
+        : [];
+      const fichas = vis.status === 'fulfilled'
+        ? lista(vis.value.data, 'las fichas visuales').map((f) => ({
+          clave: 'v' + f.id, titulo: f.titulo, tipo: 'ficha',
+          ruta: '/conocimiento/catalogo', categoria: f.categoria }))
+        : [];
+      setFilas([...procedimientos, ...fichas]);
+    });
+    return () => { vivo = false; };
+  }, []);
+
+  if (filas === null) return <EsqueletoLista filas={2} />;
+  return (
+    <section className="apple-card bandeja-borradores" aria-label={t('temas.borradores')}>
+      <div className="bandeja-borradores-cabecera">
+        <strong>{t('temas.borradores')}</strong>
+        <span className="bandeja-cuenta">{filas.length}</span>
+      </div>
+      {filas.length === 0 ? (
+        <p className="bandeja-vacia">{t('temas.sin_borradores')}</p>
+      ) : (
+        <ul className="bandeja-lista">
+          {filas.map((f) => (
+            <li key={f.clave}>
+              <Etiqueta texto={t(`temas.borrador_${f.tipo}`)} tono={f.tipo === 'ficha' ? 'verde' : 'azul'} />
+              <span className="bandeja-titulo">{f.titulo}</span>
+              {f.categoria && (
+                <span className="bandeja-categoria">
+                  {t(`new_ticket.category_${f.categoria}`, { defaultValue: f.categoria })}
+                </span>
+              )}
+              <Link viewTransition to={f.ruta} className="boton-texto">{t('temas.revisar')}</Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 };
 
@@ -781,4 +828,4 @@ const Aviso = ({ texto }) => (
    lo que cambia es que ya no dibuja su propia caja. */
 const Vacio = ({ texto, detalle }) => <EstadoVacio texto={texto} detalle={detalle} />;
 
-export default Temas;
+export default PaginaPasos;

@@ -5,8 +5,8 @@
     python3 scripts/vista-previa.py vacio      # portal recién instalado
     python3 scripts/vista-previa.py roto       # todo lo que puede fallar, fallando
 
-Después: abrir http://localhost:8099/conciencia
-               http://localhost:8099/catalogo-visual
+Después: abrir http://localhost:8099/conocimiento
+               http://localhost:8099/conocimiento/catalogo
 
 **Para qué existe.** Las pantallas de este portal cambian de forma según los
 datos —el mapa de conocimiento pinta un nodo hueco distinto de uno vacío, la
@@ -201,11 +201,12 @@ _METRICAS = {
     "tickets": {
         "periodo_dias": 30, "tickets_total": 47, "tickets_abiertos": 9,
         "tickets_ultima_semana": 12, "tiempo_resolucion_promedio_min": 186,
+        "tickets_periodo": 31, "tickets_cancelados": 4, "tickets_cancelados_periodo": 2,
         # **Porcentajes de 0 a 100, no fracciones.** `_porcentaje` del backend
         # ya multiplica por 100; escribirlos aquí como 0.23 hacía que la
         # pantalla enseñara «0.23 %» —casi cero— donde en realidad va 23 %.
         "tasa_deflexion": 23.4, "tasa_normalizacion": 81.0,
-        "por_canal": {"formulario": 31, "chat": 9, "checklist": 5, "kb": 2},
+        "por_canal": {"tecnico": 31, "ia": 9, "checklist": 5, "kb": 2, "visual": 3},
         # Lista, no diccionario: `por_canal` es un diccionario y
         # `por_categoria` una lista de {categoria, total}. Confundirlos aquí
         # tumbó la pantalla en la propia vista previa, que es para lo que sirve.
@@ -234,7 +235,77 @@ _METRICAS = {
     "ollama": {"disponible": True,
                "latencias_ms": {"normalizacion": 850, "clasificacion": 680,
                                 "asistencia": 7090, "embedding": 1020}},
+    # Los ESP32 (desde 2026-10-05): uno de los cuatro sin reportar.
+    "sensores": {"dispositivos": 4, "en_linea": 3, "alertas_periodo": 7,
+                 "alertas_por_tipo": {"iot_umbral": 5, "iot_sin_senal": 2},
+                 "alertas_pendientes": 2, "sin_senal_minutos": 15, "periodo_dias": 30},
 }
+
+# El directorio de documentos (2026-10-05): dos raíces con visibilidades
+# distintas, una subcarpeta y archivos de varios tipos, nombres largos
+# incluidos —son los que rompen una fila en el celular—.
+_PLANTA_QRO = {"id": 1, "clave": "QRO", "nombre": "Planta de vista previa"}
+_CARPETAS_RAIZ = [
+    {"id": 1, "padre_id": None, "nombre": "Manuales de equipos", "descripcion": None, "profundidad": 1,
+     "visibilidad": "todos", "creado_en": "2026-10-01T15:00:00Z", "actualizado_en": "2026-10-01T15:00:00Z",
+     "subcarpetas": 1, "archivos": 3, "plantas": []},
+    {"id": 2, "padre_id": None, "nombre": "Contratos con proveedores", "descripcion": None, "profundidad": 1,
+     "visibilidad": "ti", "creado_en": "2026-10-02T15:00:00Z", "actualizado_en": "2026-10-02T15:00:00Z",
+     "subcarpetas": 0, "archivos": 0, "plantas": []},
+    {"id": 3, "padre_id": None, "nombre": "Formatos de la planta", "descripcion": None, "profundidad": 1,
+     "visibilidad": "plantas", "creado_en": "2026-10-02T15:00:00Z", "actualizado_en": "2026-10-02T15:00:00Z",
+     "subcarpetas": 0, "archivos": 0, "plantas": [_PLANTA_QRO]},
+]
+def _archivo_muestra(i, nombre, ext, tamano, version=1, en_linea=False, descripcion=None):
+    return {"id": i, "carpeta_id": 1, "nombre": nombre, "extension": ext, "tipo_mime": "application/octet-stream",
+            "tamano_bytes": tamano, "sha256": "0" * 64, "version": version, "descripcion": descripcion,
+            "subido_por": {"id": 1, "nombre": "Vista previa"}, "creado_en": "2026-10-01T15:00:00Z",
+            "actualizado_en": "2026-10-04T18:20:00Z", "en_linea": en_linea}
+_DIRECTORIO_CARPETA = {
+    "carpeta": dict(_CARPETAS_RAIZ[0], visibilidad_efectiva="todos", raiz_id=1),
+    "migas": [{"id": 1, "nombre": "Manuales de equipos"}],
+    "carpetas": [{"id": 4, "padre_id": 1, "nombre": "Impresoras Zebra de etiquetas", "descripcion": None,
+                  "profundidad": 2, "visibilidad": None, "creado_en": "2026-10-01T15:00:00Z",
+                  "actualizado_en": "2026-10-01T15:00:00Z", "subcarpetas": 0, "archivos": 2}],
+    "archivos": [
+        _archivo_muestra(11, "Manual de servicio HP LaserJet Enterprise M607 - procedimiento de cambio de fusor.pdf",
+                         "pdf", 4_812_330, version=3, en_linea=True,
+                         descripcion="La versión 3 corrige el torque de los tornillos del fusor."),
+        _archivo_muestra(12, "Inventario de switches.xlsx", "xlsx", 48_210),
+        _archivo_muestra(13, "foto-rack-principal.jpg", "jpg", 1_204_000, en_linea=True),
+    ],
+    "puede_editar": True,
+}
+
+_ALERTAS = [
+    {"id": 9, "tipo": "iot_umbral", "titulo": "x", "detalle": None,
+     "datos": {"dispositivo": "Cuarto de servidores", "magnitud": "temperatura", "valor": 31.4, "umbral": 28},
+     "sitio": _PLANTA_QRO, "ticket_id": None, "dispositivo_id": 2, "creado_en": "2026-10-05T17:40:00Z",
+     "atendida_en": None, "atendida_por": None, "atendida_por_nombre": None},
+    {"id": 8, "tipo": "sla_vencido", "titulo": "x", "detalle": None,
+     "datos": {"folio": "TICK-QRO-2026-0012", "vence_en": "2026-10-05T15:00:00Z"},
+     "sitio": _PLANTA_QRO, "ticket_id": 101, "dispositivo_id": None, "creado_en": "2026-10-05T15:01:00Z",
+     "atendida_en": None, "atendida_por": None, "atendida_por_nombre": None},
+    {"id": 7, "tipo": "iot_sin_senal", "titulo": "x", "detalle": None,
+     "datos": {"dispositivo": "Nave 2 — línea de empaque", "minutos": 42},
+     "sitio": _PLANTA_QRO, "ticket_id": None, "dispositivo_id": 3, "creado_en": "2026-10-04T09:00:00Z",
+     "atendida_en": "2026-10-04T09:30:00Z", "atendida_por": 1, "atendida_por_nombre": "Vista previa"},
+]
+
+_BITACORA = [
+    {"id": 30, "accion": "archivo.reemplazado", "entidad": "archivo", "entidad_id": 11,
+     "detalle": {"nombre": "Manual HP M607.pdf", "version": {"antes": 2, "despues": 3}},
+     "ip": "100.64.0.12", "creado_en": "2026-10-05T16:10:00Z",
+     "usuario": {"id": 1, "nombre": "Vista previa", "email": "vista@cgr.mx"}},
+    {"id": 29, "accion": "ticket.estado", "entidad": "ticket", "entidad_id": 101,
+     "detalle": {"estado": {"antes": "abierto", "despues": "en_proceso"}},
+     "ip": "100.64.0.12", "creado_en": "2026-10-05T15:30:00Z",
+     "usuario": {"id": 1, "nombre": "Vista previa", "email": "vista@cgr.mx"}},
+    {"id": 28, "accion": "usuario.creado", "entidad": "usuario", "entidad_id": 4,
+     "detalle": {"numero_empleado": "1234", "plantas": ["QRO"]},
+     "ip": None, "creado_en": "2026-10-04T12:00:00Z",
+     "usuario": {"id": 1, "nombre": "Vista previa", "email": "vista@cgr.mx"}},
+]
 
 _HORARIO = {"es_horario_laboral": True, "fuera_de_horario": False,
             "vuelven_hoy": None, "vuelven_manana": None, "proximo": None}
@@ -754,6 +825,21 @@ def main() -> int:
                                      _breve(502, "El controlador nuevo instalado")]),
         # Una sola planta: el caso de hoy, en el que Personas tiene que decir
         # cómo se reparten varias.
+        "/api/directorio/raiz": {"carpeta": None, "migas": [], "carpetas": _CARPETAS_RAIZ,
+                                 "archivos": [], "puede_editar": True},
+        "/api/directorio/carpetas/1": _DIRECTORIO_CARPETA,
+        "/api/directorio/arbol": [{k: c[k] for k in ("id", "padre_id", "nombre", "profundidad", "visibilidad")}
+                                  for c in _CARPETAS_RAIZ + _DIRECTORIO_CARPETA["carpetas"]],
+        "/api/directorio/papelera": [
+            {"tipo": "archivo", "id": 20, "nombre": "Manual viejo.pdf", "ubicacion": ["Manuales de equipos"],
+             "eliminado_en": "2026-10-03T12:00:00Z", "eliminado_por": "Vista previa",
+             "purga_en": "2026-11-02T12:00:00Z", "restaurable": True, "tamano_bytes": 120000, "extension": "pdf"}],
+        "/api/admin/alertas": _ALERTAS,
+        "/api/admin/alertas/resumen": {"pendientes": 2, "por_tipo": {"iot_umbral": 1, "sla_vencido": 1}},
+        "/api/auditoria": _BITACORA,
+        "/api/auditoria/opciones": {"acciones": ["archivo.reemplazado", "ticket.estado", "usuario.creado"],
+                                    "entidades": ["archivo", "ticket", "usuario"],
+                                    "personas": [{"id": 1, "nombre": "Vista previa"}]},
         "/api/sitios": [{"id": 1, "clave": "QRO", "nombre": "Planta de vista previa",
                          "pais": "México", "activo": True}],
     }
@@ -976,16 +1062,18 @@ def main() -> int:
 
     socketserver.TCPServer.allow_reuse_address = True
     print(f"\n  Estado: {estado}")
-    print(f"  Abra:   http://localhost:{PUERTO}/conciencia")
+    print(f"  Abra:   http://localhost:{PUERTO}/conocimiento")
     print(f"          http://localhost:{PUERTO}/new-ticket  "
           f"(el asistente rota por sus {len(RESPUESTAS_ASISTENTE)} salidas)")
-    print(f"          http://localhost:{PUERTO}/soluciones")
-    print(f"          http://localhost:{PUERTO}/catalogo-visual")
+    print(f"          http://localhost:{PUERTO}/conocimiento/procedimientos")
+    print(f"          http://localhost:{PUERTO}/conocimiento/catalogo")
+    print(f"          http://localhost:{PUERTO}/documentos/archivos/1   (directorio)")
+    print(f"          http://localhost:{PUERTO}/sistema/metricas")
     print("\n  Las fotos: escriba «sale borroso» en el chat de abajo a la derecha,")
     print("  o en la descripción de /new-ticket.")
     print(f"\n  En el celular, sin encoger la ventana:")
-    print(f"          http://localhost:{PUERTO}/movil?r=/conciencia   (412 y 360 px)")
-    print(f"          http://localhost:{PUERTO}/movil?r=/catalogo-visual")
+    print(f"          http://localhost:{PUERTO}/movil?r=/conocimiento   (412 y 360 px)")
+    print(f"          http://localhost:{PUERTO}/movil?r=/conocimiento/catalogo")
     print(f"          http://localhost:{PUERTO}/movil?r=/tickets/102   (solución con capturas)")
     print(f"          http://localhost:{PUERTO}/movil?r=/temas         (pasos y base de conocimiento)")
     print(f"          http://localhost:{PUERTO}/movil?r=/soluciones    (procedimientos con capturas)")

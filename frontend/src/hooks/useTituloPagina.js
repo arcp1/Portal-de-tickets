@@ -23,19 +23,33 @@ const TITULOS = {
   '/inventory': 'nav.inventory',
   '/expediente': 'nav.expediente',
   '/resguardos': 'nav.resguardos',
-  '/usuarios': 'nav.usuarios',
-  '/importar': 'nav.importar',
-  '/estado': 'nav.estado',
-  '/soluciones': 'nav.soluciones',
-  '/documentacion': 'nav.documentacion',
-  '/rules': 'nav.rules',
-  '/temas': 'nav.temas',
-  '/metricas': 'nav.metricas',
-  '/monitoreo': 'nav.monitoreo',
-  '/plantas': 'nav.plantas',
+  '/operacion/alertas': 'nav.alertas',
+  '/operacion/monitoreo': 'nav.monitoreo',
+  '/personas': 'nav.usuarios',
+  '/personas/plantas': 'nav.plantas',
+  '/personas/importar': 'nav.importar',
+  '/conocimiento': 'nav.salud',
+  '/conocimiento/articulos': 'nav.articulos',
+  '/conocimiento/procedimientos': 'nav.soluciones',
+  '/conocimiento/pasos': 'nav.pasos',
+  '/conocimiento/catalogo': 'nav.catalogo_visual',
+  '/conocimiento/bandeja': 'nav.bandeja',
+  '/documentos/archivos': 'nav.archivos',
+  '/documentos/tecnica': 'nav.documentacion',
+  '/sistema/metricas': 'nav.metricas',
+  '/sistema/reglas': 'nav.rules',
+  '/sistema/estado': 'nav.estado',
+  '/sistema/bitacora': 'nav.bitacora',
   '/login': 'auth.title',
   '/activar': 'activar.titulo_pestana',
 };
+
+/** Las rutas con un número al final: el expediente de alguien y una carpeta
+ *  del directorio. Se titulan como su pantalla. */
+const CON_ID = [
+  [/^\/personas\/\d+$/, 'nav.expediente_de'],
+  [/^\/documentos\/archivos\/\d+$/, 'nav.archivos'],
+];
 
 const BASE = 'Portal de Tickets TI';
 
@@ -47,7 +61,7 @@ export default function useTituloPagina() {
     // El detalle de un ticket lleva su número, que es lo que de verdad
     // distingue una pestaña de otra cuando hay tres abiertas.
     const detalle = pathname.match(/^\/tickets\/(\d+)$/);
-    const clave = TITULOS[pathname];
+    const clave = TITULOS[pathname] || CON_ID.find(([re]) => re.test(pathname))?.[1];
     const seccion = detalle
       ? `#${detalle[1]}`
       : clave

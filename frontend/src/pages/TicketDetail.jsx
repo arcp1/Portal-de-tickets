@@ -114,7 +114,7 @@ const TicketDetail = () => {
     try {
       setAvisoFicha('');
       await api.post(`/admin/visual/desde-ticket/${id}`);
-      navigate('/catalogo-visual');
+      navigate('/conocimiento/catalogo');
     } catch (err) {
       setAvisoFicha(err.response?.data?.detail || t('ticket.error_ficha_visual'));
     } finally {
@@ -541,7 +541,8 @@ const TicketDetail = () => {
           </div>
         </div>
 
-        {/* Descripción normalizada: solo aparece si Ollama la generó. */}
+        {/* El resumen para TI que escribe la IA, aparte: la descripción de
+            arriba es la del usuario, intacta. Solo aparece si se generó. */}
         {ticket.descripcion_normalizada && (
           <div style={{ marginTop: '20px' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '12px' }}>

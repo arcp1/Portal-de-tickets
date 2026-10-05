@@ -29,7 +29,7 @@ function publicar(resumen) {
   almacen.oyentes.forEach((fn) => fn(resumen));
 }
 
-function pedirResumen() {
+export function pedirResumen() {
   if (almacen.pidiendo) return almacen.pidiendo;
   almacen.pidiendo = api.get('/admin/alertas/resumen')
     .then((res) => {
@@ -54,14 +54,14 @@ function useResumenAlertas(activo) {
   return resumen;
 }
 
-const ICONOS = {
+export const ICONOS_ALERTA = {
   sla_por_vencer: Clock,
   sla_vencido: AlarmClockOff,
   satisfaccion_baja: Star,
   iot_umbral: Thermometer,
   iot_sin_senal: WifiOff,
 };
-const GRAVES = ['sla_vencido', 'iot_umbral'];
+export const GRAVES = ['sla_vencido', 'iot_umbral'];
 
 /** El texto de una alerta en el idioma de quien la lee, con los minutos al día. */
 export function textoAlerta(alerta, t) {
@@ -92,7 +92,7 @@ export function textoAlerta(alerta, t) {
   }
 }
 
-function hace(fecha, i18n) {
+export function hace(fecha, i18n) {
   const segundos = Math.max(0, (Date.now() - new Date(fecha)) / 1000);
   const rtf = new Intl.RelativeTimeFormat(i18n.language, { numeric: 'auto' });
   if (segundos < 3600) return rtf.format(-Math.round(segundos / 60), 'minute');
@@ -165,7 +165,7 @@ export default function CampanaAlertas() {
   const ir = (alerta) => {
     setAbierta(false);
     if (alerta.ticket_id) navigate(`/tickets/${alerta.ticket_id}`);
-    else if (alerta.dispositivo_id) navigate(`/monitoreo?dispositivo=${alerta.dispositivo_id}`);
+    else if (alerta.dispositivo_id) navigate(`/operacion/monitoreo?dispositivo=${alerta.dispositivo_id}`);
   };
 
   const graves = GRAVES.reduce((s, tipo) => s + (resumen.por_tipo?.[tipo] || 0), 0);
@@ -203,7 +203,7 @@ export default function CampanaAlertas() {
           ) : (
             <ul className="campana-lista">
               {alertas.map((a) => {
-                const Icono = ICONOS[a.tipo] || Bell;
+                const Icono = ICONOS_ALERTA[a.tipo] || Bell;
                 return (
                   <li key={a.id} className={`campana-item campana-item--${a.tipo}`}>
                     <Icono size={17} className="campana-item-icono" aria-hidden="true" />

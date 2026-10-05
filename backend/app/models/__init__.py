@@ -1,7 +1,7 @@
 from datetime import datetime
 from sqlalchemy import (
     CheckConstraint, Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Float, JSON,
-    Index, Table, UniqueConstraint, text,
+    Index, Table, UniqueConstraint, text, BigInteger, SmallInteger, CHAR, func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
@@ -958,3 +958,114 @@ class LecturaIoT(Base):
     extra = Column(JSON, nullable=True)
     registrado_en = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+
+
+# ----------------------------------------------------------------------
+# Directorio de documentos (migración 0030)
+# ----------------------------------------------------------------------
+
+carpeta_plantas = Table(
+    "carpeta_plantas",
+    Base.metadata,
+    Column("carpeta_id", Integer, ForeignKey("carpetas.id", ondelete="CASCADE"), primary_key=True),
+    Column("sitio_id", Integer, ForeignKey("sitios.id"), primary_key=True),
+)
+
+
+class Carpeta(Base):
+    """Una carpeta del directorio de documentos.
+
+    `ruta` son los ids desde la raíz, materializados: `/1/7/12/`. Lo que está
+    debajo de una carpeta es lo que empieza por su ruta. La visibilidad
+    (`ti`, `todos`, `plantas`) solo la llevan las de primer nivel; las demás
+    la heredan de su raíz —el primer id de la ruta—. Ver la migración 0030.
+    """
+    __tablename__ = "carpetas"
+    __table_args__ = (
+        CheckConstraint("profundidad BETWEEN 1 AND 8", name="ck_carpetas_profundidad"),
+        CheckConstraint("visibilidad IN ('ti', 'todos', 'plantas')", name="ck_carpetas_visibilidad"),
+        CheckConstraint("(padre_id IS NULL) = (visibilidad IS NOT NULL)",
+                        name="ck_carpetas_visibilidad_solo_raiz"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    padre_id = Column(Integer, ForeignKey("carpetas.id", ondelete="RESTRICT"), nullable=True, index=True)
+    nombre = Column(String(120), nullable=False)
+    ruta = Column(Text, nullable=False)
+    profundidad = Column(SmallInteger, nullable=False)
+    visibilidad = Column(String(10), nullable=True)
+    descripcion = Column(Text, nullable=True)
+    creado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    creado_en = Column(DateTime, default=datetime.utcnow, nullable=False)
+    actualizado_en = Column(DateTime, default=datetime.utcnow, nullable=False)
+    # Papelera: se marca y el worker la purga a los DIRECTORIO_PAPELERA_DIAS.
+    eliminado_en = Column(DateTime, nullable=True)
+    eliminado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+
+    plantas = relationship("Sitio", secondary=carpeta_plantas)
+    autor = relationship("Usuario", foreign_keys=[creado_por])
+
+
+Index("ux_carpetas_padre_nombre", func.coalesce(Carpeta.padre_id, 0), func.lower(Carpeta.nombre),
+      unique=True, postgresql_where=Carpeta.eliminado_en.is_(None),
+      sqlite_where=Carpeta.eliminado_en.is_(None))
+Index("ix_carpetas_ruta", Carpeta.ruta, postgresql_ops={"ruta": "text_pattern_ops"})
+
+
+class Archivo(Base):
+    """Un archivo del directorio, en su versión vigente.
+
+    Las anteriores viven en `archivo_versiones`. El binario va a disco con un
+    nombre sin extensión (`nombre_guardado`, un uuid): el nombre con que se
+    descarga es `nombre`, y el tipo con que se sirve, `tipo_mime`, lo decide
+    el portal al subirlo, no el navegador de quien lo subió.
+    """
+    __tablename__ = "archivos"
+
+    id = Column(Integer, primary_key=True)
+    carpeta_id = Column(Integer, ForeignKey("carpetas.id", ondelete="RESTRICT"), nullable=False, index=True)
+    nombre = Column(String(255), nullable=False)
+    tipo_mime = Column(String(100), nullable=False)
+    tamano_bytes = Column(BigInteger, nullable=False)
+    sha256 = Column(CHAR(64), nullable=False)
+    nombre_guardado = Column(String(64), nullable=False, unique=True)
+    version = Column(Integer, nullable=False, default=1, server_default=text("1"))
+    descripcion = Column(Text, nullable=True)
+    subido_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    creado_en = Column(DateTime, default=datetime.utcnow, nullable=False)
+    actualizado_en = Column(DateTime, default=datetime.utcnow, nullable=False)
+    eliminado_en = Column(DateTime, nullable=True)
+    eliminado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+
+    carpeta = relationship("Carpeta")
+    autor = relationship("Usuario", foreign_keys=[subido_por])
+    versiones = relationship("ArchivoVersion", back_populates="archivo",
+                             cascade="all, delete-orphan", passive_deletes=True,
+                             order_by="ArchivoVersion.version.desc()")
+
+
+Index("ux_archivos_carpeta_nombre", Archivo.carpeta_id, func.lower(Archivo.nombre),
+      unique=True, postgresql_where=Archivo.eliminado_en.is_(None),
+      sqlite_where=Archivo.eliminado_en.is_(None))
+
+
+class ArchivoVersion(Base):
+    """Una versión anterior de un archivo. Se guardan las últimas
+    `DIRECTORIO_MAX_VERSIONES - 1`: con la vigente, son diez."""
+    __tablename__ = "archivo_versiones"
+    __table_args__ = (
+        UniqueConstraint("archivo_id", "version", name="uq_archivo_versiones_archivo_version"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    archivo_id = Column(Integer, ForeignKey("archivos.id", ondelete="CASCADE"), nullable=False)
+    version = Column(Integer, nullable=False)
+    nombre_guardado = Column(String(64), nullable=False, unique=True)
+    tipo_mime = Column(String(100), nullable=False)
+    tamano_bytes = Column(BigInteger, nullable=False)
+    sha256 = Column(CHAR(64), nullable=False)
+    subido_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    creado_en = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    archivo = relationship("Archivo", back_populates="versiones")
+    autor = relationship("Usuario", foreign_keys=[subido_por])
