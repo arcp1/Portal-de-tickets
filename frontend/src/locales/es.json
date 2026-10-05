@@ -34,7 +34,9 @@
     "identificador": "Número de empleado",
     "identificador_ejemplo": "30001",
     "identificador_ayuda": "El que trae su gafete. Si tiene correo de la empresa, también sirve.",
-    "sesion_caducada": "Su sesión terminó. Inicie sesión de nuevo para continuar."
+    "sesion_caducada": "Su sesión terminó. Inicie sesión de nuevo para continuar.",
+    "mostrar_password": "Mostrar contraseña",
+    "ocultar_password": "Ocultar contraseña"
   },
   "activar": {
     "primera_vez": "¿Primera vez aquí? Active su cuenta",

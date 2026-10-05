@@ -34,7 +34,9 @@
     "identificador": "Numéro d’employé",
     "identificador_ejemplo": "30001",
     "identificador_ayuda": "Celui de votre badge. Un courriel d’entreprise fonctionne aussi.",
-    "sesion_caducada": "Votre session a pris fin. Reconnectez-vous pour continuer."
+    "sesion_caducada": "Votre session a pris fin. Reconnectez-vous pour continuer.",
+    "mostrar_password": "Afficher le mot de passe",
+    "ocultar_password": "Masquer le mot de passe"
   },
   "activar": {
     "primera_vez": "Première fois ici ? Activez votre compte",

@@ -34,7 +34,9 @@
     "identificador": "Employee number",
     "identificador_ejemplo": "30001",
     "identificador_ayuda": "The one on your badge. A company email also works if you have one.",
-    "sesion_caducada": "Your session ended. Sign in again to continue."
+    "sesion_caducada": "Your session ended. Sign in again to continue.",
+    "mostrar_password": "Show password",
+    "ocultar_password": "Hide password"
   },
   "activar": {
     "primera_vez": "First time here? Activate your account",

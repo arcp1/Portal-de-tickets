@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import LanguageSelector from '../components/LanguageSelector';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import Formulario from '../components/Formulario';
 import { SESION_CADUCADA, VOLVER_A } from '../api/client';
 
@@ -59,6 +59,10 @@ const Login = () => {
   // el backend resuelve cualquiera de los dos.
   const [identificador, setIdentificador] = useState('');
   const [password, setPassword] = useState('');
+  // Ver lo que se tecleó antes de enviarlo. En el celular, con el teclado
+  // en pantalla, equivocarse en una letra de una frase larga es lo normal, y
+  // sin esto la única pista es el «no pudimos iniciar sesión» de después.
+  const [verPassword, setVerPassword] = useState(false);
   // Si se llegó aquí porque caducó la sesión, se dice. Antes se aterrizaba en
   // la puerta sin explicación y parecía que el portal había echado a la
   // persona por un fallo. La marca la deja `api/client.js` y se gasta al leerla.
@@ -152,15 +156,39 @@ const Login = () => {
 
           <div className="campo-linea">
             <label htmlFor="password">{t('auth.password')}</label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            <span className="campo-linea-luz" aria-hidden="true" />
+            {/* El campo, el ojo y la línea de luz van juntos: la luz se enciende
+                con `input:focus ~ .campo-linea-luz`, y para eso tiene que
+                seguir siendo hermana del campo. */}
+            <div className="campo-linea-entrada">
+              <input
+                id="password"
+                type={verPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                // Sin corrector ni mayúscula automática: con la contraseña a la
+                // vista, el corrector mejorado del navegador la mandaría a
+                // revisar fuera, y el teclado del celular le cambiaría letras.
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="campo-linea-ojo"
+                onClick={() => setVerPassword((v) => !v)}
+                // Que pulsarlo no le quite el foco al campo: se sigue escribiendo.
+                onMouseDown={(e) => e.preventDefault()}
+                aria-controls="password"
+                aria-pressed={verPassword}
+                aria-label={verPassword ? t('auth.ocultar_password') : t('auth.mostrar_password')}
+                title={verPassword ? t('auth.ocultar_password') : t('auth.mostrar_password')}
+              >
+                {verPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+              </button>
+              <span className="campo-linea-luz" aria-hidden="true" />
+            </div>
           </div>
 
           {/* El botón de la gota. La gota vive detrás del texto y crece al

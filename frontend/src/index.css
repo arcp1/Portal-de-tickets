@@ -773,6 +773,38 @@ a:hover { color: var(--accent-primary-hover); }
 
 .campo-linea input:focus ~ .campo-linea-luz { width: 100%; }
 
+/* El campo de la contraseña con su botón para verla. El texto no corre por
+   debajo del ojo, y el ojo propio de Edge se esconde para no tener dos. */
+.campo-linea-entrada { position: relative; }
+.campo-linea-entrada input { padding-right: 44px; }
+.campo-linea-entrada input::-ms-reveal,
+.campo-linea-entrada input::-ms-clear { display: none; }
+.campo-linea-ojo {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+.campo-linea-ojo:hover,
+.campo-linea-ojo[aria-pressed="true"] { color: var(--text-primary); }
+.campo-linea-ojo:focus-visible {
+  outline: 2px solid var(--marca-azul-luz);
+  outline-offset: 2px;
+  color: var(--text-primary);
+}
+
 .campo-linea-ayuda {
   display: block;
   margin-top: 10px;
