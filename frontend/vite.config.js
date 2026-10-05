@@ -3,6 +3,13 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    // **Sin mapas de fuente en producción, dicho expresamente.** Es el valor
+    // por defecto de Vite, pero el portal se publica en internet: un `true`
+    // puesto para depurar entregaría el código fuente completo —comentarios
+    // incluidos— a cualquiera que abra las herramientas del navegador.
+    sourcemap: false,
+  },
   server: {
     port: 3000,
     host: true,
