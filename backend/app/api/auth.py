@@ -12,7 +12,9 @@ from app.api.deps import get_current_user, get_current_admin, oauth2_scheme
 from app.core import sesiones
 from app.core.config import settings
 import jwt
-from app.core.limitador import clave_de_cuenta, frenar, limitador_login, limitador_login_ip
+from app.core.limitador import (
+    clave_de_cuenta, clave_de_red, es_publico, frenar, limitador_login, limitador_login_ip,
+)
 from app.core.logging import logger
 from app.services.auditoria_service import ip_de
 from app.services.cuentas_service import CuentasService
@@ -32,8 +34,8 @@ def login(request: LoginRequest, peticion: Request, db: Session = Depends(get_db
     # contra quien ataca a una persona desde varios sitios. El de cuenta se
     # aplica a la cuenta encontrada y no al texto tecleado; ver
     # `clave_de_cuenta`. Va antes de bcrypt, que es lo caro.
-    origen = ip_de(peticion) or "desconocida"
-    cuenta = clave_de_cuenta(user, request.email)
+    origen = clave_de_red(ip_de(peticion))
+    cuenta = clave_de_cuenta(user, request.email, publico=es_publico(peticion))
     frenar((limitador_login_ip, f"ip:{origen}"), (limitador_login, cuenta))
 
     # Una sola respuesta para todos los fracasos.

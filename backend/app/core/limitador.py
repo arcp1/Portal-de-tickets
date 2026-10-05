@@ -13,6 +13,7 @@ si se cae— cada proceso cuenta en memoria, como antes; con una sola instancia
 del backend, que es el caso de la planta, alcanza.
 """
 
+import ipaddress
 import time
 import uuid
 from collections import defaultdict, deque
@@ -181,17 +182,52 @@ limitador_ia = Limitador(maximo=settings.IA_PETICIONES_POR_MINUTO, ventana_segun
                          nombre="ia")
 
 
-def clave_de_cuenta(usuario, identificador: str) -> str:
+def clave_de_cuenta(usuario, identificador: str, publico: bool = False) -> str:
     """La clave del freno por cuenta: la cuenta, no lo que se tecleó.
 
     Antes era el texto tal cual, y la búsqueda le quita los espacios: "67",
     " 67", "67 " y el correo de esa misma persona eran cuatro contadores
     distintos contra una sola cuenta —intentos ilimitados con solo variar
     los espacios—. Si no hay cuenta, se normaliza igual que la búsqueda.
+
+    **Un contador para internet y otro para la planta** (auditoría para
+    internet abierto, 2026-10-04). El freno por cuenta bloquea a la cuenta, no
+    a quien falla: con los números de empleado consecutivos, cualquiera en
+    internet podía dejar a toda la plantilla sin entrar mandando ocho
+    contraseñas malas por persona cada cinco minutos. Ahora lo que se falla
+    por el camino público solo cierra el camino público de esa cuenta; desde
+    la red de la planta se sigue entrando. Un atacante sigue teniendo ocho
+    intentos cada cinco minutos por cuenta, no más.
     """
     if usuario is not None:
-        return f"cuenta:{usuario.id}"
-    return f"id:{(identificador or '').strip().lower()}"
+        clave = f"cuenta:{usuario.id}"
+    else:
+        clave = f"id:{(identificador or '').strip().lower()}"
+    return f"publico:{clave}" if publico else clave
+
+
+def es_publico(peticion) -> bool:
+    """Si la petición llegó por el camino de internet (lo marca nginx)."""
+    return peticion is not None and peticion.headers.get("X-Portal-Origen") == "publico"
+
+
+def clave_de_red(ip) -> str:
+    """La IP para los frenos: tal cual en IPv4, su /64 en IPv6.
+
+    Un proveedor le da a cada cliente IPv6 un /64 entero —18 trillones de
+    direcciones—: contada una a una, cambiar de dirección en cada intento
+    burlaba cualquier freno por IP. El /64 es lo que de verdad identifica a un
+    cliente.
+    """
+    try:
+        direccion = ipaddress.ip_address((ip or "").strip())
+    except ValueError:
+        return (ip or "desconocida").strip() or "desconocida"
+    if direccion.version == 6:
+        if direccion.ipv4_mapped:
+            return str(direccion.ipv4_mapped)
+        return str(ipaddress.ip_network(f"{direccion}/64", strict=False))
+    return str(direccion)
 
 
 def frenar(*pares, motivo: str = "Demasiados intentos") -> None:

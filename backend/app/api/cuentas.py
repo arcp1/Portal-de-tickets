@@ -18,7 +18,8 @@ from app.core.config import settings
 from app.core import plantas
 from app.core.db import get_db
 from app.core.limitador import (
-    clave_de_cuenta, frenar, limitador_activacion, limitador_activacion_ip, limitador_login,
+    clave_de_cuenta, clave_de_red, es_publico, frenar, limitador_activacion,
+    limitador_activacion_ip, limitador_login,
 )
 from app.core.logging import logger
 from app.core.security import create_access_token
@@ -207,8 +208,8 @@ def activar(peticion: ActivarRequest, request: Request, db: Session = Depends(ge
     internet es el mundo entero, y ahí ese nivel de prueba no es aceptable, así
     que por la vía pública se exige el código de un solo uso.
     """
-    origen = ip_de(request) or "desconocida"
-    publico = request.headers.get("X-Portal-Origen") == "publico"
+    origen = clave_de_red(ip_de(request))
+    publico = es_publico(request)
     usa_verificacion = peticion.codigo is None and any(
         (peticion.nombre_completo, peticion.numero_epp,
          peticion.fecha_nacimiento, peticion.fecha_ingreso)
@@ -230,7 +231,7 @@ def activar(peticion: ActivarRequest, request: Request, db: Session = Depends(ge
     # probando cumpleaños contra el mismo número de empleado.
     cuenta = clave_de_cuenta(
         CuentasService.buscar_por_identificador(db, peticion.identificador),
-        peticion.identificador)
+        peticion.identificador, publico=publico)
     frenar((limitador_activacion_ip, f"ip:{origen}"), (limitador_activacion, cuenta))
 
     try:
@@ -285,6 +286,7 @@ def requisitos_password():
 @publico_router.post("/cambiar-password", response_model=UserResponse)
 def cambiar_password(
     peticion: CambiarPasswordRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
@@ -292,7 +294,7 @@ def cambiar_password(
     # con una sesión ajena —una computadora compartida que alguien no cerró—
     # podía probar contraseñas aquí sin límite: el login frenaba, esto no. Los
     # intentos cuentan contra el mismo cupo de la cuenta.
-    cuenta = clave_de_cuenta(current_user, "")
+    cuenta = clave_de_cuenta(current_user, "", publico=es_publico(request))
     frenar((limitador_login, cuenta))
     try:
         usuario = CuentasService.cambiar_password(
