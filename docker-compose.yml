@@ -11,6 +11,7 @@
 # todos. scripts/prueba-aislamiento.sh comprueba qué secretos ve cada contenedor.
 x-secretos-en-blanco: &secretos-en-blanco
   POSTGRES_PASSWORD: ""
+  POSTGRES_APP_PASSWORD: ""
   DATABASE_URL: ""
   JWT_SECRET: ""
   REDIS_PASSWORD: ""
@@ -50,6 +51,11 @@ services:
       # levanta una base con una contrasena que esta en el repositorio.
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en el .env}
       POSTGRES_DB: ${POSTGRES_DB:-portal_tickets}
+      # El rol con el que entra la aplicación: sin superusuario (M-2). Lo crea
+      # db/init/10-rol-aplicacion.sh. Sin contraseña el script se niega, y en
+      # una base nueva eso detiene la inicialización: se ve en el log.
+      POSTGRES_APP_USER: ${POSTGRES_APP_USER:-portal_app}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:-}
     # **Sin puerto publicado.** El backend la alcanza por el nombre `db` en la
     # red interna de compose; nada mas necesita hablarle. Publicarla, aunque
     # fuera en loopback, la deja al alcance de cualquier proceso del host y de
@@ -58,6 +64,8 @@ services:
     # Para entrar a mano cuando haga falta:  docker compose exec db psql -U cgr_user -d portal_tickets
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Lo que la imagen corre al crear una base nueva (el rol de la aplicación).
+      - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cgr_user} -d ${POSTGRES_DB:-portal_tickets}"]
       interval: 5s

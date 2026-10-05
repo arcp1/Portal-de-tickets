@@ -81,10 +81,13 @@ for linea in open(".env", encoding="utf-8"):
         valores[k.strip()] = v
         orden.append(k.strip())
 reales = {k: v for k, v in valores.items() if re.search(r"PASS|SECRET|KEY|TOKEN|SENSORES", k) and v}
-pg = nuevo(18)
+app = nuevo(18)
 cambios = {
-    "POSTGRES_PASSWORD": pg,
-    "DATABASE_URL": f"postgresql://{valores.get('POSTGRES_USER', 'cgr_user')}:{pg}@db:5432/"
+    "POSTGRES_PASSWORD": nuevo(18),
+    # La aplicación entra con su rol, no con el superusuario (M-2).
+    "POSTGRES_APP_USER": "portal_app",
+    "POSTGRES_APP_PASSWORD": app,
+    "DATABASE_URL": f"postgresql://portal_app:{app}@db:5432/"
                     f"{valores.get('POSTGRES_DB', 'portal_tickets')}",
     "JWT_SECRET": nuevo(48),
     "REDIS_PASSWORD": nuevo(),
@@ -170,7 +173,34 @@ espera "camino de Funnel: una IP ajena recibe 403" \
 espera "backend sale a internet (Gemini, correo)" docker exec prueba_backend python -c "$PY_SALIDA"
 espera "worker sale a internet (correo)" docker exec prueba_worker python -c "$PY_SALIDA"
 
-# --- 4. Lo que ya no debe poder hacerse ---------------------------------------
+# --- 4. La base: la aplicación entra sin superusuario (M-2) -----------------
+echo
+echo "== Base de datos: menor privilegio"
+# Una consulta con la conexión de la aplicación (la de DATABASE_URL), desde un
+# archivo: así ninguna comilla del SQL depende de cómo se escape en el shell.
+cat > "$TMP/sql_app.py" <<'PYSQL'
+import sys
+from sqlalchemy import text
+from app.core.db import engine
+with engine.connect() as conexion:
+    print(conexion.execute(text(sys.argv[1])).scalar())
+PYSQL
+# Por la entrada estándar y no con `docker cp`: el contenedor es de solo lectura.
+sql_app() { docker exec -i prueba_backend python - "$1" < "$TMP/sql_app.py" 2>/dev/null; }
+sql_super() { docker exec prueba_db psql -U "$(leer POSTGRES_USER)" -d "$(leer POSTGRES_DB)" -Atc "$1"; }
+app_sin_superusuario() {
+    [ "$(sql_app "select current_user || ':' || (select rolsuper from pg_roles where rolname = current_user)::text")" = "portal_app:false" ]
+}
+tablas_de_la_app() { [ "$(sql_super "select count(*) from pg_tables where schemaname = 'public' and tableowner <> 'portal_app'")" = 0 ]; }
+espera "la aplicación entra como portal_app, sin superusuario" app_sin_superusuario
+espera "las migraciones crearon todas las tablas a su nombre" tablas_de_la_app
+no_debe "la aplicación ejecuta un programa en la base (COPY ... PROGRAM)" sql_app "copy (select 1) to program 'id'"
+no_debe "la aplicación lee archivos del servidor (pg_read_file)" sql_app "select pg_read_file('/etc/passwd')"
+no_debe "la aplicación crea un rol" sql_app "create role intruso"
+no_debe "la aplicación entra a la base postgres" docker exec prueba_backend python -c \
+    "import os, psycopg2; from urllib.parse import urlsplit; u = urlsplit(os.environ['DATABASE_URL']); psycopg2.connect(host=u.hostname, user=u.username, password=u.password, dbname='postgres')"
+
+# --- 5. Lo que ya no debe poder hacerse ---------------------------------------
 echo
 echo "== Aislamiento: esto tiene que fallar"
 for destino in "db 5432" "redis 6379" "ollama 11434" "backend 8000"; do
@@ -192,12 +222,12 @@ no_debe "la base sale a internet" tcp_bash prueba_db 1.1.1.1 443
 no_debe "Redis sale a internet" tcp prueba_redis 1.1.1.1 443
 espera "nginx → backend:8000 (control: esto sí)" tcp prueba_nginx backend 8000
 
-# --- 5. Qué secretos ve cada contenedor ----------------------------------------
+# --- 6. Qué secretos ve cada contenedor ----------------------------------------
 echo
 echo "== Secretos por contenedor (solo nombres)"
 python3 - "$PRUEBA_ENV" <<'PY' || FALLOS=$((FALLOS + 1))
 import json, subprocess, sys
-secretos = ["POSTGRES_PASSWORD", "DATABASE_URL", "JWT_SECRET", "REDIS_PASSWORD", "REDISCLI_AUTH",
+secretos = ["POSTGRES_PASSWORD", "POSTGRES_APP_PASSWORD", "DATABASE_URL", "JWT_SECRET", "REDIS_PASSWORD", "REDISCLI_AUTH",
             "REDIS_URL", "GEMINI_API_KEY", "SMTP_PASSWORD", "MQTT_PASSWORD",
             "MQTT_DISPOSITIVO_PASSWORD", "MQTT_SENSORES"]
 esperado = {
@@ -206,7 +236,7 @@ esperado = {
     "ingestor": {"DATABASE_URL", "REDIS_URL", "MQTT_PASSWORD"},
     "mosquitto": {"MQTT_PASSWORD", "MQTT_DISPOSITIVO_PASSWORD", "MQTT_SENSORES"},
     "redis": {"REDIS_PASSWORD", "REDISCLI_AUTH"},
-    "db": {"POSTGRES_PASSWORD"},
+    "db": {"POSTGRES_PASSWORD", "POSTGRES_APP_PASSWORD"},
     "nginx": set(), "frontend": set(), "ollama": set(),
 }
 mal = 0
