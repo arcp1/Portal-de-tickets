@@ -177,3 +177,49 @@ def test_veinte_intentos_a_la_vez_no_pasan_de_cuatro_bcrypt(client, monkeypatch)
     assert pico <= 4
     assert set(codigos) <= {401, 503}
     assert codigos.count(401) >= 4   # los que cupieron se atendieron
+
+
+# ----------------------------------------------------------------------
+# Contraseñas: lo primero que prueba un ataque repartido entre cuentas
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize("password", [
+    "password123", "Qwerty12345", "iloveyou12",          # de la lista, tal cual
+    "Password2026!", "Summer2026", "Mexico2026!",         # palabra común + números
+    "Produccion2026", "Queretaro.2026",                   # palabras de la casa
+])
+def test_se_rechazan_las_contrasenas_que_prueba_un_ataque(password):
+    """El freno por cuenta da ocho intentos cada cinco minutos: de sobra para
+    probar las diez contraseñas más comunes contra cada cuenta del padrón. Lo
+    que lo impide es que esas contraseñas no se puedan elegir."""
+    from app.services.cuentas_service import validar_password
+
+    assert validar_password(password) is not None
+
+
+@pytest.mark.parametrize("password", [
+    "Ventana.Clara.88", "MiClaveSegura1", "tornillo azul de marzo", "Correcaminos-Lunes-31",
+])
+def test_una_contrasena_propia_sigue_valiendo(password):
+    from app.services.cuentas_service import validar_password
+
+    assert validar_password(password) is None
+
+
+def test_las_frases_que_sugiere_el_portal_no_se_rechazan():
+    """Se las damos a la gente para que las memorice: rechazarlas después
+    sería decirle que no a lo que el propio portal le recomendó."""
+    from app.services.cuentas_service import contrasenas_comunes, validar_password
+    from app.services.frases_service import sugerencias
+
+    assert len(contrasenas_comunes()) > 50_000
+    for frase in sugerencias(300):
+        assert validar_password(frase) is None, frase
+
+
+def test_cambiar_a_una_contrasena_comun_se_rechaza(client):
+    token = _entrar(client, "user@test.com", "Secret123!").json()["access_token"]
+    r = client.post("/api/auth/cambiar-password", headers={"Authorization": f"Bearer {token}"},
+                    json={"password_actual": "Secret123!", "password_nueva": "Password2026!"})
+    assert r.status_code == 400
+    assert "se adivina" in r.json()["detail"]

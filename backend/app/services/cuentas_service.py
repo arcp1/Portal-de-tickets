@@ -24,10 +24,13 @@ registre un correo personal por equivocación, sin convertir el dominio en la
 única credencial.
 """
 
+import gzip
 import re
 import secrets
 import unicodedata
 from datetime import datetime, timedelta
+from functools import lru_cache
+from pathlib import Path
 from typing import Optional, Tuple
 
 from sqlalchemy.orm import Session
@@ -102,7 +105,28 @@ PASSWORDS_PROHIBIDAS = {
     "contraseña", "contrasena", "password", "12345678", "123456789", "1234567890",
     "cgrmexico", "cgrdemexico", "querataro", "queretaro", "portaltickets",
     "sistemas", "administrador", "bienvenido", "temporal1", "cambiar123",
+    # Palabras de la casa y de la planta, para la regla de "palabra común con
+    # números al final": "produccion2026" o "Mexico2026!" caen en un minuto.
+    "mexico", "cgr", "planta", "produccion", "calidad", "almacen", "soporte",
+    "mantenimiento", "usuario", "empleado", "teamo", "tequiero", "princesa",
 }
+
+#: Las ~57 000 contraseñas más usadas del mundo (lista del NCSC, ver la
+#: cabecera del archivo), en minúsculas.
+_ARCHIVO_COMUNES = Path(__file__).resolve().parent.parent / "recursos" / "contrasenas-comunes.txt.gz"
+
+
+@lru_cache(maxsize=1)
+def contrasenas_comunes() -> frozenset:
+    """La lista, leída una sola vez. Vacía —y dicho en el registro— si falta el
+    archivo: la política sigue valiendo, solo que más floja."""
+    try:
+        with gzip.open(_ARCHIVO_COMUNES, "rt", encoding="utf-8") as f:
+            return frozenset(r.strip() for r in f if r.strip() and not r.startswith("#"))
+    except OSError as exc:
+        logger.error("No se pudo leer la lista de contraseñas comunes",
+                     extra={"archivo": str(_ARCHIVO_COMUNES), "error": str(exc)})
+        return frozenset()
 
 
 def validar_password(password: str, usuario: Optional[Usuario] = None) -> Optional[str]:
@@ -123,8 +147,21 @@ def validar_password(password: str, usuario: Optional[Usuario] = None) -> Option
         return "La contraseña no puede ser solo números."
     if not re.search(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]", password):
         return "La contraseña debe incluir al menos una letra."
-    if password.lower().strip() in PASSWORDS_PROHIBIDAS:
-        return "Esa contraseña es demasiado común. Elija otra."
+    plano = password.lower().strip()
+    comunes = contrasenas_comunes()
+    if plano in PASSWORDS_PROHIBIDAS or plano in comunes:
+        return ("Esa contraseña está entre las más usadas: es lo primero que prueba "
+                "quien intenta entrar. Elija otra.")
+    # **Palabra común con números o signos al final** (auditoría para internet
+    # abierto, 2026-10-04). Es la forma más repetida de cumplir una política
+    # —"Password2026!", "verano123"— y lo primero que prueba un ataque que
+    # reparte unos pocos intentos entre todas las cuentas, que es justo el que
+    # el freno por cuenta no ve. Las frases que sugiere el portal no caen aquí:
+    # quitando su número final queda "largo.cafe.nube", que no es una palabra.
+    base = re.sub(r"[\d\W_]+$", "", plano)
+    if base != plano and (base in PASSWORDS_PROHIBIDAS or (base.isalpha() and base in comunes)):
+        return ("Una palabra conocida con números o signos al final se adivina enseguida. "
+                "Pruebe con tres palabras sueltas, como las que le sugerimos.")
 
     if usuario is not None:
         motivo = _huele_a_datos_propios(password, usuario)
@@ -612,11 +649,14 @@ class CuentasService:
         if not usuario.password_hash or not verify_password(actual, usuario.password_hash):
             raise ErrorCuenta("La contraseña actual no es correcta.")
 
+        # Primero si es la misma: a quien teclea la que ya tenía, "tiene que ser
+        # distinta" le dice qué pasa; "es demasiado común" lo dejaría pensando
+        # que eligió mal una nueva.
+        if verify_password(nueva, usuario.password_hash):
+            raise ErrorCuenta("La contraseña nueva debe ser distinta de la actual.")
         problema = validar_password(nueva, usuario)
         if problema:
             raise ErrorCuenta(problema)
-        if verify_password(nueva, usuario.password_hash):
-            raise ErrorCuenta("La contraseña nueva debe ser distinta de la actual.")
 
         usuario.password_hash = get_password_hash(nueva)
         usuario.debe_cambiar_password = False
