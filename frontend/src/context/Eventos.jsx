@@ -44,8 +44,10 @@ export function ProveedorEventos({ children }) {
   // rama vacía y no se reintentaba nunca: el indicador se quedaba en ámbar
   // toda la sesión y el tablero seguía siendo una foto. Depender del `id` del
   // usuario y no del objeto evita además reconectar en cada render.
-  const { user } = useAuth();
-  const usuarioId = user?.id ?? null;
+  const { user, terminosPendientes } = useAuth();
+  // Sin los términos aceptados no hay canal: el servidor lo rechazaría (403)
+  // y se reintentaría sin fin. Se abre en cuanto se aceptan.
+  const usuarioId = terminosPendientes ? null : (user?.id ?? null);
   const [conectado, setConectado] = useState(false);
   // Los oyentes viven en una ref y no en el estado: cambian a menudo —cada
   // pantalla se apunta al montarse— y meterlos en el estado reabriría la

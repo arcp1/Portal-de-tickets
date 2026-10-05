@@ -27,6 +27,7 @@ from app.api.visual import router as visual_router, admin_router as visual_admin
 from app.api.alertas import router as alertas_router
 from app.api.directorio import router as directorio_router
 from app.api.iot import router as iot_router
+from app.api.terminos import router as terminos_router
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth_router)
@@ -61,3 +62,4 @@ api_router.include_router(visual_admin_router)
 api_router.include_router(alertas_router)
 api_router.include_router(directorio_router)
 api_router.include_router(iot_router)
+api_router.include_router(terminos_router)

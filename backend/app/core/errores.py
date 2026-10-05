@@ -29,7 +29,7 @@ frontend y el que usan las pruebas.
 
 import uuid
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import DataError, IntegrityError
@@ -131,8 +131,19 @@ def _mensaje_de_validacion(error: dict) -> str:
     return mensaje.removeprefix("Value error, ")
 
 
-def cuerpo_de_error(estado: int, detalle: str, **extra) -> dict:
-    cuerpo = {"detail": detalle, "codigo": CODIGOS.get(estado, "error")}
+class ErrorConCodigo(HTTPException):
+    """Un error HTTP con su propio `codigo`, para cuando el del número de estado
+    no basta. El caso que lo pidió: un 403 de `terminos_pendientes` tiene que
+    distinguirse de un 403 de permisos, porque la pantalla reacciona distinto
+    —muestra la puerta de los términos en vez de un aviso—."""
+
+    def __init__(self, status_code: int, detail: str, codigo: str, headers=None):
+        super().__init__(status_code=status_code, detail=detail, headers=headers)
+        self.codigo = codigo
+
+
+def cuerpo_de_error(estado: int, detalle: str, codigo: str = None, **extra) -> dict:
+    cuerpo = {"detail": detalle, "codigo": codigo or CODIGOS.get(estado, "error")}
     cuerpo.update({clave: valor for clave, valor in extra.items() if valor is not None})
     return cuerpo
 
@@ -140,7 +151,7 @@ def cuerpo_de_error(estado: int, detalle: str, **extra) -> dict:
 async def _error_http(_peticion: Request, exc: StarletteHTTPException) -> JSONResponse:
     detalle = exc.detail if isinstance(exc.detail, str) and exc.detail else ""
     detalle = _TEXTOS_DE_STARLETTE.get(detalle, detalle) or "No se pudo completar la solicitud."
-    return JSONResponse(cuerpo_de_error(exc.status_code, detalle),
+    return JSONResponse(cuerpo_de_error(exc.status_code, detalle, getattr(exc, "codigo", None)),
                         status_code=exc.status_code, headers=getattr(exc, "headers", None))
 
 

@@ -28,6 +28,9 @@ import TicketDetail from './pages/TicketDetail';
 import Inventory from './pages/Inventory';
 import FiltrosSVG from './components/FiltrosSVG';
 import Modulo from './components/Modulo';
+// La puerta de los Términos sale justo después de entrar: va en el paquete
+// principal, sin esperar a descargar un trozo aparte.
+import PuertaTerminos from './components/PuertaTerminos';
 
 /**
  * **Lo que no usa todo el mundo, se descarga cuando se usa.** Todo iba en un
@@ -81,6 +84,7 @@ const Expediente = diferida(() => import('./pages/Expediente'));
 const Resguardos = diferida(() => import('./pages/Resguardos'));
 const Monitoreo = diferida(() => import('./pages/Monitoreo'));
 const Plantas = diferida(() => import('./pages/Plantas'));
+const Terminos = diferida(() => import('./pages/Terminos'));
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { user, loading } = useAuth();
@@ -141,6 +145,11 @@ function AppRoutes() {
   // La barra solo existe dentro del portal. Mientras se resuelve la sesión no
   // se pinta nada para no mostrar media interfaz.
   const enPortal = Boolean(user) && !loading;
+  // **Sin los Términos y Condiciones vigentes aceptados, no hay portal.** Se
+  // pinta solo la puerta de aceptación: ni barra, ni rutas, ni chat, así que
+  // no hay a dónde navegar ni nada que cerrar. El servidor, por su lado,
+  // responde 403 `terminos_pendientes` a todo lo demás.
+  const debeAceptar = enPortal && user.terminos_vigentes === false;
   const esAdmin = user?.rol === 'admin';
   const fondoFlujo = esAdmin && !enLaPuerta;
 
@@ -185,16 +194,20 @@ function AppRoutes() {
             `backdrop-filter` de la página. */}
         <FondoBurbujas animado={enLaPuerta || fondoFlujo} />
       </Suspense>
-      {enPortal && <Navbar />}
+      {debeAceptar && <PuertaTerminos />}
+      {enPortal && !debeAceptar && <Navbar />}
       {/* La paleta solo dentro del portal: en la puerta no hay nada a donde
           ir, y el atajo se quedaría escuchando un `Ctrl+K` que no abre nada.
           Se dibuja ella misma en un portal del DOM, así que da igual dónde se
           monte mientras sea debajo del proveedor de sesión. */}
-      {enPortal && <PaletaComandos />}
+      {enPortal && !debeAceptar && <PaletaComandos />}
       {/* El respaldo de las pantallas diferidas: el mismo "cargando" de
           siempre mientras llega su trozo. */}
+      {!debeAceptar && (
       <Suspense fallback={<Cargando />}>
       <Routes>
+        {/* Con sesión o sin ella: se enlaza desde la entrada y desde el perfil. */}
+        <Route path="/terminos" element={<Terminos />} />
         <Route path="/login" element={<RutaPublica><Login /></RutaPublica>} />
         <Route path="/activar" element={<RutaPublica><Activar /></RutaPublica>} />
         <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -247,9 +260,10 @@ function AppRoutes() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </Suspense>
+      )}
       {/* Visible desde que el usuario entra al portal. Se oculta solo si
           Ollama no está disponible. */}
-      {enPortal && <ChatFlotante />}
+      {enPortal && !debeAceptar && <ChatFlotante />}
       {/* Fuera de las rutas: un aviso tiene que sobrevivir al cambio de
           pantalla que muchas veces lo provoca. */}
       <Avisos />

@@ -10,7 +10,7 @@ from app.core.security import (
     verify_password,
 )
 from app.models import Usuario
-from app.schemas.auth import LoginRequest, TokenResponse, UserResponse
+from app.schemas.auth import LoginRequest, SesionResponse, TokenResponse, UserResponse
 from app.api.deps import get_current_user, get_current_admin, oauth2_scheme
 from app.core import sesiones
 from app.core.config import settings
@@ -114,7 +114,7 @@ def login_form(
         db,
     )
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me", response_model=SesionResponse)
 def read_current_user(current_user: Usuario = Depends(get_current_user)):
     return current_user
 

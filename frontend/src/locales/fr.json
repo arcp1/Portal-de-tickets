@@ -1500,5 +1500,25 @@
     "quien_ve": "Qui peut le voir",
     "misma_extension": "Le nom doit conserver l’extension {{ext}}.",
     "cerrar": "Fermer"
+  },
+  "terminos": {
+    "enlace": "Conditions générales",
+    "puerta_titulo": "Conditions générales d'utilisation",
+    "puerta_intro": "{{nombre}}, avant d'utiliser le portail, veuillez lire et accepter ces conditions. Elles fixent les règles d'utilisation et les limites des informations que le portail vous présente.",
+    "caja": "Texte des Conditions générales",
+    "version": "Version {{version}}",
+    "vigentes_desde": "en vigueur depuis le {{fecha}}",
+    "vinculante_es": "La version espagnole de ce document fait foi.",
+    "desplace": "Faites défiler jusqu'à la fin du document pour pouvoir l'accepter.",
+    "casilla": "J'ai lu et j'accepte les Conditions générales d'utilisation (version {{version}}).",
+    "aceptar": "Accepter et continuer",
+    "aceptando": "Enregistrement de votre acceptation…",
+    "cambiaron": "Les conditions ont été mises à jour pendant votre lecture. Relisez-les pour pouvoir les accepter.",
+    "error_aceptar": "Votre acceptation n'a pas pu être enregistrée. Réessayez.",
+    "error_cargar": "Impossible de charger les Conditions générales.",
+    "reintentar": "Réessayer",
+    "volver_portal": "Retour au portail",
+    "volver_entrada": "Retour à la connexion",
+    "aceptados_el": "Vous avez accepté la version {{version}} le {{fecha}}."
   }
 }

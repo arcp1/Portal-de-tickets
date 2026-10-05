@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.security import create_access_token
 from app.core.db import get_db
+from app.core.errores import ErrorConCodigo
 from app.core import sesiones
 from app.core.limitador import frenar, limitador_ia
 from app.models import Usuario
@@ -80,12 +81,39 @@ def usuario_desde_token(db: Session, token: str) -> Usuario:
     return user
 
 
+#: Lo único que puede pedir quien no ha aceptado los Términos y Condiciones
+#: vigentes: saber quién es (la pantalla decide con eso qué mostrar), salir, y
+#: leer y aceptar los términos. `GET /api/terminos` es público y no pasa por
+#: aquí.
+RUTAS_SIN_TERMINOS = frozenset({
+    f"{settings.API_V1_STR}/auth/me",
+    f"{settings.API_V1_STR}/auth/logout",
+    f"{settings.API_V1_STR}/auth/terminos",
+})
+
+
+def exigir_terminos(usuario: Usuario, ruta: str) -> None:
+    """403 `terminos_pendientes` si la persona no ha aceptado los vigentes.
+
+    **En el servidor y no solo en la pantalla**: si no, bastaba con llamar a
+    la API directamente para usar el portal sin aceptar nada. La pantalla lee
+    el código y muestra la puerta de aceptación en lugar de un error.
+    """
+    if not usuario.terminos_vigentes and ruta not in RUTAS_SIN_TERMINOS:
+        raise ErrorConCodigo(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Para continuar debe aceptar los Términos y Condiciones de uso del portal.",
+            codigo="terminos_pendientes",
+        )
+
+
 def get_current_user(
     peticion: Request,
     db: Session = Depends(get_db),
     token: str = Depends(oauth2_scheme)
 ) -> Usuario:
     usuario = usuario_desde_token(db, token)
+    exigir_terminos(usuario, peticion.url.path)
     _renovar_si_hace_falta(peticion, token, usuario)
     return usuario
 

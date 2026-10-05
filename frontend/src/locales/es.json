@@ -1500,5 +1500,25 @@
     "quien_ve": "Quién la ve",
     "misma_extension": "El nombre tiene que conservar la extensión {{ext}}.",
     "cerrar": "Cerrar"
+  },
+  "terminos": {
+    "enlace": "Términos y condiciones",
+    "puerta_titulo": "Términos y Condiciones de uso",
+    "puerta_intro": "{{nombre}}, antes de usar el portal lea y acepte estos términos. Son las reglas de uso y los límites de la información que el portal le muestra.",
+    "caja": "Texto de los Términos y Condiciones",
+    "version": "Versión {{version}}",
+    "vigentes_desde": "vigentes desde el {{fecha}}",
+    "vinculante_es": "La versión vinculante de este documento es la española.",
+    "desplace": "Desplácese hasta el final del documento para poder aceptarlo.",
+    "casilla": "He leído y acepto los Términos y Condiciones de uso (versión {{version}}).",
+    "aceptar": "Aceptar y continuar",
+    "aceptando": "Registrando su aceptación…",
+    "cambiaron": "Los términos se actualizaron mientras los leía. Léalos de nuevo para poder aceptarlos.",
+    "error_aceptar": "No se pudo registrar su aceptación. Intente de nuevo.",
+    "error_cargar": "No se pudieron cargar los Términos y Condiciones.",
+    "reintentar": "Reintentar",
+    "volver_portal": "Volver al portal",
+    "volver_entrada": "Volver a la entrada",
+    "aceptados_el": "Usted aceptó la versión {{version}} el {{fecha}}."
   }
 }

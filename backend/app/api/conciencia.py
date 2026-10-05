@@ -135,12 +135,18 @@ async def _autenticar(websocket: WebSocket) -> Optional[Usuario]:
         # desacoplada y tocar un atributo no cargado dispararía una consulta
         # contra una sesión que ya no existe.
         _ = usuario.id, usuario.sitio_id
-        return usuario
+        pendientes = not usuario.terminos_vigentes
     except Exception:  # noqa: BLE001 - un token que no vale no es un error del servidor
         await websocket.close(code=CIERRE_NO_AUTORIZADO, reason="credenciales no válidas")
         return None
     finally:
         db.close()
+    # La misma regla que en el resto de la API (`exigir_terminos`): sin los
+    # términos vigentes aceptados, tampoco hay grafo en vivo.
+    if pendientes:
+        await websocket.close(code=CIERRE_NO_AUTORIZADO, reason="terminos_pendientes")
+        return None
+    return usuario
 
 
 @router.websocket("/flujo")

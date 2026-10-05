@@ -5457,3 +5457,186 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: not-allowed; }
   .metricas-controles { width: 100%; }
   .metricas-controles > * { flex: 1 1 140px; }
 }
+
+/* ============================================================
+   Términos y Condiciones
+   ============================================================
+   La puerta no es una ventana encima del portal: mientras falte la
+   aceptación, App no pinta nada más (ver PuertaTerminos.jsx). Por eso ocupa
+   la pantalla entera y lo único que se desplaza es el texto: la casilla y los
+   botones quedan siempre a la vista, y el final del documento es el final de
+   la caja, no el de la página.
+
+   El panel es casi opaco, no vidrio: aquí se leen doce cláusulas seguidas, y
+   una esfera rosa cruzando por detrás de un párrafo legal no ayuda a leerlo. */
+.terminos-puerta {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(4, 7, 14, 0.55);
+}
+
+.terminos-panel.apple-card,
+.terminos-panel.apple-card:hover {
+  width: min(760px, 100%);
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  background: rgba(10, 14, 24, 0.95);
+}
+
+.terminos-cabecera {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+.terminos-cabecera > svg { flex-shrink: 0; margin-top: 3px; color: var(--accent-primary); }
+.terminos-cabecera h1 {
+  margin: 0 0 4px;
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  color: var(--text-primary);
+}
+.terminos-cabecera p { margin: 0; font-size: 0.88rem; color: var(--text-secondary); }
+
+.terminos-caja {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 24px;
+}
+.terminos-caja:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+
+/* El centinela que avisa de que se llegó al final: tiene que medir algo
+   para que el IntersectionObserver lo vea entero. */
+.terminos-final { height: 1px; }
+
+.terminos-texto { color: var(--text-primary); font-size: 0.9rem; line-height: 1.62; }
+.terminos-texto-titulo {
+  margin: 0 0 4px;
+  font-family: var(--font-heading);
+  font-size: 1.1rem;
+}
+.terminos-texto-meta { margin: 0 0 14px; font-size: 0.8rem; color: var(--text-muted); }
+.terminos-texto-nota {
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent-primary);
+  background: var(--acento-bg);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+.terminos-clausula h3 {
+  margin: 20px 0 6px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+}
+.terminos-clausula p { margin: 0 0 10px; color: var(--text-secondary); }
+
+.terminos-error { padding: 28px 8px; text-align: center; color: var(--text-secondary); }
+.terminos-error p { margin: 0 0 12px; }
+
+.terminos-acciones {
+  display: grid;
+  gap: 10px;
+  padding: 14px 24px 18px;
+  border-top: 1px solid var(--border-color);
+}
+.terminos-pista { margin: 0; min-height: 1.2em; font-size: 0.8rem; color: var(--text-muted); }
+
+.terminos-casilla {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.terminos-casilla input {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--accent-primary);
+  cursor: inherit;
+}
+.terminos-casilla--inactiva { opacity: 0.5; cursor: not-allowed; }
+
+.terminos-aviso {
+  padding: 8px 12px;
+  border: 1px solid var(--peligro-borde);
+  border-radius: var(--radius-sm);
+  background: var(--peligro-bg);
+  color: var(--peligro);
+  font-size: 0.86rem;
+}
+
+.terminos-botones { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+
+/* La página de solo lectura, enlazada desde la entrada y el menú. */
+.terminos-volver {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-size: 0.88rem;
+  color: var(--accent-primary);
+  text-decoration: none;
+}
+.terminos-pagina-tarjeta.apple-card { padding: 28px 32px; background: rgba(10, 14, 24, 0.9); }
+.terminos-aceptados {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 18px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--status-resuelto-bg);
+  color: var(--status-resuelto-text);
+  font-size: 0.86rem;
+}
+
+/* El enlace legal de la entrada y la activación: presente, pero sin
+   competir con «Activar mi cuenta». */
+.puerta-pie .puerta-pie-legal,
+.puerta-pie-legal {
+  display: block;
+  margin-top: 10px;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.puerta-pie .puerta-pie-legal:hover,
+.puerta-pie-legal:hover { color: var(--text-secondary); text-decoration: underline; }
+
+@media (max-width: 640px) {
+  .terminos-puerta { padding: 0; }
+  .terminos-panel.apple-card,
+  .terminos-panel.apple-card:hover {
+    width: 100%;
+    max-height: 100vh;
+    max-height: 100dvh;
+    height: 100dvh;
+    border-radius: 0;
+  }
+  .terminos-cabecera { padding: 16px 16px 12px; }
+  .terminos-caja { padding: 14px 16px; }
+  .terminos-acciones { padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); }
+  .terminos-botones > * { flex: 1 1 140px; }
+  .terminos-pagina-tarjeta.apple-card { padding: 18px 16px; }
+}

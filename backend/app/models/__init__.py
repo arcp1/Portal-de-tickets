@@ -112,6 +112,12 @@ class Usuario(Base):
     # las listas y selectores, su número de empleado queda libre para otra
     # alta, y no hay forma de volver a entrar con esa cuenta.
     eliminado_en = Column(DateTime, nullable=True, index=True)
+    # **Términos y Condiciones** (migración 0031): la versión que aceptó y
+    # cuándo. Vacíos hasta que acepta; con una versión vieja, también le toca
+    # aceptar la nueva (ver `terminos_vigentes`). La constancia completa —IP y
+    # huella del texto que vio— queda en la bitácora, no aquí.
+    terminos_version = Column(String(20), nullable=True)
+    terminos_aceptados_en = Column(DateTime, nullable=True)
     # **Si puede pedir prioridad alta o crítica al levantar un ticket.** Quien
     # reporta indica la urgencia inicial —la conoce mejor que nadie—, pero es
     # la única palanca que tiene sobre la cola de TI y se puede abusar de ella.
@@ -129,6 +135,16 @@ class Usuario(Base):
     tickets_creados = relationship("Ticket", foreign_keys="Ticket.usuario_id", back_populates="usuario")
     tickets_asignados = relationship("Ticket", foreign_keys="Ticket.asignado_a", back_populates="asignado_usuario")
     equipos = relationship("Equipo", back_populates="asignado_usuario")
+
+    @property
+    def terminos_vigentes(self) -> bool:
+        """Si aceptó la versión vigente de los Términos y Condiciones.
+
+        Mientras no, la API le responde 403 `terminos_pendientes` a todo salvo
+        a su sesión y a los términos (ver `get_current_user`).
+        """
+        from app.core import terminos
+        return bool(self.terminos_version) and self.terminos_version == terminos.version_vigente()
 
     @property
     def sitio_nombre(self):

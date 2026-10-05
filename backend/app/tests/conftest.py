@@ -140,6 +140,40 @@ def _llaves_foraneas(conexion, _registro):
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
 
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "terminos_pendientes: las cuentas que cree la prueba nacen sin los Términos aceptados",
+    )
+
+
+@pytest.fixture(autouse=True)
+def terminos_aceptados_por_omision(request):
+    """Toda cuenta que crea una prueba nace con los Términos y Condiciones
+    vigentes aceptados, salvo en las pruebas marcadas `terminos_pendientes`.
+
+    Sin esto, desde que la API exige la aceptación (api/deps.py) cada prueba
+    que usa una sesión recibiría 403: la regla se prueba en test_terminos.py,
+    y el resto de la suite sigue probando lo suyo como antes. Va con un oyente
+    de SQLAlchemy y no en el `db_session` porque muchas cuentas no se crean
+    ahí: las dan de alta las propias pruebas, por la API o la importación.
+    """
+    if request.node.get_closest_marker("terminos_pendientes"):
+        yield
+        return
+    from datetime import datetime
+    from app.core import terminos
+
+    def aceptar(_mapper, _conexion, usuario):
+        if usuario.terminos_version is None:
+            usuario.terminos_version = terminos.version_vigente()
+            usuario.terminos_aceptados_en = datetime.utcnow()
+
+    event.listen(Usuario, "before_insert", aceptar)
+    yield
+    event.remove(Usuario, "before_insert", aceptar)
+
+
 @pytest.fixture(scope="function")
 def db_session():
     Base.metadata.create_all(bind=engine)

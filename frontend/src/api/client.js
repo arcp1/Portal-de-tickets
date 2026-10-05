@@ -31,6 +31,10 @@ api.interceptors.request.use(
 
 /** La marca que deja el cierre por sesión caducada para que el login lo diga. */
 export const SESION_CADUCADA = 'portal_sesion_caducada';
+// El servidor pide aceptar los Términos y Condiciones (403 `terminos_pendientes`):
+// pasa si se publicó una versión nueva con la sesión abierta. AuthContext lo
+// escucha, vuelve a leer la sesión y la pantalla muestra la puerta.
+export const TERMINOS_PENDIENTES = 'portal:terminos-pendientes';
 /** A dónde volver después de entrar de nuevo. Ver el manejo del 401. */
 export const VOLVER_A = 'portal_volver_a';
 
@@ -71,6 +75,9 @@ api.interceptors.response.use(
       avisar(i18n.t('comun.sin_conexion'), { tono: 'atencion', clave: 'sin-conexion' });
     }
 
+    if (error.response?.status === 403 && cuerpo?.codigo === 'terminos_pendientes') {
+      window.dispatchEvent(new Event(TERMINOS_PENDIENTES));
+    }
     if (error.response && error.response.status === 401) {
       const habiaSesion = Boolean(localStorage.getItem('portal_tickets_token'));
       localStorage.removeItem('portal_tickets_token');

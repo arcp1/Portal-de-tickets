@@ -295,6 +295,9 @@ const Activar = () => {
         }}>
           <ArrowLeft size={15} /> {t('activar.ya_tengo_cuenta')}
         </Link>
+        <Link to="/terminos" className="puerta-pie-legal">
+          {t('terminos.enlace')}
+        </Link>
       </div>
     </div>
   );

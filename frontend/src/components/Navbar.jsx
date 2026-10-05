@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import MenuBarra from './MenuBarra';
 import { seccionesDe, seccionActiva } from '../lib/navegacion';
-import { LogOut, ShieldCheck, User, FolderOpen, KeyRound, Languages, Check, Search
+import { LogOut, ShieldCheck, User, FolderOpen, KeyRound, Languages, Check, Search, ScrollText
 } from 'lucide-react';
 import { useConexionPortal } from '../context/Eventos';
 import CambiarPassword from './CambiarPassword';
@@ -207,6 +207,7 @@ const Navbar = () => {
                 texto: nombre
               })),
               { onSelect: () => setCambiandoPassword(true), icono: <KeyRound size={16} />, texto: t('password.abrir') },
+              { ruta: '/terminos', icono: <ScrollText size={16} />, texto: t('terminos.enlace') },
               { onSelect: cerrarSesion, icono: <LogOut size={16} />, texto: t('nav.logout'), peligro: true }
             ]}
           />

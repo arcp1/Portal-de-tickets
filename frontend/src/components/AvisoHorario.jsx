@@ -25,8 +25,9 @@ export const ProveedorHorario = ({ children }) => {
   // cuando importa decirle que nadie va a atender su ticket hasta mañana.
   // Dependiendo del `id` del usuario, la sesión recién abierta vuelve a
   // preguntar de inmediato. Es el mismo arreglo que ya lleva [[ProveedorEventos]].
-  const { user } = useAuth();
-  const usuarioId = user?.id ?? null;
+  const { user, terminosPendientes } = useAuth();
+  // Igual que el canal de eventos: se consulta cuando los términos están aceptados.
+  const usuarioId = terminosPendientes ? null : (user?.id ?? null);
   const [horario, setHorario] = useState({ esHorarioLaboral: true, cargado: false });
 
   useEffect(() => {

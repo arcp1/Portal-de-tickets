@@ -1,4 +1,4 @@
-from app.schemas.comunes import PlantaBreve
+from app.schemas.comunes import FechaUTC, PlantaBreve
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 
@@ -12,7 +12,7 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    user: "UserResponse"
+    user: "SesionResponse"
 
 class UserResponse(BaseModel):
     id: int
@@ -36,3 +36,21 @@ class UserResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+class SesionResponse(UserResponse):
+    """La persona que tiene la sesión, con lo que solo le importa a ella.
+
+    Va en el login, la activación, `/me`, el cambio de contraseña y la
+    aceptación de los términos; no en `UserResponse`, que también sale anidado
+    en tickets y comentarios ajenos, donde la fecha en que alguien aceptó los
+    términos no tiene nada que hacer.
+    """
+    # Si aceptó la versión vigente de los Términos y Condiciones. Mientras sea
+    # falso, la pantalla muestra la puerta de aceptación y la API responde 403.
+    terminos_vigentes: bool = False
+    terminos_version: Optional[str] = None
+    terminos_aceptados_en: Optional[FechaUTC] = None
+
+
+# `TokenResponse` nombra a `SesionResponse` antes de que exista.
+TokenResponse.model_rebuild()

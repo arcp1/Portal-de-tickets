@@ -4,6 +4,9 @@
     python3 scripts/vista-previa.py            # estado "a medias"
     python3 scripts/vista-previa.py vacio      # portal recién instalado
     python3 scripts/vista-previa.py roto       # todo lo que puede fallar, fallando
+    python3 scripts/vista-previa.py --terminos-pendientes   # con la puerta de los
+                                               # Términos y Condiciones (combina con
+                                               # cualquiera de los anteriores)
 
 Después: abrir http://localhost:8099/conocimiento
                http://localhost:8099/conocimiento/catalogo
@@ -46,6 +49,12 @@ import tempfile
 import zlib
 from pathlib import Path
 
+# Los Términos y Condiciones se sirven del archivo de verdad, no de una copia:
+# su huella es la que la pantalla devuelve al aceptar. El módulo es solo
+# biblioteca estándar justamente para poder importarlo aquí.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
+from app.core import terminos  # noqa: E402
+
 PUERTO = 8099
 IMAGEN = "portal-de-tickets-frontend:latest"
 
@@ -55,7 +64,13 @@ IMAGEN = "portal-de-tickets-frontend:latest"
 USUARIO = {"id": 1, "nombre": "Vista previa", "email": "vista@cgr.mx",
            "rol": "admin", "sitio_id": 1, "sitio_nombre": "Planta de vista previa",
            "idioma_preferido": "es", "puede_usar_prioridad_alta": True,
-           "numero_empleado": "0001", "estado_cuenta": "activa"}
+           "numero_empleado": "0001", "estado_cuenta": "activa",
+           "terminos_vigentes": True, "terminos_version": terminos.version_vigente(),
+           "terminos_aceptados_en": "2026-10-05T15:00:00Z"}
+
+# Lo que el backend deja pedir mientras faltan los términos (api/deps.py,
+# RUTAS_SIN_TERMINOS). Todo lo demás responde 403 `terminos_pendientes`.
+RUTAS_SIN_TERMINOS = {"/api/auth/me", "/api/auth/logout", "/api/auth/terminos", "/api/terminos"}
 
 
 def _tickets_de_muestra():
@@ -756,7 +771,8 @@ def main() -> int:
     signal.signal(signal.SIGTERM, _parar)
     signal.signal(signal.SIGINT, _parar)
 
-    estado = (sys.argv[1] if len(sys.argv) > 1 else "medias").lower()
+    argumentos = [a for a in sys.argv[1:] if not a.startswith("--")]
+    estado = (argumentos[0] if argumentos else "medias").lower()
     if estado not in ESTADOS:
         print(f"Estado desconocido: {estado}. Use uno de: {', '.join(ESTADOS)}")
         return 2
@@ -791,8 +807,16 @@ def main() -> int:
                   f"Constrúyala primero:  docker compose build frontend")
             return 1
 
+    # La sesión es un dict vivo: aceptar los términos en la puerta la cambia, y
+    # el `/api/auth/me` siguiente ya lo trae, como en el backend.
+    sesion = dict(USUARIO)
+    if "--terminos-pendientes" in sys.argv:
+        sesion.update(terminos_vigentes=False, terminos_version=None, terminos_aceptados_en=None)
+        print("La sesión empieza con los Términos y Condiciones sin aceptar.")
+
     rutas = {
-        "/api/auth/me": USUARIO,
+        "/api/auth/me": sesion,
+        "/api/terminos": terminos.documento().a_dict(),
         "/api/tickets": _tickets_de_muestra(),
         "/api/admin/usuarios": _personas_de_muestra(),
         # El de la vista previa es su dueño: así se ve el botón de cancelar.
@@ -846,6 +870,9 @@ def main() -> int:
     # Rutas que se pidieron y este guion no conoce. Se anotan para decirlo al
     # final: ver mas abajo por que.
     sin_cubrir = {}
+    # Las que se pidieron con los términos sin aceptar. La puerta no debería
+    # pedir ninguna: si sale algo aquí, alguna pantalla se monta debajo.
+    bloqueadas = {}
 
     class Manejador(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *a, **k):
@@ -854,9 +881,9 @@ def main() -> int:
         def log_message(self, *a):
             pass
 
-        def _json(self, cuerpo):
+        def _json(self, cuerpo, estado=200):
             crudo = json.dumps(cuerpo).encode()
-            self.send_response(200)
+            self.send_response(estado)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(crudo)))
             self.end_headers()
@@ -871,6 +898,18 @@ def main() -> int:
             except ValueError:
                 cuerpo = {}
             ruta = self.path.split("?")[0]
+            if ruta == "/api/auth/terminos":
+                vigente = terminos.documento()
+                if (cuerpo.get("version"), cuerpo.get("huella")) != (vigente.version, vigente.huella):
+                    return self._json({"detail": "Los Términos y Condiciones cambiaron mientras "
+                                                 "los leía. Vuelva a leerlos para poder aceptarlos.",
+                                       "codigo": "conflicto"}, 409)
+                if not sesion["terminos_vigentes"]:
+                    sesion.update(terminos_vigentes=True, terminos_version=vigente.version,
+                                  terminos_aceptados_en="2026-10-05T15:00:00Z")
+                return self._json(sesion)
+            if self._sin_terminos(ruta):
+                return None
             if ruta == "/api/conciencia/consultar":
                 i = turno["n"] % len(RESPUESTAS_ASISTENTE)
                 turno["n"] += 1
@@ -913,8 +952,22 @@ def main() -> int:
                                                   "software", "accesos", "otro"]})
             return self._json({})
 
+        def _sin_terminos(self, ruta):
+            """El 403 del backend mientras faltan los términos. Sirve para ver
+            que la pantalla no pide nada más ni entra en un bucle con él."""
+            if (sesion["terminos_vigentes"] or not ruta.startswith("/api/")
+                    or ruta in RUTAS_SIN_TERMINOS):
+                return False
+            bloqueadas[ruta] = bloqueadas.get(ruta, 0) + 1
+            self._json({"detail": "Para continuar debe aceptar los Términos y "
+                                  "Condiciones de uso del portal.",
+                        "codigo": "terminos_pendientes"}, 403)
+            return True
+
         def do_GET(self):
             ruta = self.path.split("?")[0]
+            if self._sin_terminos(ruta):
+                return None
             if ruta in rutas:
                 return self._json(rutas[ruta])
             if ruta.startswith("/api/admin/conciencia/consultas"):
@@ -1043,13 +1096,13 @@ def main() -> int:
             """
             with open(os.path.join(raiz, "index.html"), encoding="utf-8") as f:
                 html = f.read()
-            sesion = (
+            guion = (
                 "<script>"
                 "localStorage.setItem('portal_tickets_token','vista-previa');"
-                f"localStorage.setItem('portal_tickets_user',{json.dumps(json.dumps(USUARIO))});"
+                f"localStorage.setItem('portal_tickets_user',{json.dumps(json.dumps(sesion))});"
                 "</script>"
             )
-            html = html.replace("</head>", sesion + "</head>", 1)
+            html = html.replace("</head>", guion + "</head>", 1)
             crudo = html.encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -1069,6 +1122,7 @@ def main() -> int:
     print(f"          http://localhost:{PUERTO}/conocimiento/catalogo")
     print(f"          http://localhost:{PUERTO}/documentos/archivos/1   (directorio)")
     print(f"          http://localhost:{PUERTO}/sistema/metricas")
+    print(f"          http://localhost:{PUERTO}/terminos   (con --terminos-pendientes, la puerta)")
     print("\n  Las fotos: escriba «sale borroso» en el chat de abajo a la derecha,")
     print("  o en la descripción de /new-ticket.")
     print(f"\n  En el celular, sin encoger la ventana:")
@@ -1086,6 +1140,10 @@ def main() -> int:
         print("\nParado.")
     finally:
         shutil.rmtree(raiz, ignore_errors=True)
+        if bloqueadas:
+            print("\n  Pedidas con los términos sin aceptar (403 `terminos_pendientes`):")
+            for ruta, veces in sorted(bloqueadas.items()):
+                print(f"    {ruta}  ({veces})")
         if sin_cubrir:
             print("\n  Rutas que se pidieron y este guion NO conoce:")
             for ruta, veces in sorted(sin_cubrir.items()):

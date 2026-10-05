@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import api from '../api/client';
+import api, { TERMINOS_PENDIENTES } from '../api/client';
 import { olvidarTodo as olvidarImagenes } from '../lib/blobs';
 
 const AuthContext = createContext();
@@ -92,6 +92,27 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  // **Términos y Condiciones publicados con la sesión abierta.** El servidor
+  // contesta 403 `terminos_pendientes` y `api/client.js` lo avisa: se vuelve a
+  // leer la sesión y, como ya no los trae vigentes, App muestra la puerta.
+  //
+  // Solo si esta pestaña los creía vigentes. Si ya está mostrando la puerta,
+  // cada petición que aún quede en vuelo contestaría 403 otra vez, y releer la
+  // sesión por cada una no dice nada nuevo: sería un bucle.
+  useEffect(() => {
+    const alPedirTerminos = () => {
+      if (usuarioActual.current?.terminos_vigentes === false) return;
+      api.get('/auth/me')
+        .then((res) => {
+          localStorage.setItem('portal_tickets_user', JSON.stringify(res.data));
+          setUser(res.data);
+        })
+        .catch(() => { /* sin red: lo dirá la siguiente petición */ });
+    };
+    window.addEventListener(TERMINOS_PENDIENTES, alPedirTerminos);
+    return () => window.removeEventListener(TERMINOS_PENDIENTES, alPedirTerminos);
+  }, []);
+
   const login = async (identificador, password) => {
     // El backend acepta número de empleado o correo en el mismo campo.
     const res = await api.post('/auth/login', { email: identificador, password });
@@ -115,6 +136,18 @@ export const AuthProvider = ({ children }) => {
     setUser(datosUsuario);
   };
 
+  /**
+   * Acepta la versión de los Términos y Condiciones que se mostró. Manda la
+   * versión **y la huella** del texto: si no son las vigentes, el servidor no
+   * registra nada (409) y hay que volver a leerlos.
+   */
+  const aceptarTerminos = async (version, huella) => {
+    const res = await api.post('/auth/terminos', { version, huella });
+    localStorage.setItem('portal_tickets_user', JSON.stringify(res.data));
+    setUser(res.data);
+    return res.data;
+  };
+
   const logout = () => {
     // **Cerrar sesión de verdad.** Con Redis, el backend anota la sesión como
     // revocada y ninguna copia del token —otra pestaña olvidada, la terminal
@@ -134,7 +167,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, falloRed, login, logout, aplicarSesion }}>
+    <AuthContext.Provider value={{
+      user, loading, falloRed, login, logout, aplicarSesion, aceptarTerminos,
+      // Hay sesión pero faltan los términos vigentes: la API responde 403 a
+      // casi todo, así que nada debe pedirle datos hasta que se acepten.
+      terminosPendientes: Boolean(user) && user.terminos_vigentes === false,
+    }}>
       {children}
     </AuthContext.Provider>
   );

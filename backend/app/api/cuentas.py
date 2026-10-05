@@ -24,7 +24,7 @@ from app.core.limitador import (
 from app.core.logging import logger
 from app.core.security import HashOcupado, create_access_token, respuesta_ocupado, turno_de_hash
 from app.models import ESTADOS_TERMINADOS, Equipo, Resguardo, Sitio, Ticket, Usuario
-from app.schemas.auth import TokenResponse, UserResponse
+from app.schemas.auth import SesionResponse, TokenResponse, UserResponse
 from app.schemas.comunes import FechaUTC, PlantaBreve
 from app.services.auditoria_service import AuditoriaService
 from app.services.frases_service import sugerencias
@@ -292,7 +292,7 @@ def requisitos_password():
     }
 
 
-@publico_router.post("/cambiar-password", response_model=UserResponse)
+@publico_router.post("/cambiar-password", response_model=SesionResponse)
 def cambiar_password(
     peticion: CambiarPasswordRequest,
     request: Request,

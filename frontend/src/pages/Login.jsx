@@ -205,6 +205,7 @@ const Login = () => {
 
         <footer className="puerta-pie">
           <Link to="/activar">{t('activar.primera_vez')}</Link>
+          <Link to="/terminos" className="puerta-pie-legal">{t('terminos.enlace')}</Link>
         </footer>
       </main>
     </div>

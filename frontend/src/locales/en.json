@@ -1500,5 +1500,25 @@
     "quien_ve": "Who can see it",
     "misma_extension": "The name must keep the {{ext}} extension.",
     "cerrar": "Close"
+  },
+  "terminos": {
+    "enlace": "Terms and conditions",
+    "puerta_titulo": "Terms and Conditions of use",
+    "puerta_intro": "{{nombre}}, before using the portal please read and accept these terms. They set the rules of use and the limits of the information the portal shows you.",
+    "caja": "Text of the Terms and Conditions",
+    "version": "Version {{version}}",
+    "vigentes_desde": "in force since {{fecha}}",
+    "vinculante_es": "The Spanish version of this document is the binding one.",
+    "desplace": "Scroll to the end of the document to be able to accept it.",
+    "casilla": "I have read and accept the Terms and Conditions of use (version {{version}}).",
+    "aceptar": "Accept and continue",
+    "aceptando": "Recording your acceptance…",
+    "cambiaron": "The terms were updated while you were reading them. Please read them again to accept them.",
+    "error_aceptar": "Your acceptance could not be recorded. Please try again.",
+    "error_cargar": "The Terms and Conditions could not be loaded.",
+    "reintentar": "Try again",
+    "volver_portal": "Back to the portal",
+    "volver_entrada": "Back to sign in",
+    "aceptados_el": "You accepted version {{version}} on {{fecha}}."
   }
 }
