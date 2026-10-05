@@ -22,7 +22,7 @@ from app.core.limitador import (
     limitador_activacion_ip, limitador_login,
 )
 from app.core.logging import logger
-from app.core.security import create_access_token
+from app.core.security import HashOcupado, create_access_token, respuesta_ocupado, turno_de_hash
 from app.models import ESTADOS_TERMINADOS, Equipo, Resguardo, Sitio, Ticket, Usuario
 from app.schemas.auth import TokenResponse, UserResponse
 from app.schemas.comunes import FechaUTC, PlantaBreve
@@ -235,16 +235,23 @@ def activar(peticion: ActivarRequest, request: Request, db: Session = Depends(ge
     frenar((limitador_activacion_ip, f"ip:{origen}"), (limitador_activacion, cuenta))
 
     try:
-        usuario = CuentasService.activar(
-            db,
-            identificador=peticion.identificador,
-            password=peticion.password,
-            codigo=peticion.codigo,
-            nombre_completo=peticion.nombre_completo,
-            fecha_ingreso=peticion.fecha_ingreso,
-            fecha_nacimiento=peticion.fecha_nacimiento,
-            numero_epp=peticion.numero_epp,
-        )
+        # Compara el código y calcula el hash de la nueva: dos bcrypt, en fila
+        # con los demás (ver `turno_de_hash`).
+        with turno_de_hash():
+            usuario = CuentasService.activar(
+                db,
+                identificador=peticion.identificador,
+                password=peticion.password,
+                codigo=peticion.codigo,
+                nombre_completo=peticion.nombre_completo,
+                fecha_ingreso=peticion.fecha_ingreso,
+                fecha_nacimiento=peticion.fecha_nacimiento,
+                numero_epp=peticion.numero_epp,
+            )
+    except HashOcupado:
+        limitador_activacion_ip.descontar(f"ip:{origen}")
+        limitador_activacion.descontar(cuenta)
+        raise respuesta_ocupado()
     except ErrorCuenta as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
@@ -297,9 +304,13 @@ def cambiar_password(
     cuenta = clave_de_cuenta(current_user, "", publico=es_publico(request))
     frenar((limitador_login, cuenta))
     try:
-        usuario = CuentasService.cambiar_password(
-            db, current_user, peticion.password_actual, peticion.password_nueva
-        )
+        with turno_de_hash():
+            usuario = CuentasService.cambiar_password(
+                db, current_user, peticion.password_actual, peticion.password_nueva
+            )
+    except HashOcupado:
+        limitador_login.descontar(cuenta)
+        raise respuesta_ocupado()
     except ErrorCuenta as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     limitador_login.limpiar(cuenta)

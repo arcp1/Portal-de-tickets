@@ -5,7 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.core.db import get_db
-from app.core.security import HASH_SENUELO, create_access_token, verify_password
+from app.core.security import (
+    HASH_SENUELO, HashOcupado, create_access_token, respuesta_ocupado, turno_de_hash,
+    verify_password,
+)
 from app.models import Usuario
 from app.schemas.auth import LoginRequest, TokenResponse, UserResponse
 from app.api.deps import get_current_user, get_current_admin, oauth2_scheme
@@ -63,7 +66,15 @@ def login(request: LoginRequest, peticion: Request, db: Session = Depends(get_db
     # cuentas existen. Comparando siempre contra algo, todos los caminos
     # cuestan lo mismo.
     hash_a_comparar = (user.password_hash if user else None) or _HASH_SENUELO
-    coincide = verify_password(request.password, hash_a_comparar)
+    try:
+        # En fila con los demás bcrypt: ver `turno_de_hash`.
+        with turno_de_hash():
+            coincide = verify_password(request.password, hash_a_comparar)
+    except HashOcupado:
+        # No se llegó a comparar nada: el intento no cuenta contra nadie.
+        limitador_login_ip.descontar(f"ip:{origen}")
+        limitador_login.descontar(cuenta)
+        raise respuesta_ocupado()
 
     if not user or not coincide or not user.activo or user.estado_cuenta != "activa":
         raise generico

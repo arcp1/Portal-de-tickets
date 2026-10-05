@@ -308,6 +308,14 @@ class Settings(BaseSettings):
     LOGIN_MAX_INTENTOS: int = int(os.getenv("LOGIN_MAX_INTENTOS", "8"))
     LOGIN_MAX_INTENTOS_POR_IP: int = int(os.getenv("LOGIN_MAX_INTENTOS_POR_IP", "40"))
     LOGIN_VENTANA_SEGUNDOS: int = int(os.getenv("LOGIN_VENTANA_SEGUNDOS", "300"))
+    # Cuántos bcrypt de entrar, activar o cambiar contraseña corren a la vez,
+    # cuántos esperan como mucho y cuánto. Ver `turno_de_hash` en
+    # core/security.py: es lo que impide que una inundación de intentos desde
+    # muchas IP se lleve toda la CPU. 4 de 16 núcleos son ~23 intentos por
+    # segundo: el cambio de turno entero cabe sin esperar.
+    HASH_EN_PARALELO: int = int(os.getenv("HASH_EN_PARALELO", "4"))
+    HASH_COLA_MAXIMA: int = int(os.getenv("HASH_COLA_MAXIMA", "12"))
+    HASH_ESPERA_S: float = float(os.getenv("HASH_ESPERA_S", "1"))
     # Lo mismo para la activacion de cuenta, que prueba fechas y codigos. Es
     # el freno de corto plazo; el bloqueo definitivo de la via por datos
     # personales es `ACTIVACION_MAX_INTENTOS`, mas arriba.
