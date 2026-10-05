@@ -1,0 +1,58 @@
+# Copia desechable del portal, para probar cambios de infraestructura sin tocar
+# producción. **No se levanta a mano**: la levanta, la revisa y la retira
+# scripts/prueba-aislamiento.sh, con su propio proyecto (`-p portal-prueba`) y,
+# por tanto, sus propias redes y volúmenes.
+#
+# Lo que cambia respecto a producción:
+#   - contenedores `prueba_*` (los de producción tienen nombre fijo y chocarían);
+#   - puertos solo en 127.0.0.1 y con otros números: 18080 (acceso directo),
+#     18081 (camino de Funnel) y 11883 (MQTT);
+#   - el .env es uno de prueba con secretos inventados (PRUEBA_ENV), nunca el de
+#     producción: con el JWT_SECRET real, una sesión creada aquí valdría allá;
+#   - Ollama usa los modelos de producción **en solo lectura**, para no
+#     descargar gigas para una prueba; OLLAMA_NOPRUNE evita que intente
+#     limpiarlos al arrancar.
+services:
+  db:
+    container_name: prueba_db
+  redis:
+    container_name: prueba_redis
+  ollama:
+    container_name: prueba_ollama
+    environment:
+      OLLAMA_NOPRUNE: "1"
+    volumes: !override
+      - modelos_produccion:/root/.ollama:ro
+  backend:
+    container_name: prueba_backend
+    env_file: !override
+      - ${PRUEBA_ENV:?use scripts/prueba-aislamiento.sh}
+  worker:
+    container_name: prueba_worker
+    env_file: !override
+      - ${PRUEBA_ENV:?use scripts/prueba-aislamiento.sh}
+  ingestor:
+    container_name: prueba_ingestor
+    env_file: !override
+      - ${PRUEBA_ENV:?use scripts/prueba-aislamiento.sh}
+  mosquitto:
+    container_name: prueba_mosquitto
+    ports: !override
+      - "127.0.0.1:11883:1883"
+  frontend:
+    container_name: prueba_frontend
+    # La imagen ya construida para producción: la prueba no reconstruye nada.
+    image: portal-de-tickets-frontend:latest
+  nginx:
+    container_name: prueba_nginx
+    ports: !override
+      - "127.0.0.1:18080:80"
+      - "127.0.0.1:18081:8081"
+
+volumes:
+  # El volumen de modelos de producción, que la prueba solo lee. Al ser externo,
+  # compose nunca lo crea ni lo borra; el guion además retira solo los volúmenes
+  # `portal-prueba_*`.
+  modelos_produccion:
+    external: true
+    name: portal-de-tickets_ollama_models

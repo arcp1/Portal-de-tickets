@@ -1,7 +1,31 @@
+# --- Secretos: cada contenedor recibe solo los suyos (auditoría 2026-10-05) ---
+#
+# Antes, `env_file: .env` le daba a backend, worker e ingestor **todos** los
+# secretos: el ingestor, que procesa mensajes MQTT llegados de la LAN, tenía el
+# JWT_SECRET con el que se fabrica una sesión de TI. Ahora los contenedores que
+# leen el .env (por sus muchos ajustes, que no son secretos) empiezan con todos
+# los secretos en blanco y cada uno vuelve a añadir, en su `environment`, solo
+# los que usa. `environment` gana sobre `env_file`.
+#
+# **Un secreto nuevo en el .env tiene que añadirse aquí**; si no, llegaría a
+# todos. scripts/prueba-aislamiento.sh comprueba qué secretos ve cada contenedor.
+x-secretos-en-blanco: &secretos-en-blanco
+  POSTGRES_PASSWORD: ""
+  DATABASE_URL: ""
+  JWT_SECRET: ""
+  REDIS_PASSWORD: ""
+  REDIS_URL: ""
+  GEMINI_API_KEY: ""
+  SMTP_PASSWORD: ""
+  MQTT_PASSWORD: ""
+  MQTT_DISPOSITIVO_PASSWORD: ""
+  MQTT_SENSORES: ""
+
 services:
   db:
     image: pgvector/pgvector:pg16
     container_name: portal_tickets_db
+    networks: [datos]
     restart: always
     read_only: true
     # Postgres arranca como root y baja a su propio usuario con gosu: sin
@@ -42,15 +66,25 @@ services:
 
   # IA local. Sin este servicio el portal funciona igual, solo sin las ayudas
   # de IA (ver perfil "sin-ia" más abajo).
-  # Los modelos se descargan una vez y quedan en el volumen:
-  #   docker compose exec ollama ollama pull nomic-embed-text
+  #
+  # **Vive solo en la red `datos`, que no tiene salida a internet**, y no tiene
+  # autenticación: solo le hablan el backend y el worker. Para descargar un
+  # modelo hay que darle salida un momento y quitársela al terminar:
+  #   docker network connect portal-de-tickets_api portal_tickets_ollama
   #   docker compose exec ollama ollama pull qwen2.5:3b
+  #   docker network disconnect portal-de-tickets_api portal_tickets_ollama
   ollama:
     # Fijado a una version concreta, no `latest`. Con `latest`, cada `pull`
     # puede traer codigo distinto sin que nadie lo decida ni lo revise: es la
     # via de entrada clasica de un ataque a la cadena de suministro.
-    image: ollama/ollama:0.12.3
+    #
+    # 0.33.2 y no 0.12.3 (auditoría 2026-10-05): el binario de la 0.12.3 se
+    # compiló con un Go de hace un año, con 1 CVE crítico y 46 altos (TLS,
+    # HTTP/2, net/url). OLLAMA_IMAGEN existe para probar otra versión en la
+    # copia desechable (scripts/prueba-aislamiento.sh) sin editar este archivo.
+    image: ${OLLAMA_IMAGEN:-ollama/ollama:0.33.2}
     container_name: portal_tickets_ollama
+    networks: [datos]
     restart: always
     read_only: true
     cap_drop:
@@ -151,6 +185,7 @@ services:
     # Con nombre: el worker y el receptor de sensores usan esta misma imagen.
     image: portal_tickets_backend:local
     container_name: portal_tickets_backend
+    networks: [api, datos]
     restart: always
     read_only: true
     # Tope de memoria: si algo se desboca —una imagen enorme, un fallo futuro—
@@ -167,6 +202,14 @@ services:
     env_file:
       - .env
     environment:
+      # Ninguno de los secretos del .env, salvo los que se añaden abajo: la
+      # base, Redis, las sesiones (JWT), Gemini y el correo. Las contraseñas
+      # de MQTT no las usa.
+      <<: *secretos-en-blanco
+      DATABASE_URL: ${DATABASE_URL:?falta DATABASE_URL en el .env}
+      JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en el .env}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       # Gana sobre el .env: dentro de compose, Ollama es un servicio vecino.
       # `host.docker.internal` solo aplica cuando Ollama corre nativo en el
       # host (Windows/macOS), no aquí.
@@ -206,6 +249,7 @@ services:
   redis:
     image: redis:7.4-alpine
     container_name: portal_tickets_redis
+    networks: [datos]
     restart: always
     read_only: true
     user: "999:1000"
@@ -246,6 +290,7 @@ services:
     # tenga la contraseña de un sensor— y completa el arreglo del CVE-2023-28366.
     image: eclipse-mosquitto:2.0.22
     container_name: portal_tickets_mosquitto
+    networks: [mqtt]
     restart: always
     read_only: true
     user: "1883:1883"
@@ -281,6 +326,7 @@ services:
     image: portal_tickets_backend:local
     pull_policy: never
     container_name: portal_tickets_worker
+    networks: [api, datos]
     restart: always
     read_only: true
     cap_drop:
@@ -292,8 +338,13 @@ services:
     env_file:
       - .env
     environment:
+      # La base, Redis y el correo (los avisos salen de aquí). Ni el JWT ni
+      # Gemini ni MQTT: el worker no los usa.
+      <<: *secretos-en-blanco
+      DATABASE_URL: ${DATABASE_URL:?falta DATABASE_URL en el .env}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       OLLAMA_HOST: ${OLLAMA_HOST_INTERNO:-http://ollama:11434}
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:?falta REDIS_PASSWORD en el .env}@redis:6379/0
       MIGRAR_AL_ARRANCAR: "no"
     command: ["arq", "app.worker.WorkerSettings"]
     # El worker escribe un latido en Redis cada minuto (health_check_interval
@@ -321,6 +372,7 @@ services:
     image: portal_tickets_backend:local
     pull_policy: never
     container_name: portal_tickets_ingestor
+    networks: [mqtt, datos]
     restart: always
     read_only: true
     cap_drop:
@@ -332,7 +384,13 @@ services:
     env_file:
       - .env
     environment:
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      # La base, Redis y su propia cuenta de Mosquitto. Es el contenedor que
+      # procesa lo que llega de la LAN: no tiene el JWT, ni Gemini, ni el
+      # correo, ni las contraseñas de los sensores.
+      <<: *secretos-en-blanco
+      DATABASE_URL: ${DATABASE_URL:?falta DATABASE_URL en el .env}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:?falta MQTT_PASSWORD en el .env}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?falta REDIS_PASSWORD en el .env}@redis:6379/0
       MQTT_HOST: mosquitto
       MIGRAR_AL_ARRANCAR: "no"
     command: ["python", "-m", "app.iot.ingestor"]
@@ -351,6 +409,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: portal_tickets_frontend
+    networks: [borde]
     restart: always
     read_only: true
     cap_drop:
@@ -373,6 +432,7 @@ services:
     # nginx sin que nadie lo decidiera. 1.31.4 es la que corría al fijarla.
     image: nginx:1.31.4-alpine
     container_name: portal_tickets_nginx
+    networks: [borde, api]
     restart: always
     read_only: true
     cap_drop:
@@ -420,6 +480,30 @@ services:
     depends_on:
       - backend
       - frontend
+
+# --- Redes (auditoría 2026-10-05) ---
+#
+# Antes todo compartía la red por omisión: el nginx que solo sirve archivos
+# podía conectarse a Postgres, a Redis y a Ollama, y Ollama no pide contraseña.
+# Ahora cada contenedor alcanza solo lo que necesita, y un contenedor
+# comprometido de cara afuera (nginx hacia internet, Mosquitto hacia la LAN) ya
+# no tiene la base a un salto:
+#
+#   borde   nginx, frontend                  la aplicación estática
+#   api     nginx, backend, worker           la API; salida a internet
+#                                            (Gemini y el correo)
+#   datos   backend, worker, ingestor,       sin salida a internet
+#           db, redis, ollama                (internal: true)
+#   mqtt    mosquitto, ingestor              el puerto de los sensores
+#
+# Una red `internal` no puede publicar puertos ni salir a internet: por eso
+# Mosquitto y nginx viven en redes normales y los datos, no.
+networks:
+  borde:
+  api:
+  datos:
+    internal: true
+  mqtt:
 
 volumes:
   postgres_data:
