@@ -119,6 +119,15 @@ export default function MenuBarra({
             ].filter(Boolean).join(' ');
             // Una entrada es un enlace o una acción; en el menú del perfil
             // conviven las dos —"Mi Expediente" navega, "Cerrar sesión" no—.
+            // O solo una nota: lo que conviene saber y no se pulsa.
+            if (e.nota) {
+              return (
+                <div key={e.texto} className={`${clases} navbar-grupo-opcion--nota`} role="note">
+                  {e.icono}
+                  <span>{e.texto}</span>
+                </div>
+              );
+            }
             if (e.ruta) {
               return (
                 <Link viewTransition key={e.ruta} to={e.ruta} className={clases}

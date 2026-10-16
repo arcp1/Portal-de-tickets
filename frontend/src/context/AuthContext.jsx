@@ -124,6 +124,20 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
+   * Termina el inicio de sesión con Microsoft. El backend no pone el token en
+   * la URL: vuelve a `/login#sso=<código>`, un código de un minuto y un solo
+   * uso que aquí se cambia por la sesión. Ver backend/app/api/sso_microsoft.py.
+   */
+  const entrarConMicrosoft = async (codigo) => {
+    const res = await api.post('/auth/microsoft/canje', { codigo });
+    const { access_token, user: userData } = res.data;
+    localStorage.setItem('portal_tickets_token', access_token);
+    localStorage.setItem('portal_tickets_user', JSON.stringify(userData));
+    setUser(userData);
+    return userData;
+  };
+
+  /**
    * Guarda una sesión ya emitida por el backend.
    *
    * La usa la activación de cuenta: el backend devuelve token al activar, así
@@ -168,7 +182,7 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={{
-      user, loading, falloRed, login, logout, aplicarSesion, aceptarTerminos,
+      user, loading, falloRed, login, logout, aplicarSesion, aceptarTerminos, entrarConMicrosoft,
       // Hay sesión pero faltan los términos vigentes: la API responde 403 a
       // casi todo, así que nada debe pedirle datos hasta que se acepten.
       terminosPendientes: Boolean(user) && user.terminos_vigentes === false,

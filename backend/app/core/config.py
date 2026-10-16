@@ -468,6 +468,35 @@ class Settings(BaseSettings):
     # después el worker lo borra de verdad, binarios incluidos.
     DIRECTORIO_PAPELERA_DIAS: int = int(os.getenv("DIRECTORIO_PAPELERA_DIAS", "30"))
 
+    # --- Gastos de TI (migración 0032) ---
+    # Comprobantes del expediente de cada gasto: cotización, orden de compra,
+    # factura (PDF y XML del CFDI), albarán, pago, pedido. Van al mismo
+    # volumen que el expediente y el directorio (`DOCUMENTOS_RUTA/gastos`),
+    # que ya entra en el respaldo. nginx corta esas rutas en 21 MB.
+    GASTOS_MAX_MB: int = int(os.getenv("GASTOS_MAX_MB", "20"))
+
+    # --- Inicio de sesión con Microsoft (Entra ID / Outlook) ---
+    #
+    # **Opcional.** Con cualquiera de los cuatro vacío, el botón no aparece y
+    # el portal entra solo con número de empleado y contraseña, como siempre.
+    # Solo los recibe el contenedor `backend` (docker-compose.yml): el worker
+    # y el receptor de sensores no inician sesión de nadie.
+    #
+    # El inquilino va **fijo**: el Id. de directorio (un GUID), nunca
+    # `common` ni `organizations`. Con esos dos entraría cualquier cuenta de
+    # cualquier empresa, y el correo de una cuenta ajena lo escribe quien
+    # administra esa otra empresa. Ver app/services/sso_microsoft.py.
+    MICROSOFT_CLIENT_ID: str = os.getenv("MICROSOFT_CLIENT_ID", "")
+    MICROSOFT_CLIENT_SECRET: str = os.getenv("MICROSOFT_CLIENT_SECRET", "")
+    MICROSOFT_TENANT_ID: str = os.getenv("MICROSOFT_TENANT_ID", "")
+    # La dirección completa del callback, **con HTTPS**: Microsoft no acepta
+    # otra cosa fuera de localhost. Tiene que coincidir letra por letra con la
+    # registrada en la aplicación de Entra ID.
+    MICROSOFT_REDIRECT_URI: str = os.getenv("MICROSOFT_REDIRECT_URI", "")
+    # Intentos de vuelta desde Microsoft por IP y ventana. Cada uno cuesta
+    # dos llamadas a Microsoft; quien entra de verdad usa uno.
+    SSO_MAX_INTENTOS_POR_IP: int = int(os.getenv("SSO_MAX_INTENTOS_POR_IP", "30"))
+
     # --- Temas recurrentes ---
     # Qué tan parecidas deben ser dos incidencias para contarlas como el mismo
     # problema. Más alto que el umbral de sugerencias: aquí se agrupa, y agrupar

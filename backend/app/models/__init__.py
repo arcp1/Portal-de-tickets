@@ -1,7 +1,8 @@
 from datetime import datetime
+from decimal import Decimal
 from sqlalchemy import (
-    CheckConstraint, Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Float, JSON,
-    Index, Table, UniqueConstraint, text, BigInteger, SmallInteger, CHAR, func,
+    CheckConstraint, Column, Integer, String, Boolean, Date, DateTime, Text, ForeignKey, Float, JSON,
+    Index, Numeric, Table, UniqueConstraint, text, BigInteger, SmallInteger, CHAR, func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
@@ -125,6 +126,12 @@ class Usuario(Base):
     # "media" aunque se pida más (ver `create_ticket`). No toca a TI.
     puede_usar_prioridad_alta = Column(Boolean, default=True, nullable=False,
                                        server_default=text("true"))
+    # **La cuenta de Microsoft con la que entra** (migración 0032): el `oid`
+    # del directorio de la empresa, que no cambia aunque cambien el correo o
+    # el nombre. Se rellena sola la primera vez que la persona entra con
+    # Microsoft y su correo coincide con el de aquí; desde entonces se la
+    # busca por esto y no por el correo. Ver app/services/sso_microsoft.py.
+    microsoft_oid = Column(String(36), nullable=True, unique=True)
 
     ultimo_acceso = Column(DateTime, nullable=True)
     creado_en = Column(DateTime, default=datetime.utcnow)
@@ -175,6 +182,11 @@ class Usuario(Base):
     def plantas_resumen(self):
         """Para la API: id, clave y nombre de cada planta de la persona."""
         return [{"id": p.id, "clave": p.clave, "nombre": p.nombre} for p in self.plantas]
+
+    @property
+    def microsoft_vinculada(self) -> bool:
+        """Si ya entró alguna vez con su cuenta de Microsoft."""
+        return bool(self.microsoft_oid)
 
 class Equipo(Base):
     __tablename__ = "equipos"
@@ -828,7 +840,10 @@ class Auditoria(Base):
     __tablename__ = "auditoria"
 
     id = Column(Integer, primary_key=True)
-    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
+    # Vacío solo cuando no hay cuenta a quien atribuirlo: alguien entró con
+    # Microsoft con un correo que el portal no conoce (migración 0032). Ese
+    # rechazo también tiene que quedar escrito.
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True, index=True)
     accion = Column(String(50), nullable=False, index=True)
     entidad = Column(String(50), nullable=False)
     entidad_id = Column(Integer, nullable=True)
@@ -1085,3 +1100,175 @@ class ArchivoVersion(Base):
 
     archivo = relationship("Archivo", back_populates="versiones")
     autor = relationship("Usuario", foreign_keys=[subido_por])
+
+
+# ----------------------------------------------------------------------
+# Gastos de TI (migración 0032)
+# ----------------------------------------------------------------------
+#
+# Lo que antes vivía en una aplicación aparte («Gastos TI», Node y un
+# PostgreSQL embebido en una PC de escritorio, sin usuarios). Aquí entra como
+# un módulo de TI: con sesión, con bitácora y conectado a lo que ya existe
+# —la planta, el activo del inventario, el ticket y el técnico responsable—.
+#
+# **El dinero va en `Numeric`, nunca en `Float`**, y se calcula en Python con
+# `Decimal` (services/gastos_service.py). El original lo convertía a número de
+# coma flotante al leerlo y redondeaba con `Math.round(x * 100) / 100`.
+
+class GastoCategoria(Base):
+    __tablename__ = "gasto_categorias"
+
+    id = Column(Integer, primary_key=True)
+    nombre = Column(String(80), nullable=False)
+    # Una categoría con gastos no se borra: se retira de las listas.
+    activa = Column(Boolean, nullable=False, default=True, server_default=text("true"))
+    creado_en = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+# Sin distinguir mayúsculas: «Licencias» y «licencias» son la misma.
+Index("ux_gasto_categorias_nombre", func.lower(GastoCategoria.nombre), unique=True)
+
+
+class GastoProveedor(Base):
+    __tablename__ = "gasto_proveedores"
+
+    id = Column(Integer, primary_key=True)
+    nombre = Column(String(150), nullable=False)
+    # 12 caracteres una persona moral, 13 una física. Opcional: una tienda en
+    # línea extranjera no tiene.
+    rfc = Column(String(13), nullable=True)
+    creado_en = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+# El original los distinguía por nombre exacto, y «Telcel» y «TELCEL» eran dos.
+Index("ux_gasto_proveedores_nombre", func.lower(GastoProveedor.nombre), unique=True)
+Index("ux_gasto_proveedores_rfc", GastoProveedor.rfc, unique=True,
+      postgresql_where=GastoProveedor.rfc.isnot(None), sqlite_where=GastoProveedor.rfc.isnot(None))
+
+
+class Gasto(Base):
+    """Un gasto de TI: una compra, un servicio, una renta.
+
+    **Los importes van en su moneda** (`subtotal`, `iva`, `retenciones`,
+    `total`) y además convertidos a pesos (`total_mxn`), que es lo único que
+    se suma. El original detectaba una factura en dólares y la sumaba como si
+    fueran pesos.
+
+    `total = subtotal + iva - retenciones`, y lo vigila la base: un CFDI de
+    servicios profesionales trae ISR e IVA retenidos, y sin esa columna el
+    original guardaba un subtotal y un IVA que no sumaban el total.
+    """
+    __tablename__ = "gastos"
+    __table_args__ = (
+        CheckConstraint("tipo_compra IN ('proveedor', 'linea')", name="ck_gastos_tipo_compra"),
+        CheckConstraint("moneda IN ('MXN', 'USD')", name="ck_gastos_moneda"),
+        CheckConstraint("estado IN ('pendiente', 'pagado')", name="ck_gastos_estado"),
+        CheckConstraint("cantidad > 0", name="ck_gastos_cantidad"),
+        CheckConstraint("tipo_cambio > 0 AND (moneda <> 'MXN' OR tipo_cambio = 1)",
+                        name="ck_gastos_tipo_cambio"),
+        CheckConstraint("subtotal >= 0 AND iva >= 0 AND retenciones >= 0 AND total >= 0",
+                        name="ck_gastos_importes"),
+        CheckConstraint("tasa_iva >= 0 AND tasa_iva <= 1", name="ck_gastos_tasa_iva"),
+        # Con margen de medio centavo: en Postgres la cuenta es exacta, pero la
+        # suite corre en SQLite, que guarda `numeric` como coma flotante.
+        CheckConstraint("abs(total - (subtotal + iva - retenciones)) < 0.005",
+                        name="ck_gastos_total_cuadra"),
+        CheckConstraint("(estado = 'pagado') = (fecha_pago IS NOT NULL)",
+                        name="ck_gastos_fecha_pago"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    fecha = Column(Date, nullable=False, index=True)
+    concepto = Column(String(200), nullable=False)
+    categoria_id = Column(Integer, ForeignKey("gasto_categorias.id", ondelete="RESTRICT"),
+                          nullable=False, index=True)
+    proveedor_id = Column(Integer, ForeignKey("gasto_proveedores.id", ondelete="RESTRICT"),
+                          nullable=True, index=True)
+    # Por proveedor: cotización → orden de compra → factura → albarán.
+    # En línea: pedido → factura → entrega.
+    tipo_compra = Column(String(10), nullable=False, default="proveedor")
+    # Número de pedido de la tienda en línea u otra referencia del proveedor.
+    referencia = Column(String(60), nullable=True)
+    cantidad = Column(Numeric(12, 2), nullable=False, default=1)
+    moneda = Column(CHAR(3), nullable=False, default="MXN")
+    # Pesos por unidad de la moneda, el del día del pago o el del CFDI.
+    tipo_cambio = Column(Numeric(12, 6), nullable=False, default=1)
+    subtotal = Column(Numeric(14, 2), nullable=False)
+    tasa_iva = Column(Numeric(5, 4), nullable=False, default=Decimal("0.16"))
+    iva = Column(Numeric(14, 2), nullable=False)
+    retenciones = Column(Numeric(14, 2), nullable=False, default=0)
+    total = Column(Numeric(14, 2), nullable=False)
+    total_mxn = Column(Numeric(14, 2), nullable=False)
+    estado = Column(String(10), nullable=False, default="pendiente")
+    fecha_pago = Column(Date, nullable=True)
+    centro_costo = Column(String(60), nullable=True)
+    notas = Column(Text, nullable=True)
+    # Con qué tiene que ver, todo opcional. Si el activo o el ticket
+    # desaparecen el gasto sigue: se suelta el vínculo, no el dinero.
+    sitio_id = Column(Integer, ForeignKey("sitios.id", ondelete="SET NULL"), nullable=True, index=True)
+    equipo_id = Column(Integer, ForeignKey("equipos.id", ondelete="SET NULL"), nullable=True, index=True)
+    ticket_id = Column(Integer, ForeignKey("tickets.id", ondelete="SET NULL"), nullable=True, index=True)
+    responsable_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    creado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    creado_en = Column(DateTime, nullable=False, default=datetime.utcnow)
+    actualizado_en = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    categoria = relationship("GastoCategoria")
+    proveedor = relationship("GastoProveedor")
+    sitio = relationship("Sitio")
+    equipo = relationship("Equipo")
+    ticket = relationship("Ticket")
+    responsable = relationship("Usuario", foreign_keys=[responsable_id])
+    comprobantes = relationship("GastoComprobante", back_populates="gasto",
+                                cascade="all, delete-orphan", passive_deletes=True,
+                                order_by="GastoComprobante.creado_en")
+
+
+class GastoPresupuesto(Base):
+    """Lo que se planea gastar en un año en una categoría, en pesos."""
+    __tablename__ = "gasto_presupuestos"
+    __table_args__ = (CheckConstraint("monto >= 0", name="ck_gasto_presupuestos_monto"),)
+
+    anio = Column(SmallInteger, primary_key=True)
+    categoria_id = Column(Integer, ForeignKey("gasto_categorias.id", ondelete="CASCADE"),
+                          primary_key=True)
+    monto = Column(Numeric(14, 2), nullable=False, default=0)
+    actualizado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    actualizado_en = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class GastoComprobante(Base):
+    """Un documento del expediente de un gasto.
+
+    El binario va a `DOCUMENTOS_RUTA/gastos/<nombre_guardado>`, un uuid sin
+    extensión; el tipo con que se sirve lo decide el portal al subirlo
+    (firma de bytes), no el navegador de quien lo subió.
+    """
+    __tablename__ = "gasto_comprobantes"
+    __table_args__ = (
+        CheckConstraint(
+            "tipo IN ('cotizacion', 'orden_compra', 'factura', 'albaran', 'pago', 'pedido')",
+            name="ck_gasto_comprobantes_tipo"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    gasto_id = Column(Integer, ForeignKey("gastos.id", ondelete="CASCADE"), nullable=False, index=True)
+    tipo = Column(String(15), nullable=False)
+    folio = Column(String(60), nullable=True)
+    fecha = Column(Date, nullable=True)
+    # El folio fiscal del CFDI. Único: la misma factura no entra dos veces.
+    cfdi_uuid = Column(String(36), nullable=True)
+    nombre = Column(String(255), nullable=False)
+    tipo_mime = Column(String(100), nullable=False)
+    tamano_bytes = Column(BigInteger, nullable=False)
+    sha256 = Column(CHAR(64), nullable=False)
+    nombre_guardado = Column(String(64), nullable=False, unique=True)
+    subido_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    creado_en = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    gasto = relationship("Gasto", back_populates="comprobantes")
+
+
+Index("ux_gasto_comprobantes_cfdi_uuid", GastoComprobante.cfdi_uuid, unique=True,
+      postgresql_where=GastoComprobante.cfdi_uuid.isnot(None),
+      sqlite_where=GastoComprobante.cfdi_uuid.isnot(None))

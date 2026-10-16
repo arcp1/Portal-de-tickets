@@ -2,7 +2,7 @@ import React from 'react';
 import {
   Ticket, PlusCircle, Laptop, Sliders, TrendingUp, ListChecks, Upload, Inbox,
   FileSignature, Users, BookOpen, Activity, BookOpenCheck, Brain, Images, Cpu, Factory,
-  Bell, FolderOpen, FileText, ScrollText
+  Bell, FolderOpen, FileText, ScrollText, Wallet
 } from 'lucide-react';
 
 /**
@@ -38,7 +38,11 @@ export function modulosDe(t, esAdmin) {
       texto: t('nav.grupo_activos'),
       pestanas: esAdmin ? [
         { ruta: '/inventory', icono: <Laptop size={16} />, texto: t('nav.inventory') },
-        { ruta: '/resguardos', icono: <FileSignature size={16} />, texto: t('nav.resguardos') }
+        { ruta: '/resguardos', icono: <FileSignature size={16} />, texto: t('nav.resguardos') },
+        // Lo que cuestan los activos y el resto de TI (antes «Gastos TI», una
+        // aplicación aparte). Aquí y no en Sistema: es dinero que se va en
+        // equipos, licencias y servicios, y cada gasto se ata a un activo.
+        { ruta: '/activos/gastos', icono: <Wallet size={16} />, texto: t('nav.gastos') }
       ] : [
         { ruta: '/inventory', icono: <Laptop size={16} />, texto: t('nav.inventory') }
       ]

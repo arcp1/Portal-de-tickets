@@ -98,6 +98,11 @@ cambios = {
     "GEMINI_API_KEY": "prueba-no-es-una-llave",
     "GEMINI_HABILITADO": "false",
     "SMTP_PASSWORD": "prueba-no-es-una-clave",
+    # Microsoft: con valor, para ver que solo llegan al backend.
+    "MICROSOFT_CLIENT_ID": "prueba-cliente",
+    "MICROSOFT_CLIENT_SECRET": "prueba-no-es-un-secreto",
+    "MICROSOFT_TENANT_ID": "00000000-0000-0000-0000-000000000000",
+    "MICROSOFT_REDIRECT_URI": "https://prueba.invalid/api/auth/microsoft/callback",
     "SMTP_HOST": "",
     "NOTIFICACIONES_ACTIVAS": "false",
     "PORTAL_URL": "http://127.0.0.1:18080",
@@ -229,9 +234,11 @@ python3 - "$PRUEBA_ENV" <<'PY' || FALLOS=$((FALLOS + 1))
 import json, subprocess, sys
 secretos = ["POSTGRES_PASSWORD", "POSTGRES_APP_PASSWORD", "DATABASE_URL", "JWT_SECRET", "REDIS_PASSWORD", "REDISCLI_AUTH",
             "REDIS_URL", "GEMINI_API_KEY", "SMTP_PASSWORD", "MQTT_PASSWORD",
-            "MQTT_DISPOSITIVO_PASSWORD", "MQTT_SENSORES"]
+            "MQTT_DISPOSITIVO_PASSWORD", "MQTT_SENSORES", "MICROSOFT_CLIENT_ID", "MICROSOFT_CLIENT_SECRET",
+            "MICROSOFT_TENANT_ID", "MICROSOFT_REDIRECT_URI"]
+MICROSOFT = {"MICROSOFT_CLIENT_ID", "MICROSOFT_CLIENT_SECRET", "MICROSOFT_TENANT_ID", "MICROSOFT_REDIRECT_URI"}
 esperado = {
-    "backend": {"DATABASE_URL", "JWT_SECRET", "REDIS_URL", "GEMINI_API_KEY", "SMTP_PASSWORD"},
+    "backend": {"DATABASE_URL", "JWT_SECRET", "REDIS_URL", "GEMINI_API_KEY", "SMTP_PASSWORD"} | MICROSOFT,
     "worker": {"DATABASE_URL", "REDIS_URL", "SMTP_PASSWORD"},
     "ingestor": {"DATABASE_URL", "REDIS_URL", "MQTT_PASSWORD"},
     "mosquitto": {"MQTT_PASSWORD", "MQTT_DISPOSITIVO_PASSWORD", "MQTT_SENSORES"},

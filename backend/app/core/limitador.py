@@ -181,6 +181,11 @@ limitador_activacion_ip = Limitador(
 limitador_ia = Limitador(maximo=settings.IA_PETICIONES_POR_MINUTO, ventana_segundos=60,
                          nombre="ia")
 
+# Vueltas desde Microsoft por IP (api/sso_microsoft.py). Cada una cuesta dos
+# llamadas a Microsoft; quien entra de verdad gasta una.
+limitador_sso_ip = Limitador(maximo=settings.SSO_MAX_INTENTOS_POR_IP, ventana_segundos=600,
+                             nombre="sso_ip")
+
 
 def clave_de_cuenta(usuario, identificador: str, publico: bool = False) -> str:
     """La clave del freno por cuenta: la cuenta, no lo que se tecleó.

@@ -21,6 +21,11 @@ x-secretos-en-blanco: &secretos-en-blanco
   MQTT_PASSWORD: ""
   MQTT_DISPOSITIVO_PASSWORD: ""
   MQTT_SENSORES: ""
+  # Inicio de sesión con Microsoft: solo el backend (ver app/core/config.py).
+  MICROSOFT_CLIENT_ID: ""
+  MICROSOFT_CLIENT_SECRET: ""
+  MICROSOFT_TENANT_ID: ""
+  MICROSOFT_REDIRECT_URI: ""
 
 services:
   db:
@@ -222,6 +227,12 @@ services:
       JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET en el .env}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      # Inicio de sesión con Microsoft. Vacías, el portal entra solo con
+      # número de empleado y contraseña. El backend ya sale a internet por `api`.
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
+      MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID:-}
+      MICROSOFT_REDIRECT_URI: ${MICROSOFT_REDIRECT_URI:-}
       # Gana sobre el .env: dentro de compose, Ollama es un servicio vecino.
       # `host.docker.internal` solo aplica cuando Ollama corre nativo en el
       # host (Windows/macOS), no aquí.

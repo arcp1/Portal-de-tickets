@@ -42,11 +42,12 @@ def limitadores_limpios():
     """
     from app.core.limitador import (
         limitador_activacion, limitador_activacion_ip, limitador_ia, limitador_login,
-        limitador_login_ip,
+        limitador_login_ip, limitador_sso_ip,
     )
 
     for limitador in (limitador_login, limitador_login_ip,
-                      limitador_activacion, limitador_activacion_ip, limitador_ia):
+                      limitador_activacion, limitador_activacion_ip, limitador_ia,
+                      limitador_sso_ip):
         with limitador._candado:
             limitador._intentos.clear()
     yield

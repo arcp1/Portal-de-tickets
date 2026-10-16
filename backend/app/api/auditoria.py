@@ -35,7 +35,10 @@ def listar(
 
     consulta = (
         db.query(Auditoria, Usuario)
-        .join(Usuario, Auditoria.usuario_id == Usuario.id)
+        # Externa: un rechazo del inicio de sesión con Microsoft para un
+        # correo que no existe no tiene cuenta (migración 0032) y también se
+        # tiene que ver.
+        .outerjoin(Usuario, Auditoria.usuario_id == Usuario.id)
         # TI es global: ve la bitácora de todas las plantas.
         .filter(Auditoria.creado_en >= desde)
     )
@@ -59,7 +62,7 @@ def listar(
             "detalle": a.detalle,
             "ip": a.ip,
             "creado_en": a.creado_en.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z") if a.creado_en else None,
-            "usuario": {"id": u.id, "nombre": u.nombre, "email": u.email},
+            "usuario": {"id": u.id, "nombre": u.nombre, "email": u.email} if u else None,
         }
         for a, u in filas
     ]

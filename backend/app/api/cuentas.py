@@ -155,6 +155,8 @@ class UsuarioAdminResponse(BaseModel):
     numero_epp: Optional[str] = None
     datos_verificacion: List[str] = []
     puede_usar_prioridad_alta: bool = True
+    # Si entra con su cuenta de Microsoft (migración 0032).
+    microsoft_vinculada: bool = False
     # Resumen para el panel: qué tiene esta persona a su cargo.
     equipos_a_cargo: int = 0
     resguardos_pendientes: int = 0
@@ -428,6 +430,7 @@ def _resumen(db: Session, usuario: Usuario, conteos: Optional[dict] = None) -> d
         "datos_verificacion": factores_secretos(usuario),
         "numero_epp": usuario.numero_epp,
         "puede_usar_prioridad_alta": usuario.puede_usar_prioridad_alta,
+        "microsoft_vinculada": usuario.microsoft_vinculada,
         "equipos_a_cargo": equipos_a_cargo,
         "resguardos_pendientes": resguardos_pendientes,
         "tickets_abiertos": tickets_abiertos,
@@ -738,8 +741,10 @@ def eliminar(
     usuario.eliminado_en = datetime.utcnow()
     usuario.activo = False
     usuario.estado_cuenta = BLOQUEADA
-    # Lo que deja entrar.
+    # Lo que deja entrar. La cuenta de Microsoft también: queda libre por si
+    # la persona vuelve y se le da de alta otra vez.
     usuario.password_hash = None
+    usuario.microsoft_oid = None
     usuario.codigo_activacion_hash = None
     usuario.codigo_expira = None
     usuario.debe_cambiar_password = False

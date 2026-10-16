@@ -50,6 +50,9 @@ class SesionResponse(UserResponse):
     terminos_vigentes: bool = False
     terminos_version: Optional[str] = None
     terminos_aceptados_en: Optional[FechaUTC] = None
+    # Si ya entró con su cuenta de Microsoft (migración 0032). Lo enseña el
+    # menú de la cuenta.
+    microsoft_vinculada: bool = False
 
 
 # `TokenResponse` nombra a `SesionResponse` antes de que exista.

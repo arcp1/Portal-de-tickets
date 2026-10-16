@@ -59,17 +59,21 @@ class AuditoriaService:
     @staticmethod
     def registrar(
         db: Session,
-        usuario: Usuario,
+        usuario: Optional[Usuario],
         accion: str,
         entidad: str,
         entidad_id: Optional[int] = None,
         detalle: Optional[dict] = None,
         peticion: Optional[Request] = None,
     ) -> bool:
-        """Deja constancia. Devuelve False si no se pudo, nunca levanta."""
+        """Deja constancia. Devuelve False si no se pudo, nunca levanta.
+
+        `usuario` vacío solo cuando no hay a quién atribuirlo (un correo
+        desconocido intentando entrar con Microsoft).
+        """
         try:
             db.add(Auditoria(
-                usuario_id=usuario.id,
+                usuario_id=usuario.id if usuario is not None else None,
                 accion=accion,
                 entidad=entidad,
                 entidad_id=entidad_id,

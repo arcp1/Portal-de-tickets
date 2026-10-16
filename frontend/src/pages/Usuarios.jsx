@@ -18,6 +18,7 @@ import { copiarTexto, seleccionarContenido } from '../lib/portapapeles';
 import lista from '../lib/lista';
 import { avisar } from '../lib/avisos';
 import { usePlantas, EtiquetaPlanta, PlantasMultiples, SelectorPlanta } from '../lib/plantas';
+import LogoMicrosoft from '../components/LogoMicrosoft';
 
 const ESTADOS = {
   activa: ['var(--status-resuelto-text)', 'var(--status-resuelto-bg)'],
@@ -45,6 +46,7 @@ const Usuarios = () => {
   // Lo que está esperando una respuesta del admin. Cada uno guarda lo justo
   // para poder rematar la operación cuando confirme: null = nada abierto.
   const [porRestablecer, setPorRestablecer] = useState(null);
+  const [porDesvincular, setPorDesvincular] = useState(null);
   const [porRenumerar, setPorRenumerar] = useState(null);
   // Sobre quién está abierto el diálogo de baja/eliminación.
   const [porQuitar, setPorQuitar] = useState(null);
@@ -152,6 +154,19 @@ const Usuarios = () => {
       await api.patch(`/admin/usuarios/${u.id}`, { puede_usar_prioridad_alta: permitida });
       avisar(t(permitida ? 'usuarios.prioridad_alta_devuelta' : 'usuarios.prioridad_alta_revocada',
         { nombre: u.nombre }), { tono: 'exito' });
+      cargar();
+    } catch (err) {
+      setAviso(err.response?.data?.detail || t('usuarios.error_accion'));
+    }
+  };
+
+  /* Suelta la cuenta de Microsoft: para cuando se vinculó la que no era o la
+     persona cambió de buzón. La siguiente vez que entre con Microsoft se
+     vuelve a vincular por correo. */
+  const desvincularMicrosoft = async (u) => {
+    try {
+      await api.delete(`/admin/usuarios/${u.id}/microsoft`);
+      avisar(t('usuarios.microsoft_desvinculada', { nombre: u.nombre }), { tono: 'exito' });
       cargar();
     } catch (err) {
       setAviso(err.response?.data?.detail || t('usuarios.error_accion'));
@@ -275,6 +290,20 @@ const Usuarios = () => {
             accion(`/admin/usuarios/${u.id}/restablecer`);
           }}
           onCancelar={() => setPorRestablecer(null)}
+        />
+      )}
+
+      {porDesvincular && (
+        <Confirmacion
+          titulo={t('usuarios.desvincular_microsoft')}
+          mensaje={t('usuarios.confirmar_desvincular', { nombre: porDesvincular.nombre })}
+          textoConfirmar={t('usuarios.desvincular_microsoft')}
+          onConfirmar={() => {
+            const u = porDesvincular;
+            setPorDesvincular(null);
+            desvincularMicrosoft(u);
+          }}
+          onCancelar={() => setPorDesvincular(null)}
         />
       )}
 
@@ -446,6 +475,13 @@ const Usuarios = () => {
                         {t('usuarios.sin_prioridad_alta')}
                       </span>
                     )}
+                    {u.microsoft_vinculada && (
+                      <span title={t('usuarios.microsoft_chip_ayuda')} className="chip-dato"
+                        style={{ color: 'var(--text-secondary)', background: 'var(--bg-tertiary)', gap: '5px' }}>
+                        <LogoMicrosoft tamano={11} />
+                        {t('usuarios.microsoft_chip')}
+                      </span>
+                    )}
                   </div>
 
                   <div style={{
@@ -558,6 +594,12 @@ const Usuarios = () => {
                       <RotateCcw size={15} /> {t('usuarios.restablecer')}
                     </button>
                   ))}
+                  {u.microsoft_vinculada && (
+                    <button type="button" onClick={() => setPorDesvincular(u)}
+                      className="btn-secondary" style={{ padding: '9px 14px', fontSize: '0.84rem' }}>
+                      <LogoMicrosoft tamano={14} /> {t('usuarios.desvincular_microsoft')}
+                    </button>
+                  )}
                   {/* **Sobre la propia ficha no se ofrece ni el rol ni la
                       baja.** El backend ya lo impide —devuelve 422 "No puede
                       desactivar su propia cuenta"—, así que dejarlos puestos

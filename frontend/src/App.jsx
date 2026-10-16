@@ -85,6 +85,7 @@ const Resguardos = diferida(() => import('./pages/Resguardos'));
 const Monitoreo = diferida(() => import('./pages/Monitoreo'));
 const Plantas = diferida(() => import('./pages/Plantas'));
 const Terminos = diferida(() => import('./pages/Terminos'));
+const Gastos = diferida(() => import('./pages/Gastos'));
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { user, loading } = useAuth();
@@ -216,6 +217,8 @@ function AppRoutes() {
         <Route path="/inventory" element={<ProtectedRoute><Modulo id="activos"><Inventory /></Modulo></ProtectedRoute>} />
         <Route path="/expediente" element={<ProtectedRoute><Expediente /></ProtectedRoute>} />
         <Route path="/resguardos" element={<ProtectedRoute adminOnly><Modulo id="activos"><Resguardos /></Modulo></ProtectedRoute>} />
+        <Route path="/activos/gastos" element={<ProtectedRoute adminOnly><Modulo id="activos"><Gastos /></Modulo></ProtectedRoute>} />
+        <Route path="/gastos" element={<Redirigir a="/activos/gastos" />} />
         {/* Los módulos (reorganización del 2026-10-05). Qué pestañas tiene
             cada uno lo dice `lib/navegacion`; `Modulo` las pinta. */}
         <Route path="/operacion" element={<Navigate to="/operacion/alertas" replace />} />

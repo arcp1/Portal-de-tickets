@@ -5640,3 +5640,439 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: not-allowed; }
   .terminos-botones > * { flex: 1 1 140px; }
   .terminos-pagina-tarjeta.apple-card { padding: 18px 16px; }
 }
+
+/* ============================================================
+   Inicio de sesión con Microsoft (login)
+   ============================================================
+   La variante clara de la guía de marca de Microsoft —fondo blanco, borde
+   #8C8C8C, texto #5E5E5E, 41 px de alto, el logotipo de cuatro cuadros a la
+   izquierda— y en Segoe UI cuando la hay (Windows). Sobre el panel oscuro se
+   lee como lo que es: una puerta de otro, la de la empresa, al lado de la del
+   portal. Sin la gota del botón principal a propósito: la acción primaria
+   sigue siendo el número de empleado. */
+.puerta-separador {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0 16px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.puerta-separador::before,
+.puerta-separador::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.boton-microsoft {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 41px;
+  padding: 8px 14px;
+  border: 1px solid #8C8C8C;
+  border-radius: 4px;
+  background: #FFFFFF;
+  color: #5E5E5E;
+  font-family: 'Segoe UI', var(--font-sans);
+  font-size: 0.94rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.boton-microsoft svg { flex-shrink: 0; }
+.boton-microsoft:hover { background: #F3F3F3; border-color: #6E6E6E; color: #3B3B3B; }
+.boton-microsoft:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+.boton-microsoft[aria-disabled='true'] { opacity: 0.6; pointer-events: none; }
+
+.puerta-sso-espera {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 11px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Una entrada del menú que solo informa (la cuenta de Microsoft vinculada). */
+.navbar-grupo-opcion--nota {
+  cursor: default;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+.navbar-grupo-opcion--nota:hover { background: transparent; }
+
+/* ============================================================
+   Gastos y presupuesto (Activos → Gastos)
+   ============================================================
+   Mismo sistema que Métricas: casillas con su ámbito, tarjetas de cristal
+   por bloque y cifras con la unidad en pequeño. Lo nuevo es la gráfica,
+   hecha con columnas de CSS para que sus rótulos no encojan con el ancho
+   (ver components/gastos/Graficas.jsx), y la lista de gastos, que es de
+   tarjetas y no una tabla: a 360 px una tabla de ocho columnas obliga a
+   desplazarse de lado. */
+.gastos-vistas { margin-bottom: 20px; }
+.gastos-casillas { margin-bottom: 14px; }
+.gastos-casillas--chicas { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.gastos-casillas--chicas .casilla-metrica-valor { font-size: 1.5rem; }
+.casilla-metrica--peligro .casilla-metrica-valor { color: var(--peligro); }
+.casilla-metrica--atencion .casilla-metrica-valor { color: var(--status-espera-proveedor-text); }
+.casilla-metrica--exito .casilla-metrica-valor { color: var(--status-resuelto-text); }
+.gasto-desviacion { white-space: nowrap; }
+.gasto-ritmo {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.78rem; font-weight: 600; white-space: nowrap;
+}
+.gasto-ritmo--peligro { color: var(--peligro); }
+.gasto-ritmo--atencion { color: var(--status-espera-proveedor-text); }
+.gasto-ritmo--exito { color: var(--status-resuelto-text); }
+.gastos-nota-usd { margin: 0 0 20px; }
+.gastos-ayuda-grafica { margin: -8px 0 16px; }
+.gastos-doble { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 0 20px; }
+.gastos-doble--parejo { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.gastos-doble > * { min-width: 0; }
+.enlace-boton {
+  background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--accent-primary); font: inherit; font-weight: 600; text-decoration: underline;
+}
+
+/* ---- Gráficas ---- */
+.grafica { position: relative; }
+.grafica-lienzo { position: relative; height: 220px; margin-left: 56px; }
+.grafica-rejilla { position: absolute; inset: 0; pointer-events: none; }
+.grafica-rejilla-linea {
+  position: absolute; left: 0; right: 0; height: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.grafica-rejilla-linea span {
+  position: absolute; right: calc(100% + 8px); top: -0.6em;
+  font-size: 0.7rem; color: var(--text-muted); white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.grafica-columnas {
+  position: absolute; inset: 0;
+  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 0;
+}
+.grafica-columna {
+  display: flex; align-items: flex-end; justify-content: center;
+  height: 100%; padding: 0 18%; background: transparent; border: none; cursor: pointer;
+  border-radius: 6px;
+}
+.grafica-columna:hover, .grafica-columna--activa, .grafica-columna:focus-visible { background: rgba(255, 255, 255, 0.04); }
+.grafica-columna:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: -2px; }
+.grafica-pila {
+  display: flex; flex-direction: column; gap: 2px;
+  width: 100%; max-width: 34px; min-height: 0;
+  border-radius: 4px 4px 0 0; overflow: hidden;
+}
+.grafica-segmento { flex-basis: 0; min-height: 2px; }
+.grafica-meses {
+  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
+  margin: 6px 0 0 56px; text-align: center;
+}
+.grafica-meses span { font-size: 0.7rem; color: var(--text-muted); overflow: hidden; text-overflow: clip; white-space: nowrap; }
+.grafica-mes--actual { color: var(--text-primary) !important; font-weight: 700; }
+.grafica-leyenda {
+  display: flex; flex-wrap: wrap; gap: 6px 14px; list-style: none;
+  margin: 14px 0 0; padding: 0; font-size: 0.8rem; color: var(--text-secondary);
+}
+.grafica-leyenda li { display: inline-flex; align-items: center; gap: 6px; }
+.grafica-leyenda i, .grafica-globo-fila i {
+  display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
+}
+.grafica-globo {
+  position: absolute; top: 8px; z-index: 5; width: max-content; max-width: min(260px, 70vw);
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 10px 12px; border-radius: var(--radius-sm);
+  background: rgba(10, 14, 24, 0.96); border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  font-size: 0.8rem; color: var(--text-secondary); pointer-events: none;
+}
+.grafica-globo[data-lado='derecha'] { transform: translateX(14px); }
+.grafica-globo[data-lado='izquierda'] { transform: translateX(calc(-100% - 14px)); }
+.grafica-globo strong { color: var(--text-primary); font-size: 0.85rem; }
+.grafica-globo-total { color: var(--text-primary); font-weight: 700; font-size: 1rem; font-variant-numeric: tabular-nums; }
+.grafica-globo-nota { color: var(--text-muted); }
+.grafica-globo-fila { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.grafica-globo-fila span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grafica-globo-fila b { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+.grafica-lineas { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.grafica-linea { fill: none; stroke-width: 2px; stroke-linejoin: round; stroke-linecap: round; }
+.grafica-linea--real { stroke: #3987e5; }
+.grafica-linea--plan { stroke: var(--text-muted); stroke-dasharray: 6 5; }
+.grafica-muestra--real { background: #3987e5; }
+.grafica-muestra--plan { background: repeating-linear-gradient(90deg, var(--text-muted) 0 4px, transparent 4px 7px); }
+.grafica-rotulo {
+  position: absolute; transform: translate(6px, -50%); font-size: 0.72rem; font-weight: 600;
+  white-space: nowrap; pointer-events: none;
+}
+.grafica-rotulo--plan { right: 0; transform: translate(0, -130%); color: var(--text-muted); }
+.grafica-rotulo--real { color: #6ea6ee; transform: translate(-50%, -150%); }
+.grafica-punto {
+  position: absolute; width: 10px; height: 10px; border-radius: 50%; transform: translate(-50%, -50%);
+  background: #3987e5; box-shadow: 0 0 0 2px #151822; pointer-events: none;
+}
+.grafica-columnas--sensores { z-index: 2; }
+.grafica-sensor { background: transparent; border: none; cursor: crosshair; height: 100%; }
+.grafica-sensor:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: -2px; }
+
+/* ---- El mes más caro ---- */
+.gasto-caro { display: flex; flex-direction: column; gap: 12px; }
+.gasto-caro-cabeza { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.gasto-caro-cabeza strong { font-size: 1.3rem; color: var(--text-primary); }
+.gasto-caro-cabeza span { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); }
+.gasto-caro-razones { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }
+.gasto-caro-razones li { font-size: 0.88rem; line-height: 1.45; color: var(--text-secondary); overflow-wrap: anywhere; }
+.gasto-caro .metricas-boton { align-self: flex-start; }
+
+/* ---- Consumo por categoría ---- */
+.gasto-categorias { display: flex; flex-direction: column; gap: 14px; }
+.gasto-categoria {
+  display: grid; grid-template-columns: minmax(150px, 230px) minmax(0, 1fr) auto;
+  align-items: center; gap: 6px 14px;
+}
+.gasto-categoria-nombre { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.88rem; color: var(--text-secondary); min-width: 0; }
+.gasto-categoria-nombre i { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.gasto-categoria-pista { position: relative; height: 10px; border-radius: 5px; background: var(--bg-tertiary); }
+.gasto-categoria-relleno { height: 100%; border-radius: inherit; background: var(--accent-primary); }
+.gasto-categoria-relleno--atencion { background: var(--status-espera-proveedor-text); }
+.gasto-categoria-relleno--peligro { background: var(--peligro); }
+.gasto-categoria-marca {
+  position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px;
+  background: var(--text-primary); border-radius: 1px; opacity: 0.75;
+}
+.gasto-categoria-cifra { font-size: 0.88rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+.gasto-categoria-de { font-weight: 400; color: var(--text-muted); }
+
+/* ---- Registro ---- */
+.gastos-filtros {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px;
+}
+.gastos-filtros > .selector, .gastos-filtros > .form-select { flex: 1 1 150px; min-width: 0; }
+.gastos-buscar { position: relative; flex: 2 1 220px; min-width: 0; display: flex; align-items: center; }
+.gastos-buscar svg { position: absolute; left: 12px; color: var(--text-muted); pointer-events: none; }
+.gastos-buscar .form-input { padding-left: 36px; width: 100%; }
+.gastos-exportar { display: flex; gap: 8px; flex-wrap: wrap; }
+.gastos-suma {
+  display: flex; flex-wrap: wrap; gap: 6px 22px; margin-bottom: 12px;
+  font-size: 0.86rem; color: var(--text-secondary);
+}
+.gastos-suma strong { color: var(--text-primary); }
+.gastos-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.gasto-fila.apple-card {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr) auto auto 34px;
+  grid-template-areas: "fecha principal monto estado acciones";
+  align-items: center; gap: 8px 16px; padding: 14px 16px;
+}
+.gasto-fila-fecha { grid-area: fecha; display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--text-secondary); }
+.gasto-fila-tipo { display: inline-flex; align-items: center; gap: 4px; color: var(--text-muted); font-size: 0.74rem; }
+.gasto-fila-principal { grid-area: principal; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.gasto-fila-concepto {
+  background: none; border: none; padding: 0; text-align: left; cursor: pointer;
+  font: inherit; font-weight: 600; font-size: 0.95rem; color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+.gasto-fila-concepto:hover { color: var(--accent-primary); text-decoration: underline; }
+.gasto-cantidad { margin-left: 8px; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+.gasto-fila-datos { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; min-width: 0; }
+.gasto-dato {
+  display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%;
+  font-size: 0.8rem; color: var(--text-secondary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.gasto-dato--enlace { color: var(--accent-primary); text-decoration: none; }
+.gasto-dato--enlace:hover { text-decoration: underline; }
+.gasto-punto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.gasto-fila-monto { grid-area: monto; text-align: right; display: flex; flex-direction: column; gap: 2px; font-variant-numeric: tabular-nums; }
+.gasto-fila-monto strong { font-size: 1rem; color: var(--text-primary); white-space: nowrap; }
+.gasto-fila-mxn { font-size: 0.76rem; color: var(--text-muted); white-space: nowrap; }
+.gasto-fila-estado { grid-area: estado; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.gasto-fila-acciones { grid-area: acciones; display: flex; justify-content: flex-end; }
+.gasto-estado { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.gasto-estado--pagado { color: var(--status-resuelto-text); background: var(--status-resuelto-bg); }
+.gasto-estado--pendiente { color: var(--status-espera-proveedor-text); background: var(--status-espera-proveedor-bg); }
+.gasto-etapas { display: inline-flex; align-items: center; gap: 3px; }
+.gasto-etapa {
+  width: 12px; height: 12px; border-radius: 3px;
+  border: 1.5px solid rgba(255, 255, 255, 0.3); background: transparent;
+}
+.gasto-etapas--compacta .gasto-etapa { width: 10px; height: 10px; }
+.gasto-etapa--hecha { background: var(--status-resuelto-text); border-color: var(--status-resuelto-text); }
+.gasto-etapa-pago { color: var(--status-resuelto-text); margin-left: 3px; }
+
+/* ---- Formulario y detalle (ventanas) ---- */
+.gasto-formulario.apple-card, .gasto-detalle.apple-card {
+  width: 100%; max-width: 820px; padding: 24px; max-height: calc(100dvh - 40px); overflow-y: auto;
+}
+.gasto-formulario-cabeza { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.gasto-formulario-cabeza h2 { font-size: 1.25rem; font-weight: 700; color: var(--text-primary); overflow-wrap: anywhere; min-width: 0; }
+.gasto-cfdi { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; margin-bottom: 14px; }
+.gasto-cfdi-boton { cursor: pointer; }
+.gasto-cfdi .nota-suave { margin: 0; flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+.gasto-campos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+.gasto-campos .form-group { min-width: 0; }
+.gasto-campo--ancho { grid-column: 1 / -1; }
+.gasto-segmentos { display: flex; gap: 6px; flex-wrap: wrap; }
+.gasto-segmento {
+  display: inline-flex; align-items: center; gap: 6px; flex: 1 1 auto; justify-content: center;
+  padding: 9px 12px; border-radius: var(--radius-sm); cursor: pointer;
+  background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-secondary);
+  font: inherit; font-size: 0.85rem; font-weight: 600;
+}
+.gasto-segmento--activo { color: #fff; border-color: var(--accent-primary); background: rgba(57, 135, 229, 0.22); }
+.gasto-importe, .gasto-vinculos {
+  border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  padding: 12px 16px 14px; margin: 4px 0 18px; min-width: 0;
+}
+.gasto-importe legend, .gasto-vinculos legend { padding: 0 6px; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); }
+.gasto-vinculos > .nota-suave { margin-top: 0; }
+.gasto-importe-fila { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 14px; }
+.gasto-por-unidad { margin: 0 0 10px; }
+.gasto-previa {
+  display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: baseline;
+  padding: 10px 12px; border-radius: var(--radius-sm); background: rgba(255, 255, 255, 0.04);
+  font-size: 0.84rem; color: var(--text-secondary); font-variant-numeric: tabular-nums;
+}
+.gasto-previa b { color: var(--text-primary); font-weight: 600; }
+.gasto-previa-total b { font-size: 1.05rem; }
+.gasto-error-campo { display: flex; align-items: center; gap: 6px; color: var(--peligro); font-size: 0.82rem; margin-top: 8px; }
+.gasto-vinculo { position: relative; }
+.gasto-vinculo-rotulo { display: block; margin-bottom: 8px; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); }
+.gasto-vinculo-elegido {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  padding: 8px 10px; border-radius: var(--radius-sm); background: var(--bg-tertiary); border: 1px solid var(--border-color);
+  font-size: 0.86rem; color: var(--text-primary);
+}
+.gasto-vinculo-elegido > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gasto-buscar-vinculo { position: relative; display: flex; align-items: center; }
+.gasto-buscar-vinculo svg { position: absolute; left: 11px; color: var(--text-muted); pointer-events: none; }
+.gasto-buscar-vinculo .form-input { padding-left: 32px; width: 100%; }
+.gasto-vinculo-lista {
+  list-style: none; margin: 6px 0 0; padding: 4px; max-height: 220px; overflow-y: auto;
+  border-radius: var(--radius-sm); background: rgba(10, 14, 24, 0.96); border: 1px solid var(--border-color);
+}
+.gasto-vinculo-lista button {
+  display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; cursor: pointer;
+  padding: 8px 10px; border: none; border-radius: 6px; background: transparent; color: var(--text-primary); font: inherit;
+}
+.gasto-vinculo-lista button:hover, .gasto-vinculo-lista button:focus-visible { background: rgba(255, 255, 255, 0.07); }
+.gasto-vinculo-lista strong { font-size: 0.85rem; overflow-wrap: anywhere; }
+.gasto-vinculo-lista span { font-size: 0.76rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gasto-formulario-pie { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 16px; }
+
+.gasto-detalle-cabeza { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 16px; }
+.gasto-detalle-total { display: flex; flex-direction: column; font-size: 1.6rem; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.gasto-detalle-acciones { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.gasto-boton-peligro { color: var(--peligro); }
+.gasto-datos {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px 18px;
+  margin: 0 0 20px; padding: 16px; border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.03);
+}
+.gasto-dato-par { min-width: 0; }
+.gasto-dato-par--ancho { grid-column: 1 / -1; }
+.gasto-dato-par dt { font-size: 0.74rem; color: var(--text-muted); margin-bottom: 3px; }
+.gasto-dato-par dd { margin: 0; font-size: 0.9rem; color: var(--text-primary); overflow-wrap: anywhere; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.gasto-dato-par dd a { color: var(--accent-primary); }
+.gasto-rfc { font-family: var(--font-mono, monospace); font-size: 0.74rem; color: var(--text-muted); overflow-wrap: anywhere; }
+.gasto-expediente h3, .gasto-historial h3 {
+  display: flex; align-items: center; gap: 8px; font-size: 1rem; font-weight: 700; color: var(--text-primary); margin: 0 0 12px;
+}
+.gasto-etapas-lista { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.gasto-etapa-fila { padding: 10px 12px; border-radius: var(--radius-sm); border: 1px dashed rgba(255, 255, 255, 0.16); }
+.gasto-etapa-fila--hecha { border-style: solid; border-color: rgba(194, 205, 74, 0.35); }
+.gasto-etapa-nombre { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; font-weight: 600; color: var(--text-secondary); }
+.gasto-etapa-fila--hecha .gasto-etapa-nombre svg { color: var(--status-resuelto-text); }
+.gasto-etapa-estado { margin-left: auto; font-size: 0.74rem; font-weight: 500; color: var(--text-muted); }
+.gasto-comprobante {
+  display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; grid-template-areas: "icono nombre acciones" ". meta acciones";
+  align-items: center; gap: 2px 8px; margin-top: 8px; padding-left: 6px; color: var(--text-secondary);
+}
+.gasto-comprobante > svg { grid-area: icono; }
+.gasto-comprobante-nombre { grid-area: nombre; font-size: 0.85rem; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gasto-comprobante-meta { grid-area: meta; font-size: 0.74rem; color: var(--text-muted); display: flex; flex-wrap: wrap; gap: 2px 8px; min-width: 0; }
+.gasto-comprobante-acciones { grid-area: acciones; display: flex; gap: 4px; }
+.gasto-subir { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.gasto-subir-boton { cursor: pointer; justify-content: center; }
+.gasto-subir-boton--ocupado { opacity: 0.6; pointer-events: none; }
+.gasto-historial { margin-top: 22px; }
+.gasto-historial ol { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid rgba(255, 255, 255, 0.1); display: flex; flex-direction: column; gap: 10px; }
+.gasto-historial li { display: flex; flex-direction: column; gap: 2px; }
+.gasto-historial-que { font-size: 0.86rem; color: var(--text-primary); overflow-wrap: anywhere; }
+.gasto-historial-quien { font-size: 0.74rem; color: var(--text-muted); }
+
+/* ---- Presupuesto y catálogos ---- */
+.gasto-presupuesto { display: flex; flex-direction: column; gap: 8px; }
+.gasto-presupuesto-fila {
+  display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(110px, 1fr) minmax(0, 0.9fr) minmax(0, 0.6fr);
+  align-items: center; gap: 6px 14px;
+}
+.gasto-presupuesto-fila--cabeza { font-size: 0.74rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.gasto-presupuesto-fila--total { border-top: 1px solid var(--border-color); padding-top: 10px; font-size: 0.95rem; color: var(--text-secondary); }
+.gasto-presupuesto-fila--total strong { grid-column: 2 / -1; color: var(--text-primary); }
+.gasto-presupuesto-nombre { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.88rem; color: var(--text-primary); min-width: 0; }
+.gasto-presupuesto-cifra { font-size: 0.86rem; color: var(--text-secondary); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gasto-presupuesto-cifra--peligro { color: var(--peligro); font-weight: 600; }
+.gasto-presupuesto-rotulo { display: none; }
+.gasto-catalogo { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; }
+.gasto-catalogo li {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "nombre acciones" "meta acciones";
+  gap: 2px 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.gasto-catalogo--retirada { opacity: 0.6; }
+.gasto-catalogo-nombre { grid-area: nombre; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 0.9rem; color: var(--text-primary); min-width: 0; overflow-wrap: anywhere; }
+.gasto-catalogo-meta { grid-area: meta; font-size: 0.76rem; color: var(--text-muted); }
+.gasto-catalogo-acciones { grid-area: acciones; display: flex; gap: 4px; }
+.gasto-catalogo-editar { grid-column: 1 / -1; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.gasto-catalogo-editar .form-input { flex: 1 1 160px; min-width: 0; }
+.gasto-catalogo-nuevo { display: flex; gap: 8px; flex-wrap: wrap; }
+.gasto-catalogo-nuevo .form-input { flex: 2 1 160px; min-width: 0; }
+.gasto-catalogo-nuevo .gasto-catalogo-rfc, .gasto-catalogo-editar .gasto-catalogo-rfc { flex: 1 1 120px; }
+
+@media (max-width: 960px) {
+  .gastos-doble, .gastos-doble--parejo { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  .gasto-fila.apple-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "principal acciones" "fecha monto" "estado estado";
+    padding: 12px 14px;
+  }
+  .gasto-fila-fecha { flex-direction: row; align-items: center; gap: 10px; }
+  .gasto-fila-estado { flex-direction: row; justify-content: space-between; align-items: center; }
+  .gasto-categoria { grid-template-columns: minmax(0, 1fr) auto; }
+  .gasto-categoria-pista { grid-column: 1 / -1; grid-row: 2; }
+  .gasto-campos { grid-template-columns: minmax(0, 1fr); }
+  .gasto-subir { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .gasto-subir-boton { grid-column: 1 / -1; }
+  .gasto-formulario.apple-card, .gasto-detalle.apple-card { padding: 18px 14px; }
+  .gasto-detalle-acciones { margin-left: 0; }
+  .gasto-presupuesto-fila { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .gasto-presupuesto-fila--cabeza { display: none; }
+  .gasto-presupuesto-nombre { grid-column: 1 / -1; }
+  .gasto-presupuesto-fila input { grid-column: 1 / -1; }
+  .gasto-presupuesto-cifra { text-align: left; display: flex; flex-direction: column; }
+  .gasto-presupuesto-rotulo { display: inline; font-size: 0.7rem; color: var(--text-muted); }
+  .gasto-presupuesto-fila--total strong { grid-column: 2; }
+  .grafica-lienzo { margin-left: 44px; height: 190px; }
+  .grafica-meses { margin-left: 44px; }
+  .grafica-meses span { font-size: 0.62rem; }
+  .grafica-columna { padding: 0 10%; }
+}
+@media (max-width: 420px) {
+  .gastos-exportar { width: 100%; }
+  .gastos-exportar > * { flex: 1 1 0; justify-content: center; }
+  .gasto-detalle-total { font-size: 1.35rem; }
+}

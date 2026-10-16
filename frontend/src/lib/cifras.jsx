@@ -64,3 +64,35 @@ export function sobreCinco(v, idioma) {
 export function deTotal(v, total, idioma) {
   return <>{entero(v, idioma)}<Unidad> / {entero(total, idioma)}</Unidad></>;
 }
+
+/**
+ * **El dinero, en el formato de cada idioma y con su moneda a la vista.**
+ *
+ * El idioma del portal es `es`, `en` o `fr`, pero el formato de una cantidad
+ * es de un país: `es` a secas escribe «105.000,00 MXN» (el de España). La
+ * planta está en México, así que el castellano usa `es-MX` —«$105,000.00»—.
+ * El símbolo va estrecho (`$`) para pesos y dólares por igual, y por eso el
+ * código de la moneda va siempre al lado, en pequeño: «$116.00 USD» no se
+ * puede confundir con pesos.
+ */
+const LOCALES = { es: 'es-MX', en: 'en-US', fr: 'fr-FR' };
+
+export function localeDe(idioma) {
+  return LOCALES[(idioma || 'es').slice(0, 2)] || 'es-MX';
+}
+
+export function dineroTexto(v, idioma, { moneda = 'MXN', decimales = 2 } = {}) {
+  return new Intl.NumberFormat(localeDe(idioma), {
+    style: 'currency', currency: moneda, currencyDisplay: 'narrowSymbol',
+    minimumFractionDigits: decimales, maximumFractionDigits: decimales,
+  }).format(Number(v) || 0);
+}
+
+export function dinero(v, idioma, { moneda = 'MXN', decimales = 2, codigo = true } = {}) {
+  return (
+    <>
+      {dineroTexto(v, idioma, { moneda, decimales })}
+      {codigo && <Unidad> {moneda}</Unidad>}
+    </>
+  );
+}

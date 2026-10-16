@@ -28,6 +28,8 @@ from app.api.alertas import router as alertas_router
 from app.api.directorio import router as directorio_router
 from app.api.iot import router as iot_router
 from app.api.terminos import router as terminos_router
+from app.api.sso_microsoft import router as sso_router, admin_router as sso_admin_router
+from app.api.gastos import router as gastos_router
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth_router)
@@ -63,3 +65,6 @@ api_router.include_router(alertas_router)
 api_router.include_router(directorio_router)
 api_router.include_router(iot_router)
 api_router.include_router(terminos_router)
+api_router.include_router(sso_router)
+api_router.include_router(sso_admin_router)
+api_router.include_router(gastos_router)

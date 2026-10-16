@@ -492,6 +492,164 @@ IMAGENES_CONOCIMIENTO = {
 }
 
 
+
+# --- Gastos de TI (Activos → Gastos) ----------------------------------------
+# Imitan las formas de api/gastos.py: `/gastos` ({gastos, total, ...}),
+# `/gastos/resumen` (lo de `gastos_service.resumir`), `/gastos/catalogos`,
+# `/gastos/presupuesto/<año>` y `/gastos/<id>`. Conceptos largos, un gasto en
+# dólares y vínculos a activo y ticket a propósito: es lo que estira la lista
+# en el teléfono.
+_CATEGORIAS_GASTO = ["Arrendamiento de equipo", "Telefonía y líneas", "Internet y enlaces",
+                     "Licencias y software", "Hardware y refacciones", "Mantenimiento del site",
+                     "Servicios profesionales", "Otros"]
+_PROVEEDORES_GASTO = {1: ("Microsoft México S. de R.L. de C.V.", "MME910620Q85"), 2: ("Amazon México", None),
+                      3: ("Consultores de Redes SA de CV", "ABC010203XY1"), 4: ("Autodesk", None),
+                      5: ("Dell México", "DME981120AB3"), 6: ("Totalplay Empresarial", "TPE120301KL9"),
+                      7: ("APC Distribuidora del Bajío", None), 8: ("Radiomóvil Dipsa (Telcel)", "RDI841003QJ4")}
+_GASTOS_MUESTRA = [
+    # id, fecha, concepto, cat, prov, tipo, moneda, tc, subtotal, iva, ret, estado, etapas, cantidad, equipo, ticket
+    (1, "2026-01-15", "Renovación anual de Microsoft 365 E3 para 85 usuarios de planta y oficinas", 4, 1, "proveedor", "MXN", 1, 78000.0, 12480.0, 0, "pagado", ["cotizacion", "orden_compra", "factura", "albaran", "pago"], 85, None, None),
+    (2, "2026-02-03", "Tóner HP 58A para las impresoras del almacén", 5, 2, "linea", "MXN", 1, 5500.0, 880.0, 0, "pendiente", ["pedido", "factura"], 4, None, None),
+    (3, "2026-03-10", "Configuración de firewall FortiGate y soporte remoto", 7, 3, "proveedor", "MXN", 1, 10000.0, 1600.0, 2066.67, "pagado", ["cotizacion", "factura", "pago"], 1, None, None),
+    (4, "2026-03-22", "Licencia anual de AutoCAD LT", 4, 4, "linea", "USD", 18.42, 443.97, 71.03, 0, "pagado", ["pedido", "factura", "albaran"], 1, None, None),
+    (5, "2026-05-08", "Laptop Dell Latitude 5440 para supervisor de turno", 5, 5, "proveedor", "MXN", 1, 24999.14, 3999.86, 0, "pagado", ["cotizacion", "orden_compra", "factura"], 1, {"id": 7, "etiqueta": "Dell Latitude 5440 · 7XK2P93"}, None),
+    (6, "2026-07-14", "Enlace dedicado de 100 Mbps — julio", 3, 6, "proveedor", "MXN", 1, 11000.0, 1760.0, 0, "pendiente", ["factura"], 1, None, None),
+    (7, "2026-09-02", "Cambio de baterías del UPS del site", 6, 7, "proveedor", "MXN", 1, 16034.48, 2565.52, 0, "pendiente", ["cotizacion"], 1, None, {"id": 101, "folio": "TICK-QRO-2026-0101"}),
+    (8, "2026-10-01", "12 líneas Telcel de octubre", 2, 8, "proveedor", "MXN", 1, 6196.55, 991.45, 0, "pendiente", [], 12, None, None),
+]
+_PRESUPUESTO_GASTO = {4: 150000.0, 5: 80000.0, 3: 160000.0, 2: 90000.0, 7: 60000.0, 6: 40000.0}
+_ETAPAS_GASTO = {"proveedor": ["cotizacion", "orden_compra", "factura", "albaran"], "linea": ["pedido", "factura", "albaran"]}
+
+
+def _gasto_muestra(g):
+    (gid, fecha, concepto, cat, prov, tipo, moneda, tc, sub, iva, ret, estado, docs, cant, equipo, ticket) = g
+    total = round(sub + iva - ret, 2)
+    etapas = _ETAPAS_GASTO[tipo]
+    faltan = [e for e in etapas if e not in docs]
+    nombre, rfc = _PROVEEDORES_GASTO[prov]
+    return {"id": gid, "fecha": fecha, "concepto": concepto, "cantidad": cant, "tipo_compra": tipo,
+            "referencia": "114-8873620-55" if tipo == "linea" else None,
+            "categoria": {"id": cat, "nombre": _CATEGORIAS_GASTO[cat - 1]},
+            "proveedor": {"id": prov, "nombre": nombre, "rfc": rfc}, "moneda": moneda, "tipo_cambio": tc,
+            "subtotal": sub, "tasa_iva": 0.16, "iva": iva, "retenciones": ret, "total": total,
+            "total_mxn": round(total * tc, 2), "estado": estado,
+            "fecha_pago": fecha if estado == "pagado" else None, "centro_costo": None, "notas": None,
+            "planta": {"id": 1, "clave": "QRO", "nombre": "Planta de vista previa"} if gid % 3 else None,
+            "equipo": equipo, "ticket": ticket,
+            "responsable": {"id": 1, "nombre": "Vista previa"} if gid % 2 else None,
+            "expediente": {"hechas": len(etapas) - len(faltan), "total": len(etapas), "completo": not faltan,
+                           "faltan": faltan, "pago": "pago" in docs},
+            "comprobantes_n": len(docs), "creado_en": fecha + "T15:00:00Z", "actualizado_en": fecha + "T15:00:00Z"}
+
+
+def _gastos_de_muestra():
+    import datetime as _dt
+    gastos = [_gasto_muestra(g) for g in _GASTOS_MUESTRA]
+    hoy = _dt.date.today()
+    anio = 2026
+    dias = 366 if anio % 4 == 0 else 365
+    fraccion = 1.0 if hoy.year > anio else max(0.0, min(1.0, ((hoy - _dt.date(anio, 1, 1)).days + 1) / dias))
+    gastado = round(sum(g["total_mxn"] for g in gastos), 2)
+    pendiente = round(sum(g["total_mxn"] for g in gastos if g["estado"] == "pendiente"), 2)
+    presupuesto = sum(_PRESUPUESTO_GASTO.values())
+    meses = []
+    for m in range(1, 13):
+        del_mes = [g for g in gastos if int(g["fecha"][5:7]) == m]
+        por_cat = {}
+        for g in del_mes:
+            por_cat[g["categoria"]["id"]] = por_cat.get(g["categoria"]["id"], 0) + g["total_mxn"]
+        meses.append({"mes": m, "total": round(sum(g["total_mxn"] for g in del_mes), 2), "n": len(del_mes),
+                      "pendiente": round(sum(g["total_mxn"] for g in del_mes if g["estado"] == "pendiente"), 2),
+                      "por_categoria": [{"categoria_id": c, "total": round(t, 2)}
+                                        for c, t in sorted(por_cat.items(), key=lambda x: -x[1])]})
+    con = [m for m in meses if m["total"] > 0]
+    top = max(con, key=lambda m: m["total"])
+    mayor = max((g for g in gastos if int(g["fecha"][5:7]) == top["mes"]), key=lambda g: g["total_mxn"])
+    promedio = sum(m["total"] for m in con) / len(con)
+    cat_id, cat_total = top["por_categoria"][0]["categoria_id"], top["por_categoria"][0]["total"]
+    por_categoria = []
+    for i, nombre in enumerate(_CATEGORIAS_GASTO, start=1):
+        total = round(sum(g["total_mxn"] for g in gastos if g["categoria"]["id"] == i), 2)
+        monto = _PRESUPUESTO_GASTO.get(i, 0.0)
+        por_categoria.append({"categoria_id": i, "nombre": nombre, "activa": True, "total": total,
+                              "n": sum(1 for g in gastos if g["categoria"]["id"] == i), "presupuesto": monto,
+                              "consumo": total / monto if monto else None,
+                              "prorrateado": round(monto * fraccion, 2) if monto else None})
+    por_categoria.sort(key=lambda c: -c["total"])
+    por_proveedor = sorted(({"proveedor_id": g["proveedor"]["id"], "nombre": g["proveedor"]["nombre"],
+                             "total": g["total_mxn"], "n": 1} for g in gastos), key=lambda x: -x["total"])[:8]
+    con_planta = round(sum(g["total_mxn"] for g in gastos if g["planta"]), 2)
+    resumen = {
+        "anio": anio, "hoy": hoy.isoformat(), "mes_en_curso": hoy.month if hoy.year == anio else None,
+        "fraccion_transcurrida": fraccion, "con_presupuesto": True,
+        "totales": {"gastado": gastado, "n": len(gastos), "pendiente": pendiente, "pagado": round(gastado - pendiente, 2),
+                    "presupuesto": presupuesto, "disponible": round(presupuesto - gastado, 2),
+                    "prorrateado": round(presupuesto * fraccion, 2),
+                    "desviacion": round(gastado - presupuesto * fraccion, 2), "consumo": gastado / presupuesto,
+                    "proyeccion": round(gastado / fraccion, 2) if fraccion else None,
+                    "ritmo_mensual": round(gastado / (fraccion * 12), 2) if fraccion else None,
+                    "anio_anterior": 151230.4, "vs_anio_anterior": (gastado - 151230.4) / 151230.4,
+                    "usd": {"n": 1, "total_usd": 515.0, "total_mxn": 9486.3}},
+        "meses": meses,
+        "mes_mas_caro": {"mes": top["mes"], "total": top["total"], "n": top["n"],
+                         "categoria": {"id": cat_id, "nombre": _CATEGORIAS_GASTO[cat_id - 1], "total": cat_total,
+                                       "pct": cat_total / top["total"]},
+                         "proveedor": {"id": mayor["proveedor"]["id"], "nombre": mayor["proveedor"]["nombre"],
+                                       "total": mayor["total_mxn"], "n": 1, "pct": mayor["total_mxn"] / top["total"]},
+                         "mayor_gasto": {"id": mayor["id"], "concepto": mayor["concepto"],
+                                         "proveedor": mayor["proveedor"]["nombre"], "total_mxn": mayor["total_mxn"],
+                                         "pct": mayor["total_mxn"] / top["total"]},
+                         "vs_mes_anterior": None, "vs_promedio": (top["total"] - promedio) / promedio,
+                         "promedio": round(promedio, 2)},
+        "por_categoria": por_categoria, "por_proveedor": por_proveedor,
+        "por_planta": [{"sitio_id": 1, "clave": "QRO", "nombre": "Planta de vista previa", "total": con_planta, "n": 5},
+                       {"sitio_id": None, "clave": None, "nombre": None, "total": round(gastado - con_planta, 2), "n": 3}],
+        "expediente": {"total": 8, "completos": 2, "sin_factura": 2, "sin_cotizacion": 2, "sin_orden_compra": 4,
+                       "sin_pedido": 0, "sin_albaran": 6},
+    }
+    catalogos = {
+        "categorias": [{"id": i, "nombre": n, "activa": True, "n": sum(1 for g in gastos if g["categoria"]["id"] == i)}
+                       for i, n in enumerate(_CATEGORIAS_GASTO, start=1)],
+        "proveedores": [{"id": i, "nombre": n, "rfc": r, "n": 1, "total_mxn": 10000.0,
+                         "categoria_habitual": {"id": 4, "nombre": "Licencias y software"}}
+                        for i, (n, r) in _PROVEEDORES_GASTO.items()],
+        "responsables": [{"id": 1, "nombre": "Vista previa"}],
+        "tasas_iva": [0.0, 0.08, 0.16], "tipos_comprobante": ["cotizacion", "orden_compra", "factura", "albaran", "pago", "pedido"],
+        "etapas": _ETAPAS_GASTO, "max_mb": 20,
+    }
+    presupuesto_anio = {"anio": anio, "total": presupuesto, "categorias": [
+        {"categoria_id": i, "nombre": n, "activa": True, "monto": _PRESUPUESTO_GASTO.get(i, 0.0),
+         "gastado": round(sum(g["total_mxn"] for g in gastos if g["categoria"]["id"] == i), 2)}
+        for i, n in enumerate(_CATEGORIAS_GASTO, start=1)]}
+    detalle = dict(gastos[2], comprobantes=[
+        {"id": 11, "tipo": "cotizacion", "folio": "COT-2231", "fecha": "2026-03-01", "cfdi_uuid": None,
+         "nombre": "Cotizacion firewall FortiGate 60F y soporte.pdf", "tipo_mime": "application/pdf",
+         "tamano_bytes": 284311, "creado_en": "2026-03-01T16:00:00Z", "subido_por": "Vista previa"},
+        {"id": 12, "tipo": "factura", "folio": "A-1234", "fecha": "2026-03-10",
+         "cfdi_uuid": "6F3E2C1A-1B2C-4D5E-8F90-ABCDEF123456", "nombre": "A-1234.xml",
+         "tipo_mime": "application/xml", "tamano_bytes": 5120, "creado_en": "2026-03-10T16:00:00Z",
+         "subido_por": "Vista previa"},
+        {"id": 13, "tipo": "pago", "folio": None, "fecha": "2026-03-15", "cfdi_uuid": None,
+         "nombre": "Transferencia SPEI.jpg", "tipo_mime": "image/jpeg", "tamano_bytes": 912004,
+         "creado_en": "2026-03-15T16:00:00Z", "subido_por": "Vista previa"}],
+        historial=[
+            {"accion": "gasto.comprobante_subido", "creado_en": "2026-03-15T16:00:00Z", "usuario": "Vista previa",
+             "detalle": {"tipo": "pago", "nombre": "Transferencia SPEI.jpg"}},
+            {"accion": "gasto.editado", "creado_en": "2026-03-11T16:00:00Z", "usuario": "Vista previa",
+             "detalle": {"cambios": {"retenciones": {"antes": "0.00", "despues": "2066.67"},
+                                     "total": {"antes": "11600.00", "despues": "9533.33"}}}},
+            {"accion": "gasto.creado", "creado_en": "2026-03-10T16:00:00Z", "usuario": "Vista previa", "detalle": {}}])
+    return {
+        "/api/gastos": {"anio": anio, "mes": None, "total": len(gastos), "suma_mxn": gastado,
+                        "pendiente_mxn": pendiente, "gastos": sorted(gastos, key=lambda g: g["fecha"], reverse=True)},
+        "/api/gastos/resumen": resumen,
+        "/api/gastos/catalogos": catalogos,
+        "/api/gastos/presupuesto/2026": presupuesto_anio,
+        "/api/gastos/presupuesto/2025": dict(presupuesto_anio, anio=2025),
+        "/api/gastos/3": detalle,
+        "/api/auth/microsoft/config": {"activo": True, "url": "/api/auth/microsoft/login"},
+    }
+
 def _breve(ident, pie=None):
     """La forma de `ImagenBreve` (app/schemas/imagenes.py)."""
     return {"id": ident, "orden": 1, "pie": pie, "nombre_original": f"captura-{ident}.png",
@@ -866,6 +1024,7 @@ def main() -> int:
                                     "personas": [{"id": 1, "nombre": "Vista previa"}]},
         "/api/sitios": [{"id": 1, "clave": "QRO", "nombre": "Planta de vista previa",
                          "pais": "México", "activo": True}],
+        **_gastos_de_muestra(),
     }
     # Rutas que se pidieron y este guion no conoce. Se anotan para decirlo al
     # final: ver mas abajo por que.

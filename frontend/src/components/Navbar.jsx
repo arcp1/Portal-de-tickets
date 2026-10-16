@@ -8,6 +8,7 @@ import { LogOut, ShieldCheck, User, FolderOpen, KeyRound, Languages, Check, Sear
 } from 'lucide-react';
 import { useConexionPortal } from '../context/Eventos';
 import CambiarPassword from './CambiarPassword';
+import LogoMicrosoft from './LogoMicrosoft';
 import { cambiarIdioma as cambiarIdiomaDelPortal } from '../i18n';
 import CampanaAlertas from './CampanaAlertas';
 import { textoPlantasDe } from '../lib/plantas';
@@ -199,6 +200,11 @@ const Navbar = () => {
             }
             entradas={[
               { ruta: '/expediente', icono: <FolderOpen size={16} />, texto: t('nav.expediente') },
+              // Dice por qué esta persona puede entrar sin contraseña: su
+              // cuenta de Microsoft ya está atada a esta.
+              ...(user.microsoft_vinculada
+                ? [{ nota: true, icono: <LogoMicrosoft tamano={14} />, texto: t('auth.microsoft_vinculada') }]
+                : []),
               ...IDIOMAS.map(([codigo, nombre]) => ({
                 onSelect: () => cambiarIdioma(codigo),
                 icono: i18n.language?.startsWith(codigo)

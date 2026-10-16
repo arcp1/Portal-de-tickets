@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import LanguageSelector from '../components/LanguageSelector';
 import { AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import Formulario from '../components/Formulario';
-import { SESION_CADUCADA, VOLVER_A } from '../api/client';
+import LogoMicrosoft from '../components/LogoMicrosoft';
+import api, { SESION_CADUCADA, VOLVER_A } from '../api/client';
 
 /**
  * La puerta del portal, con la estructura del componente Mercury.
@@ -49,9 +50,34 @@ const destinoTrasEntrar = (quien) => {
   }
 };
 
+/** A dónde iba quien pulsó «Iniciar sesión con Microsoft»: el viaje a
+ *  Microsoft se lleva por delante el estado de la navegación. */
+const DESTINO_SSO = 'portal_sso_destino';
+/** Lo que el backend sabe explicar (`CODIGOS` en services/sso_microsoft.py). */
+const ERRORES_SSO = ['no_configurado', 'cancelado', 'estado_invalido', 'tenant_invalido', 'no_registrada',
+  'cuenta_inactiva', 'conflicto', 'demasiados', 'fallo'];
+
+/** `#sso=…` o `#sso_error=…`, lo que deja la vuelta de Microsoft. */
+const leerFragmento = () => {
+  const fragmento = window.location.hash || '';
+  if (!fragmento.startsWith('#')) return {};
+  const p = new URLSearchParams(fragmento.slice(1));
+  return { codigo: p.get('sso'), error: p.get('sso_error') };
+};
+
+const destinoTrasMicrosoft = () => {
+  try {
+    const ruta = String(sessionStorage.getItem(DESTINO_SSO) || '');
+    sessionStorage.removeItem(DESTINO_SSO);
+    return ruta.startsWith('/') && !ruta.startsWith('//') && !ruta.startsWith('/login') ? ruta : null;
+  } catch {
+    return null;
+  }
+};
+
 const Login = () => {
   const { t } = useTranslation();
-  const { login } = useAuth();
+  const { login, entrarConMicrosoft } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -76,6 +102,50 @@ const Login = () => {
     }
   });
   const [submitting, setSubmitting] = useState(false);
+  // A dónde lleva el botón de Microsoft, o nada si no está configurado. Va al
+  // origen del callback, que puede no ser este (ver `url_de_entrada`).
+  const [urlMicrosoft, setUrlMicrosoft] = useState(null);
+  const [terminandoSso, setTerminandoSso] = useState(false);
+  const canjeHecho = useRef(false);
+
+  useEffect(() => {
+    let vivo = true;
+    api.get('/auth/microsoft/config')
+      .then((res) => { if (vivo && res.data?.activo && typeof res.data.url === 'string') setUrlMicrosoft(res.data.url); })
+      .catch(() => { /* sin el botón: se entra con número de empleado */ });
+    return () => { vivo = false; };
+  }, []);
+
+  // La vuelta de Microsoft. El fragmento se borra de la barra de direcciones
+  // en cuanto se lee: el código sirve una vez y no tiene por qué quedarse en
+  // el historial. `canjeHecho` evita gastarlo dos veces si el efecto se repite.
+  useEffect(() => {
+    const { codigo, error: codigoError } = leerFragmento();
+    if (!codigo && !codigoError) return;
+    window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+    if (codigoError) {
+      setError(t(`auth.sso_error_${ERRORES_SSO.includes(codigoError) ? codigoError : 'fallo'}`));
+      return;
+    }
+    if (canjeHecho.current) return;
+    canjeHecho.current = true;
+    setTerminandoSso(true);
+    entrarConMicrosoft(codigo)
+      .then(() => navigate(destinoTrasMicrosoft() || '/', { replace: true }))
+      .catch((err) => {
+        const detalle = err.response?.data?.detail;
+        setError(typeof detalle === 'string' && detalle ? detalle : t('auth.sso_error_fallo'));
+        setTerminandoSso(false);
+      });
+  }, []);
+
+  const irAMicrosoft = () => {
+    try {
+      const desde = location.state?.desde;
+      if (desde) sessionStorage.setItem(DESTINO_SSO, desde);
+      else sessionStorage.removeItem(DESTINO_SSO);
+    } catch { /* sin almacenamiento: se vuelve al tablero */ }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -130,9 +200,16 @@ const Login = () => {
         </header>
 
         {error && (
-          <div className="puerta-error animate-scale-in">
+          <div className="puerta-error animate-scale-in" role="alert">
             <AlertTriangle size={17} />
             {error}
+          </div>
+        )}
+
+        {terminandoSso && (
+          <div className="puerta-sso-espera" role="status">
+            <LogoMicrosoft tamano={16} />
+            {t('auth.sso_entrando')}
           </div>
         )}
 
@@ -202,6 +279,22 @@ const Login = () => {
             </button>
           </div>
         </Formulario>
+
+        {/* **Una alternativa, no un reemplazo.** El número de empleado sigue
+            siendo la puerta de todos: en planta mucha gente no tiene cuenta
+            de Microsoft. El botón solo aparece si TI lo configuró, y es un
+            enlace —una navegación completa—, no una petición: Microsoft tiene
+            que ver el navegador. */}
+        {urlMicrosoft && (
+          <>
+            <div className="puerta-separador" aria-hidden="true"><span>{t('auth.sso_o')}</span></div>
+            <a className="boton-microsoft" href={urlMicrosoft} onClick={irAMicrosoft}
+              aria-disabled={terminandoSso || undefined}>
+              <LogoMicrosoft />
+              <span>{t('auth.sso_boton')}</span>
+            </a>
+          </>
+        )}
 
         <footer className="puerta-pie">
           <Link to="/activar">{t('activar.primera_vez')}</Link>

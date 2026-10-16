@@ -23,6 +23,7 @@ const TITULOS = {
   '/inventory': 'nav.inventory',
   '/expediente': 'nav.expediente',
   '/resguardos': 'nav.resguardos',
+  '/activos/gastos': 'nav.gastos',
   '/operacion/alertas': 'nav.alertas',
   '/operacion/monitoreo': 'nav.monitoreo',
   '/personas': 'nav.usuarios',

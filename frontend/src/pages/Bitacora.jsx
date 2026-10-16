@@ -18,6 +18,9 @@ function enlaceDe(entidad, id) {
   if (entidad === 'ticket') return `/tickets/${id}`;
   if (entidad === 'usuario') return `/personas/${id}`;
   if (entidad === 'carpeta') return `/documentos/archivos/${id}`;
+  // Un gasto borrado sigue aquí: su detalle dirá que ya no existe.
+  if (entidad === 'gasto') return `/activos/gastos?gasto=${id}`;
+  if (entidad === 'gasto_presupuesto') return `/activos/gastos?vista=presupuesto&anio=${id}`;
   return null;
 }
 
