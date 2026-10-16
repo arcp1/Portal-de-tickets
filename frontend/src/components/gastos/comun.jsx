@@ -52,9 +52,12 @@ export function momento(iso, idioma) {
   });
 }
 
-export function nombreMes(mes, idioma, forma = 'long') {
-  const texto = new Date(2026, mes - 1, 1).toLocaleDateString(localeDe(idioma), { month: forma });
-  return texto.charAt(0).toUpperCase() + texto.slice(1).replace('.', '');
+/** El nombre del mes. Con mayúscula inicial para un rótulo («Marzo»); sin
+ *  ella dentro de una frase, donde el castellano y el francés lo escriben en
+ *  minúscula («Ver los gastos de marzo») y el inglés ya lo trae con ella. */
+export function nombreMes(mes, idioma, forma = 'long', mayuscula = true) {
+  const texto = new Date(2026, mes - 1, 1).toLocaleDateString(localeDe(idioma), { month: forma }).replace('.', '');
+  return mayuscula ? texto.charAt(0).toUpperCase() + texto.slice(1) : texto;
 }
 
 export function hoyIso() {

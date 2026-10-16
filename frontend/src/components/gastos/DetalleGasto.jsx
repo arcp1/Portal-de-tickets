@@ -102,7 +102,7 @@ export default function DetalleGasto({ id, version, onCerrar, onEditar, onCambio
           <>
             <div className="gasto-detalle-cabeza">
               <div className="gasto-detalle-total">
-                {dinero(g.total, idioma, { moneda: g.moneda })}
+                <span>{dinero(g.total, idioma, { moneda: g.moneda })}</span>
                 {g.moneda !== 'MXN' && <span className="gasto-fila-mxn">≈ {dineroTexto(g.total_mxn, idioma)}</span>}
               </div>
               <ChipEstado estado={g.estado} fechaPago={g.fecha_pago} idioma={idioma} />

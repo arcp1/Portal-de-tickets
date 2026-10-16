@@ -364,11 +364,11 @@ function Resumen({ anio, planta, catalogos, version, onMes, onAbrir, onNuevo }) 
                 )}
                 {caro.vs_mes_anterior !== null && caro.vs_mes_anterior !== undefined && (
                   <li>{t(caro.vs_mes_anterior >= 0 ? 'gastos.razon_sube' : 'gastos.razon_baja', {
-                    pct: pct(Math.abs(caro.vs_mes_anterior), idioma), mes: nombreMes(caro.mes - 1, idioma) })}</li>
+                    pct: pct(Math.abs(caro.vs_mes_anterior), idioma), mes: nombreMes(caro.mes - 1, idioma, 'long', false) })}</li>
                 )}
               </ul>
               <button type="button" className="btn-secondary metricas-boton" onClick={() => onMes(caro.mes)}>
-                {t('gastos.ver_mes', { mes: nombreMes(caro.mes, idioma) })}
+                {t('gastos.ver_mes', { mes: nombreMes(caro.mes, idioma, 'long', false) })}
               </button>
             </div>
           </Seccion>
@@ -393,14 +393,19 @@ function Resumen({ anio, planta, catalogos, version, onMes, onAbrir, onNuevo }) 
             return (
               <div key={c.categoria_id} className="gasto-categoria">
                 <div className="gasto-categoria-nombre">
-                  <i style={{ background: colorDe(c.categoria_id) }} aria-hidden="true" />
-                  <span>{c.nombre}</span>
+                  <span className="gasto-categoria-etiqueta">
+                    <i style={{ background: colorDe(c.categoria_id) }} aria-hidden="true" />
+                    {c.nombre}
+                  </span>
                   {tono === 'peligro' && <span className="gasto-ritmo gasto-ritmo--peligro"><AlertTriangle size={12} />{t('gastos.rebasado')}</span>}
                   {tono === 'atencion' && <span className="gasto-ritmo gasto-ritmo--atencion"><ArrowUpRight size={12} />{t('gastos.arriba_ritmo')}</span>}
                 </div>
                 <div className="gasto-categoria-pista">
+                  {/* En regla, el color de la categoría (el de la leyenda);
+                      arriba del ritmo o rebasada, el del aviso, que además
+                      lleva su palabra al lado del nombre. */}
                   <div className={`gasto-categoria-relleno gasto-categoria-relleno--${tono}`}
-                    style={{ width: `${lleno * 100}%` }} />
+                    style={{ width: `${lleno * 100}%`, ...(tono === 'normal' ? { background: colorDe(c.categoria_id) } : {}) }} />
                   {c.presupuesto > 0 && datos.fraccion_transcurrida > 0 && datos.fraccion_transcurrida < 1 && (
                     <span className="gasto-categoria-marca" style={{ left: `${datos.fraccion_transcurrida * 100}%` }}
                       title={t('gastos.marca_ritmo')} />

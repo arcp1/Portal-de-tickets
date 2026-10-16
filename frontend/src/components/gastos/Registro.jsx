@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { Search, FileSpreadsheet, FileText, CheckCheck, Store, ShoppingCart, Plus, Receipt, Factory, Laptop, Ticket } from 'lucide-react';
+import { Search, FileSpreadsheet, FileText, CheckCheck, Store, ShoppingCart, Plus, Receipt, Factory, Laptop, Ticket, SlidersHorizontal } from 'lucide-react';
 import api from '../../api/client';
 import forma from '../../lib/forma';
 import lista from '../../lib/lista';
@@ -35,6 +35,9 @@ export default function Registro({ anio, planta, catalogos, version, mes, onMes,
   const [cargando, setCargando] = useState(true);
   const [aviso, setAviso] = useState('');
   const [exportando, setExportando] = useState('');
+  // En el teléfono los filtros van plegados: eran cinco renglones antes del
+  // primer gasto. En pantalla ancha siempre se ven (index.css).
+  const [verFiltros, setVerFiltros] = useState(false);
 
   // La búsqueda espera a que se deje de teclear.
   useEffect(() => {
@@ -97,41 +100,47 @@ export default function Registro({ anio, planta, catalogos, version, mes, onMes,
   };
 
   const hayFiltros = mes || categoria || estado || tipo || q || planta !== '';
+  const filtrosPuestos = [mes, categoria, estado, tipo].filter(Boolean).length;
 
   return (
     <>
-      <div className="gastos-filtros">
-        <Selector className="form-select" value={mes ? String(mes) : ''} onChange={(e) => onMes(e.target.value || null)}
+      <div className={`gastos-filtros${verFiltros ? ' gastos-filtros--abiertos' : ''}`}>
+        <label className="gastos-buscar">
+          <Search size={16} aria-hidden="true" />
+          <input className="form-input" type="search" value={texto} onChange={(e) => setTexto(e.target.value)}
+            placeholder={t('gastos.buscar')} aria-label={t('gastos.buscar')} maxLength={100} />
+        </label>
+        <button type="button" className="btn-secondary metricas-boton gastos-filtros-boton"
+          aria-expanded={verFiltros} onClick={() => setVerFiltros((v) => !v)}>
+          <SlidersHorizontal size={15} />
+          {filtrosPuestos ? t('gastos.filtros_n', { count: filtrosPuestos }) : t('gastos.filtros')}
+        </button>
+        <Selector className="form-select gastos-filtro" value={mes ? String(mes) : ''} onChange={(e) => onMes(e.target.value || null)}
           aria-label={t('gastos.mes')}>
           <option value="">{t('gastos.todo_el_anio')}</option>
           {Array.from({ length: 12 }, (_, i) => (
             <option key={i + 1} value={String(i + 1)}>{nombreMes(i + 1, idioma)}</option>
           ))}
         </Selector>
-        <Selector className="form-select" value={categoria} onChange={(e) => setCategoria(e.target.value)}
+        <Selector className="form-select gastos-filtro" value={categoria} onChange={(e) => setCategoria(e.target.value)}
           aria-label={t('gastos.categoria')}>
           <option value="">{t('gastos.todas_categorias')}</option>
           {lista(catalogos?.categorias).map((c) => (
             <option key={c.id} value={String(c.id)}>{c.activa ? c.nombre : `${c.nombre} (${t('gastos.retirada')})`}</option>
           ))}
         </Selector>
-        <Selector className="form-select" value={estado} onChange={(e) => setEstado(e.target.value)}
+        <Selector className="form-select gastos-filtro" value={estado} onChange={(e) => setEstado(e.target.value)}
           aria-label={t('gastos.estado')}>
           <option value="">{t('gastos.todos_estados')}</option>
           <option value="pendiente">{t('gastos.estado_pendiente')}</option>
           <option value="pagado">{t('gastos.estado_pagado')}</option>
         </Selector>
-        <Selector className="form-select" value={tipo} onChange={(e) => setTipo(e.target.value)}
+        <Selector className="form-select gastos-filtro" value={tipo} onChange={(e) => setTipo(e.target.value)}
           aria-label={t('gastos.tipo_compra')}>
           <option value="">{t('gastos.todos_tipos')}</option>
           <option value="proveedor">{t('gastos.compra_proveedor')}</option>
           <option value="linea">{t('gastos.compra_linea')}</option>
         </Selector>
-        <label className="gastos-buscar">
-          <Search size={16} aria-hidden="true" />
-          <input className="form-input" type="search" value={texto} onChange={(e) => setTexto(e.target.value)}
-            placeholder={t('gastos.buscar')} aria-label={t('gastos.buscar')} maxLength={100} />
-        </label>
         <div className="gastos-exportar">
           <button type="button" className="btn-secondary metricas-boton" onClick={() => exportar('csv')}
             disabled={!!exportando || !datos?.total}>

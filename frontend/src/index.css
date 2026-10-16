@@ -5783,6 +5783,12 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: not-allowed; }
   margin: 6px 0 0 56px; text-align: center;
 }
 .grafica-meses span { font-size: 0.7rem; color: var(--text-muted); overflow: hidden; text-overflow: clip; white-space: nowrap; }
+.grafica-meses .grafica-mes-letra { display: none; }
+/* Medido: a 412 px «May» cabe en su columna; a 360, no. */
+@media (max-width: 400px) {
+  .grafica-meses .grafica-mes-corto { display: none; }
+  .grafica-meses .grafica-mes-letra { display: inline; }
+}
 .grafica-mes--actual { color: var(--text-primary) !important; font-weight: 700; }
 .grafica-leyenda {
   display: flex; flex-wrap: wrap; gap: 6px 14px; list-style: none;
@@ -5843,8 +5849,11 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: not-allowed; }
   display: grid; grid-template-columns: minmax(150px, 230px) minmax(0, 1fr) auto;
   align-items: center; gap: 6px 14px;
 }
-.gasto-categoria-nombre { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.88rem; color: var(--text-secondary); min-width: 0; }
-.gasto-categoria-nombre i { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.gasto-categoria-nombre { display: flex; align-items: center; gap: 4px 8px; flex-wrap: wrap; font-size: 0.88rem; color: var(--text-secondary); min-width: 0; }
+/* El cuadro de color y el nombre van juntos: sueltos, en el teléfono el
+   cuadro se quedaba solo en un renglón y el nombre bajaba al siguiente. */
+.gasto-categoria-etiqueta { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.gasto-categoria-etiqueta i { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
 .gasto-categoria-pista { position: relative; height: 10px; border-radius: 5px; background: var(--bg-tertiary); }
 .gasto-categoria-relleno { height: 100%; border-radius: inherit; background: var(--accent-primary); }
 .gasto-categoria-relleno--atencion { background: var(--status-espera-proveedor-text); }
@@ -5861,6 +5870,7 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: not-allowed; }
   display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px;
 }
 .gastos-filtros > .selector, .gastos-filtros > .form-select { flex: 1 1 150px; min-width: 0; }
+.gastos-filtros-boton { display: none; }
 .gastos-buscar { position: relative; flex: 2 1 220px; min-width: 0; display: flex; align-items: center; }
 .gastos-buscar svg { position: absolute; left: 12px; color: var(--text-muted); pointer-events: none; }
 .gastos-buscar .form-input { padding-left: 36px; width: 100%; }
@@ -5972,6 +5982,10 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: not-allowed; }
 .gasto-vinculo-lista strong { font-size: 0.85rem; overflow-wrap: anywhere; }
 .gasto-vinculo-lista span { font-size: 0.76rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gasto-formulario-pie { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 16px; }
+/* En un formulario el interruptor se parte en renglones. Con su
+   `white-space: nowrap` de las barras de herramientas, «El importe es por
+   unidad…» se salía 114 px de la ventana a 360 px de ancho. */
+.gasto-formulario .interruptor { white-space: normal; flex-shrink: 1; min-width: 0; align-items: flex-start; }
 
 .gasto-detalle-cabeza { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 16px; }
 .gasto-detalle-total { display: flex; flex-direction: column; font-size: 1.6rem; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
@@ -6045,18 +6059,33 @@ input[type="checkbox"]:disabled { opacity: 0.45; cursor: not-allowed; }
   .gastos-doble, .gastos-doble--parejo { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 720px) {
+  /* El concepto a todo lo ancho: con el botón de pagar en su propia columna,
+     esa columna tomaba el ancho del importe y el concepto se partía en tres
+     renglones y cortaba al proveedor. */
   .gasto-fila.apple-card {
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "principal acciones" "fecha monto" "estado estado";
+    grid-template-areas: "principal principal" "fecha monto" "estado acciones";
     padding: 12px 14px;
   }
-  .gasto-fila-fecha { flex-direction: row; align-items: center; gap: 10px; }
+  .gasto-fila-acciones:empty { display: none; }
+  .gastos-vistas { flex-wrap: wrap; overflow: visible; }
+  .gastos-filtros-boton { display: inline-flex; flex: 0 0 auto; }
+  .gastos-buscar { flex: 1 1 160px; }
+  .gastos-filtros:not(.gastos-filtros--abiertos) > .gastos-filtro { display: none; }
+  .gastos-filtros > .gastos-filtro { flex: 1 1 100%; }
+  .gastos-casillas--chicas { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .gastos-casillas--chicas .casilla-metrica { padding: 12px 14px; }
+  .gastos-casillas--chicas .casilla-metrica-valor { font-size: 1.3rem; }
+  .gasto-categoria { grid-template-columns: minmax(0, 1fr); }
+  .gasto-categoria-cifra { text-align: left; white-space: normal; }
+  .gasto-presupuesto-fila:not(.gasto-presupuesto-fila--cabeza):not(.gasto-presupuesto-fila--total) {
+    padding-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .gasto-fila-fecha { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 2px 10px; }
+  .gasto-fila-fecha > span:first-child { white-space: nowrap; }
   .gasto-fila-estado { flex-direction: row; justify-content: space-between; align-items: center; }
-  .gasto-categoria { grid-template-columns: minmax(0, 1fr) auto; }
-  .gasto-categoria-pista { grid-column: 1 / -1; grid-row: 2; }
   .gasto-campos { grid-template-columns: minmax(0, 1fr); }
-  .gasto-subir { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .gasto-subir-boton { grid-column: 1 / -1; }
+  .gasto-subir { grid-template-columns: minmax(0, 1fr); }
   .gasto-formulario.apple-card, .gasto-detalle.apple-card { padding: 18px 14px; }
   .gasto-detalle-acciones { margin-left: 0; }
   .gasto-presupuesto-fila { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }

@@ -23,11 +23,23 @@ function compacto(v, idioma) {
   }).format(v);
 }
 
-/** Un techo redondo para la escala: 1, 2 o 5 por una potencia de diez. */
+/** Un techo redondo para la escala. Con pasos finos: con solo 1, 2 y 5, un
+ *  presupuesto de $580 k dejaba la escala en $1 M y media gráfica vacía. */
 function techo(v) {
   if (!(v > 0)) return 1;
   const p = 10 ** Math.floor(Math.log10(v));
-  return [1, 2, 2.5, 5, 10].map((m) => m * p).find((x) => x >= v);
+  return [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((m) => m * p).find((x) => x >= v);
+}
+
+/** El rótulo de un mes: la abreviatura y, para cuando no cabe, la inicial.
+ *  A 360 px cada columna mide 16 px y «May» pide 20: se enciman. */
+function RotuloMes({ mes, idioma, actual }) {
+  return (
+    <span className={actual ? 'grafica-mes--actual' : ''}>
+      <span className="grafica-mes-corto">{nombreMes(mes, idioma, 'short')}</span>
+      <span className="grafica-mes-letra">{nombreMes(mes, idioma, 'narrow')}</span>
+    </span>
+  );
 }
 
 function Rejilla({ maximo, idioma }) {
@@ -101,11 +113,7 @@ export function GraficaMeses({ meses, colorDe, nombreDe, mesEnCurso, onMes }) {
         )}
       </div>
       <div className="grafica-meses" aria-hidden="true">
-        {meses.map((m) => (
-          <span key={m.mes} className={m.mes === mesEnCurso ? 'grafica-mes--actual' : ''}>
-            {nombreMes(m.mes, idioma, 'short')}
-          </span>
-        ))}
+        {meses.map((m) => <RotuloMes key={m.mes} mes={m.mes} idioma={idioma} actual={m.mes === mesEnCurso} />)}
       </div>
       {presentes.length > 0 && (
         <ul className="grafica-leyenda">
@@ -176,7 +184,7 @@ export function GraficaAcumulado({ meses, presupuesto, ultimoMes }) {
         {activo && (
           <div className="grafica-globo" role="status" style={{ left: `${((activo - 0.5) / 12) * 100}%` }}
             data-lado={activo > 6 ? 'izquierda' : 'derecha'}>
-            <strong>{t('gastos.al_cierre_de', { mes: nombreMes(activo, idioma) })}</strong>
+            <strong>{t('gastos.al_cierre_de', { mes: nombreMes(activo, idioma, 'long', false) })}</strong>
             {activo <= visibles.length ? (
               <span className="grafica-globo-fila">
                 <i className="grafica-muestra--real" />
@@ -195,7 +203,7 @@ export function GraficaAcumulado({ meses, presupuesto, ultimoMes }) {
         )}
       </div>
       <div className="grafica-meses" aria-hidden="true">
-        {meses.map((m) => <span key={m.mes}>{nombreMes(m.mes, idioma, 'short')}</span>)}
+        {meses.map((m) => <RotuloMes key={m.mes} mes={m.mes} idioma={idioma} />)}
       </div>
       <ul className="grafica-leyenda">
         <li><i className="grafica-muestra--real" />{t('gastos.gastado_acumulado')}</li>
